@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from loguru import logger # 提前导入 logger
 import numpy as np # 需要 numpy 来处理对数变换中的 0 或负值
+from tqdm import tqdm # 用于显示进度条
 
 # --- 项目设置 (路径和日志) ---
 project_root = None
@@ -195,6 +196,100 @@ def plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000, 
 
     logger.info("Demand 'y' 列分布图绘制完成。")
 
+def analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=None, random_state=42):
+    """
+    抽取 n_samples 个 unique_id 的完整时间序列数据，
+    绘制时间序列图，并分析时间戳频率。
+    """
+    logger.info(f"--- 开始分析 Demand 时间序列特性 (抽样 {n_samples} 个 unique_id) ---")
+
+    if plots_dir is None:
+        logger.error("未提供 plots_dir，无法保存时间序列图。")
+        return
+
+    try:
+        # 1. 获取所有 unique_id 并抽样
+        logger.info("获取所有 unique_id...")
+        # 注意：获取所有 unique_id 可能需要一些时间
+        all_unique_ids = ddf_demand['unique_id'].unique().compute()
+        if len(all_unique_ids) < n_samples:
+            logger.warning(f"总 unique_id 数量 ({len(all_unique_ids)}) 少于请求的样本数量 ({n_samples})，将使用所有 unique_id。")
+            sampled_ids = all_unique_ids.tolist()
+            n_samples = len(sampled_ids) # 更新实际样本数
+        else:
+            logger.info(f"从 {len(all_unique_ids):,} 个 unique_id 中随机抽取 {n_samples} 个...")
+            # 设置随机种子以便复现
+            np.random.seed(random_state)
+            sampled_ids = np.random.choice(all_unique_ids, n_samples, replace=False).tolist()
+        logger.info(f"选取的 unique_id: {sampled_ids}")
+
+        # 2. 筛选 Dask DataFrame 并转换为 Pandas DataFrame
+        logger.info("筛选 Dask DataFrame 以获取样本数据...")
+        # 使用 persist 可能有助于后续 compute 加速，但会增加内存使用
+        ddf_sample = ddf_demand[ddf_demand['unique_id'].isin(sampled_ids)].persist()
+
+        logger.info("将样本数据转换为 Pandas DataFrame (可能需要较长时间和较多内存)...")
+        # 这是一个潜在的内存瓶颈，如果 N 很大或时间序列很长
+        pdf_sample = ddf_sample.compute()
+        logger.info(f"Pandas DataFrame 创建完成，包含 {len(pdf_sample):,} 行数据。")
+
+        # 确保按 ID 和时间排序，以便正确计算时间差和绘图
+        pdf_sample = pdf_sample.sort_values(['unique_id', 'timestamp'])
+
+        # 3. 为每个样本绘制时间序列图并分析频率
+        logger.info("开始为每个样本绘制时间序列图并分析频率...")
+        plt.style.use('seaborn-v0_8-whitegrid')
+
+        # 使用 tqdm 显示循环进度
+        for unique_id in tqdm(sampled_ids, desc="Processing Samples"):
+            df_id = pdf_sample[pdf_sample['unique_id'] == unique_id]
+
+            if df_id.empty:
+                logger.warning(f"未找到 unique_id '{unique_id}' 的数据，跳过。")
+                continue
+
+            # --- 绘图 ---
+            fig, ax = plt.subplots(figsize=(15, 5))
+            ax.plot(df_id['timestamp'], df_id['y'], label=f'ID: {unique_id}')
+            ax.set_title(f'Demand (y) Time Series for unique_id: {unique_id}')
+            ax.set_xlabel('Timestamp')
+            ax.set_ylabel('Electricity Demand (y) in kWh')
+            ax.legend()
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+
+            plot_filename = os.path.join(plots_dir, f'timeseries_sample_{unique_id}.png')
+            try:
+                plt.savefig(plot_filename)
+                logger.debug(f"时间序列图已保存到: {plot_filename}") # 使用 debug 级别减少日志量
+                plt.close(fig)
+            except Exception as e:
+                logger.exception(f"保存 unique_id '{unique_id}' 的时间序列图时出错: {e}")
+
+            # --- 分析频率 ---
+            time_diffs = df_id['timestamp'].diff()
+            if len(time_diffs) > 1:
+                # .value_counts() 对 Timedelta 对象可能较慢，先转为秒再统计
+                # 或者直接统计 Timedelta 对象
+                freq_counts = time_diffs.value_counts()
+                logger.info(f"--- unique_id: {unique_id} ---")
+                logger.info(f"时间戳间隔频率统计 (Top 5):\n{freq_counts.head().to_string()}")
+                if len(freq_counts) > 5:
+                    logger.info("...")
+                # 检查是否有超过一种主要频率
+                if len(freq_counts) > 1:
+                    logger.warning(f" unique_id '{unique_id}' 检测到多种时间间隔，可能存在数据缺失或频率变化。")
+            else:
+                logger.info(f" unique_id '{unique_id}' 只有一个时间点，无法计算频率。")
+
+        logger.info("时间序列样本分析完成。")
+
+    except Exception as e:
+        logger.exception(f"分析 Demand 时间序列样本时发生错误: {e}")
+    finally:
+        # 如果使用了 persist()，可以尝试释放 ddf_sample
+        # client.cancel(ddf_sample) # 假设已有 dask client
+        pass
 
 def main():
     """主执行函数，编排 EDA 步骤。"""
@@ -202,15 +297,18 @@ def main():
     ddf_demand = load_demand_data()
 
     # 步骤 2: 分析 Demand 'y' 列的分布 (获取抽样数据)
-    y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
+    # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
 
-    # 步骤 3: 可视化 'y' 列的分布
-    if y_sample_pd is not None and not y_sample_pd.empty:
-        plot_demand_y_distribution(y_sample_pd, plots_dir) # 调用绘图函数
-    else:
-        logger.warning("由于抽样数据为空或分析出错，跳过 'y' 分布的绘图步骤。")
+    # # 步骤 3: 可视化 'y' 列的分布
+    # if y_sample_pd is not None and not y_sample_pd.empty:
+    #     plot_demand_y_distribution(y_sample_pd, plots_dir) # 调用绘图函数
+    # else:
+    #     logger.warning("由于抽样数据为空或分析出错，跳过 'y' 分布的绘图步骤。")
 
-    logger.info("EDA 脚本 - Demand(y) 分布分析执行完毕。")
+    # 步骤 4: 分析时间序列样本
+    analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=plots_dir) # 分析 5 个样本
+
+    logger.info("EDA 脚本 - 时间序列样本分析执行完毕。")
 
 
 if __name__ == "__main__":
