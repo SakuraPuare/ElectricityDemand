@@ -57,6 +57,8 @@ def load_electricity_data(
     return_format: str = "pandas",
     npartitions: int | None = None, # Desired number of partitions for Dask DataFrames. Adjust based on core count and I/O speed for potential performance tuning.
     optimize_meta_weather: bool = True,
+    start_date: str | pd.Timestamp | None = None, # <-- 新增参数
+    end_date: str | pd.Timestamp | None = None,   # <-- 新增参数
     demand_storage_options: dict | None = None, # For potential authentication if needed
     weather_storage_options: dict | None = None
 ) -> tuple | None:
@@ -76,6 +78,10 @@ def load_electricity_data(
                      can add overhead. Experimentation might be needed.
         optimize_meta_weather: Whether to optimize dtypes for metadata (Pandas)
                                and weather (Pandas only).
+        start_date: (Optional) Start date for filtering demand and weather data (inclusive).
+                    Example: '2013-01-01'.
+        end_date: (Optional) End date for filtering demand and weather data (inclusive).
+                  Example: '2013-01-31'.
         demand_storage_options: Storage options for dask/fsspec for demand parquet URL.
         weather_storage_options: Storage options for dask/fsspec for weather parquet URL.
 
@@ -84,6 +90,9 @@ def load_electricity_data(
         - If return_format='dask': tuple[dd.DataFrame, pd.DataFrame, dd.DataFrame] | None
           (Metadata remains Pandas)
     """
+    if start_date or end_date:
+         logger.info(f"Applying time filter: Start={start_date}, End={end_date}")
+
     logger.info(f"Attempting to load data from '{dataset_name}' (format: {return_format})...")
 
     try:
@@ -115,7 +124,7 @@ def load_electricity_data(
         logger.debug("Converted metadata dataset to Pandas DataFrame.")
         if optimize_meta_weather:
             metadata_df = _optimize_pandas_dtypes(metadata_df)
-        logger.success("Metadata loaded and processed as Pandas DataFrame.")
+        logger.success(f"Metadata loaded ({len(metadata_df)} rows) and processed as Pandas DataFrame.") # Added row count log
         del metadata_ds
 
         # --- Define relative paths within the HF dataset repo ---
@@ -175,15 +184,28 @@ def load_electricity_data(
                 demand_ddf = dd.read_parquet(
                     demand_local_path,
                     engine='pyarrow',
-                    dtype=demand_dtypes,
-                    # Consider setting blocksize or split_row_groups for finer control if needed later
                 )
-                # Repartition *after* loading to the desired number
+                # Ensure timestamp column exists before filtering
+                if 'timestamp' not in demand_ddf.columns:
+                    logger.error("Critical: 'timestamp' column not found in demand data.")
+                    return None
+                demand_ddf['timestamp'] = dd.to_datetime(demand_ddf['timestamp']) # Ensure datetime type
+
+                # Apply time filter *after* reading, *before* repartition/head
+                if start_date:
+                    demand_ddf = demand_ddf[demand_ddf['timestamp'] >= pd.to_datetime(start_date)]
+                if end_date:
+                    # Add 1 day to end_date to make it inclusive for date-only strings
+                    effective_end_date = pd.to_datetime(end_date) + pd.Timedelta(days=1)
+                    demand_ddf = demand_ddf[demand_ddf['timestamp'] < effective_end_date]
+
+                # Apply specific dtypes *after* filtering
+                demand_ddf = demand_ddf.astype(demand_dtypes)
+
                 demand_ddf = demand_ddf.repartition(npartitions=npartitions)
-                logger.success(f"Demand Dask DataFrame created and repartitioned to {demand_ddf.npartitions} partitions.")
+                logger.success(f"Demand Dask DataFrame created/filtered and repartitioned to {demand_ddf.npartitions} partitions.")
             except Exception as read_err:
-                logger.error(f"Failed to read demand parquet file '{demand_local_path}' with Dask: {read_err}", exc_info=True)
-                logger.error("Check if the file is corrupted or if Dask/PyArrow have issues.")
+                logger.error(f"Failed to read/process demand parquet file '{demand_local_path}': {read_err}", exc_info=True)
                 return None
 
 
@@ -193,16 +215,25 @@ def load_electricity_data(
                     weather_local_path,
                     engine='pyarrow'
                 )
-                # Repartition *after* loading
+                if 'timestamp' not in weather_ddf.columns:
+                     logger.error("Critical: 'timestamp' column not found in weather data.")
+                     return None
+                weather_ddf['timestamp'] = dd.to_datetime(weather_ddf['timestamp']) # Ensure datetime type
+
+                # Apply time filter *after* reading, *before* repartition/head
+                if start_date:
+                    weather_ddf = weather_ddf[weather_ddf['timestamp'] >= pd.to_datetime(start_date)]
+                if end_date:
+                    effective_end_date = pd.to_datetime(end_date) + pd.Timedelta(days=1)
+                    weather_ddf = weather_ddf[weather_ddf['timestamp'] < effective_end_date]
+
                 weather_ddf = weather_ddf.repartition(npartitions=npartitions)
-                logger.info(f"Weather Dask DataFrame read and repartitioned to {weather_ddf.npartitions} partitions.")
-                logger.info(f"Inferred weather dtypes:\n{weather_ddf.dtypes}")
+                logger.info(f"Weather Dask DataFrame read/filtered and repartitioned to {weather_ddf.npartitions} partitions.")
             except Exception as read_err:
-                 logger.error(f"Failed to read weather parquet file '{weather_local_path}' with Dask: {read_err}", exc_info=True)
-                 logger.error("Check if the file is corrupted or if Dask/PyArrow have issues.")
+                 logger.error(f"Failed to read/process weather parquet file '{weather_local_path}': {read_err}", exc_info=True)
                  return None
 
-            # Apply type conversions *after* loading
+            # Apply type conversions *after* loading and filtering
             logger.info("Applying dtype conversions to Weather Dask DataFrame...")
             weather_dtypes_apply = {}
             if 'location_id' in weather_ddf.columns:
@@ -244,7 +275,20 @@ def load_electricity_data(
             demand_df = demand_ds.to_pandas()
             logger.debug("Converted demand dataset to Pandas DataFrame.")
             del demand_ds
-            logger.success("Demand data loaded as Pandas.")
+            # Ensure datetime type
+            if 'timestamp' in demand_df.columns:
+                 demand_df['timestamp'] = pd.to_datetime(demand_df['timestamp'])
+                 # Apply time filter
+                 if start_date:
+                     demand_df = demand_df[demand_df['timestamp'] >= pd.to_datetime(start_date)]
+                 if end_date:
+                     effective_end_date = pd.to_datetime(end_date) + pd.Timedelta(days=1)
+                     demand_df = demand_df[demand_df['timestamp'] < effective_end_date]
+            else:
+                logger.error("Critical: 'timestamp' column not found in demand data (Pandas).")
+                return None
+
+            logger.success(f"Demand data loaded and filtered as Pandas ({len(demand_df)} rows).")
 
             logger.info("Loading weather data via datasets library (handles caching)...")
             logger.debug(f"Calling load_dataset for weather: dataset_name='{dataset_name}', name='weather', split='train'")
@@ -262,7 +306,20 @@ def load_electricity_data(
             weather_df = weather_ds.to_pandas()
             logger.debug("Converted weather dataset to Pandas DataFrame.")
             del weather_ds
-            logger.success("Weather data loaded as Pandas.")
+            # Ensure datetime type
+            if 'timestamp' in weather_df.columns:
+                weather_df['timestamp'] = pd.to_datetime(weather_df['timestamp'])
+                # Apply time filter
+                if start_date:
+                    weather_df = weather_df[weather_df['timestamp'] >= pd.to_datetime(start_date)]
+                if end_date:
+                    effective_end_date = pd.to_datetime(end_date) + pd.Timedelta(days=1)
+                    weather_df = weather_df[weather_df['timestamp'] < effective_end_date]
+            else:
+                 logger.error("Critical: 'timestamp' column not found in weather data (Pandas).")
+                 return None
+
+            logger.success(f"Weather data loaded and filtered as Pandas ({len(weather_df)} rows).")
 
             if optimize_meta_weather:
                  logger.info("Optimizing Weather DataFrame dtypes (Pandas)...")
@@ -270,10 +327,14 @@ def load_electricity_data(
 
             logger.warning("Optimizing large Demand DataFrame dtypes in Pandas format can be memory intensive.")
             try:
-                # Optimize demand dtypes after loading
+                # Optimize demand dtypes after loading and filtering
                 logger.debug("Optimizing Demand DataFrame dtypes (Pandas)...")
                 demand_df['y'] = pd.to_numeric(demand_df['y'], downcast='float')
-                demand_df['unique_id'] = demand_df['unique_id'].astype('category')
+                # unique_id might not be efficient as category if limited rows have many unique values
+                if len(demand_df) > 0 and demand_df['unique_id'].nunique() / len(demand_df) < 0.8: # Adjust threshold if needed
+                     demand_df['unique_id'] = demand_df['unique_id'].astype('category')
+                else:
+                     logger.debug("Skipping unique_id to category conversion due to high cardinality in limited data.")
                 # Convert timestamp if it's not already datetime
                 if not pd.api.types.is_datetime64_any_dtype(demand_df['timestamp']):
                     logger.debug("Converting demand 'timestamp' column to datetime...")
@@ -300,16 +361,37 @@ def load_electricity_data(
 
 # --- Usage Example ---
 if __name__ == "__main__":
-    logger.info("\n--- Testing Dask Loader with Caching ---")
-    # Ensure libraries are reasonably up-to-date
-    logger.info("Consider updating libraries: pip install --upgrade pandas pyarrow 'dask[dataframe]' huggingface_hub datasets")
+    # --- Test with Time Filter ---
+    test_start_date = '2013-03-01' # Example start date
+    test_end_date = '2013-03-15'   # Example end date
+    logger.info(f"\n--- Testing Dask Loader with Time Filter ({test_start_date} to {test_end_date}) ---")
+    loaded_data_dask_filtered = load_electricity_data(
+        return_format="dask",
+        start_date=test_start_date,
+        end_date=test_end_date
+    )
+    if loaded_data_dask_filtered:
+        demand_ddf_filt, metadata_df_filt, weather_ddf_filt = loaded_data_dask_filtered
+        logger.info("\n--- Dask Demand DataFrame Info (Filtered) ---")
+        logger.info(f"Partitions: {demand_ddf_filt.npartitions}")
+        logger.info(f"dtypes:\n{demand_ddf_filt.dtypes}")
+        logger.info("\n--- Computing Dask Length (Filtered) ---")
+        with ProgressBar():
+            dask_len_filt = len(demand_ddf_filt) # Compute length of the filtered data
+        logger.info(f"Length: {dask_len_filt}")
+        logger.success("Dask filtered loading test finished.")
+    else:
+        logger.error("Failed to load filtered dataset as Dask.")
+
+    # --- Optional: Test Full Dask Load (Original Test) ---
+    logger.info("\n--- Testing Full Dask Loader ---")
     loaded_data_dask = load_electricity_data(return_format="dask")
     if loaded_data_dask:
         demand_ddf, metadata_df_dask, weather_ddf = loaded_data_dask
-        logger.info("\n--- Dask Demand DataFrame Info ---")
+        logger.info("\n--- Dask Demand DataFrame Info (Full) ---")
         logger.info(f"Partitions: {demand_ddf.npartitions}")
         logger.info(f"dtypes:\n{demand_ddf.dtypes}")
-        logger.info("\n--- Dask Weather DataFrame Info ---")
+        logger.info("\n--- Dask Weather DataFrame Info (Full) ---")
         logger.info(f"Partitions: {weather_ddf.npartitions}")
         logger.info(f"dtypes:\n{weather_ddf.dtypes}")
         logger.info("\n--- Pandas Metadata DataFrame (from Dask load) Info ---")
@@ -329,9 +411,9 @@ if __name__ == "__main__":
             dask_head = demand_ddf.head()
         logger.info(f"Head:\n{dask_head}")
 
-        logger.success("Dask loading test finished.")
+        logger.success("Full Dask loading test finished.")
     else:
-        logger.error("Failed to load dataset as Dask.")
+        logger.error("Failed to load full dataset as Dask.")
 
     # --- Optional: Test Pandas Loader (uses datasets cache) ---
     # logger.info("\n--- Testing Pandas Loader (uses datasets cache) ---")

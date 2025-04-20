@@ -48,6 +48,73 @@ electricity-demand-analysis/
 
 ## 数据集信息
 
+**一、 数据概览与质量检查**
+
+1.  **数据量**:
+    *   Demand (需求) 数据包含约 2.38 亿条记录。
+    *   Metadata (元数据) 包含 7572 行，对应 7572 个 `unique_id`。
+    *   Weather (天气) 数据包含约 60.5 万条记录。
+2.  **缺失值**:
+    *   **Demand**: `y` (需求量) 列存在约 1.3% 的缺失值 (约 308 万条)。其他列无缺失。
+    *   **Metadata**: `location_id`, `latitude`, `longitude`, `location` 这几个与地理位置相关的列存在约 3.1% 的缺失值 (237 行)。其他列无缺失。
+    *   **Weather**: 无缺失值。
+3.  **重复值**:
+    *   **Demand**: 未发现基于 `unique_id` 和 `timestamp` 的重复行。
+    *   **Metadata**: 未发现基于 `unique_id` 的重复行。
+    *   **Weather**: 发现了 6 行基于 `location_id` 和 `timestamp` 的重复行。这表明在特定地点的特定时间点存在重复的天气记录（在后续分析中已处理）。
+4.  **时间范围**:
+    *   **Demand**: 数据时间范围从 `2011-01-01 00:30:00` 到 `2017-12-31 23:00:00`。
+    *   **Weather**: 数据时间范围从 `2011-01-01 00:00:00` 到 `2019-01-01 06:00:00`。天气数据覆盖了需求数据的时间范围。
+
+**二、 Demand (电力需求 'y') 分布**
+
+1.  **描述性统计 (基于 0.5% 抽样)**:
+    *   均值 (Mean) 约为 45 kWh，但标准差 (Std) 很大 (约 405 kWh)，表明数据波动剧烈。
+    *   中位数 (50%) 仅为 0.2 kWh，远小于均值，说明分布是高度右偏的（存在大量小值和少量极大值）。
+    *   99% 分位数值约为 681 kWh，但最大值达到了 39625 kWh，存在极端高值。
+2.  **非正值**: 抽样数据中约有 1.07% 的非缺失 `y` 值小于或等于 0。
+
+**三、 Metadata (元数据) 分析**
+
+1.  **Building Class**: 主要是 `Residential` (约 5936 个)，`Commercial` (约 1636 个) 较少。
+2.  **Location**: 主要集中在 `London, UK` (约 5634 个)，其他地点数量较少。存在 237 个 `NaN` (缺失) location。
+3.  **Frequency (freq)**: 最常见的采样频率是 `30T` (30分钟，约 5566 个)，其次是 `1H` (1小时，约 1636 个) 和 `15T` (15分钟，约 370 个)。
+4.  **Timezone**: 主要为 `Europe/London` (约 5781 个)。
+5.  **Dataset Source**: 主要来源于 `London Smart Meter Data` (约 5566 个)。
+
+**四、 Weather (天气) 分析**
+
+1.  **关键数值特征 (基于完整数据描述性统计)**:
+    *   `temperature_2m` (温度): 均值约 13°C，范围从 -32°C 到 48°C。
+    *   `relative_humidity_2m` (相对湿度): 均值约 73%，分布较广。
+    *   `precipitation` (降水): 均值为 0.1 mm/h，大部分时间无降水 (中位数为 0)，但最大可达 33 mm/h。
+    *   `wind_speed_10m` (风速): 均值约 12.8 km/h。
+2.  **负值检查**: 未在 `precipitation`, `rain`, `snowfall` 列中发现负值。
+
+**五、 关系分析 (基于抽样)**
+
+1.  **Demand vs. Metadata (Building Class)**:
+    *   箱线图显示 `Commercial` 建筑的电力需求（y 值的中位数和分布范围）通常显著高于 `Residential` 建筑。对数坐标图也证实了这一点。
+2.  **Demand vs. Weather (基于 50 个 unique_id 抽样合并)**:
+    *   **相关性**:
+        *   Demand 与 `temperature_2m` (温度) 呈**弱正相关** (约 0.028)。
+        *   Demand 与 `apparent_temperature` (体感温度) 呈**弱正相关** (约 0.038)。
+        *   Demand 与 `relative_humidity_2m` (相对湿度) 呈**中度负相关** (约 -0.202)，即湿度越高，需求倾向于越低。
+    *   散点图可视化了这些关系。
+
+**六、 时间戳频率分析 (基于抽样)**
+
+1.  **Demand Frequency**: 抽样分析发现的需求数据时间间隔主要为 `15分钟`, `30分钟`, `1小时`，这与 `metadata` 中记录的 `freq` 信息基本一致。
+2.  **Weather Frequency**: 抽样分析发现的天气数据时间间隔**主要为 `1小时`**。
+3.  **匹配性**: Demand 数据存在多种采样频率 (15T, 30T, 1H)，而天气数据主要是标准的小时频率 (1H)。在进行模型训练时需要考虑如何对齐这两种不同频率的数据。
+
+**总结:**
+
+该数据集包含大量细粒度的电力需求数据和对应的元数据、天气数据。数据质量总体较好，但也存在少量缺失值和天气数据的重复记录。电力需求呈现高度右偏分布，且与建筑类型、天气（尤其是湿度和温度）存在一定的相关性。数据时间频率的不匹配（需求 vs 天气）是后续处理和建模时需要注意的关键点。
+
+
+## 数据集README.md
+
 ```
 Electricity Demand Dataset
 This dataset compiles and harmonizes multiple open smart meter datasets.

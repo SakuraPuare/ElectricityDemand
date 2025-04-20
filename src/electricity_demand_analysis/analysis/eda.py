@@ -1,3 +1,4 @@
+from datetime import datetime
 import pandas as pd
 import dask.dataframe as dd # Import Dask
 from dask.diagnostics import ProgressBar
@@ -33,7 +34,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 # 配置 loguru
-log_file_path = os.path.join(project_root, "logs", "eda_analysis_dask.log")
+log_file_path = os.path.join(project_root, "logs", f"eda_analysis_dask_{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}.log")
 os.makedirs(os.path.dirname(log_file_path), exist_ok=True) # 确保日志目录存在
 logger.add(log_file_path, rotation="10 MB", level="INFO") # 单独的 EDA 日志
 
@@ -532,16 +533,45 @@ def analyze_demand_weather_relationship_sampled(
             logger.warning("Final merged sample is empty. Cannot proceed with relationship analysis.")
             return
 
+        # --- FIX START: Remove potential duplicates after merge ---
+        # Check for duplicates based on the key identifiers for a time series entry
+        initial_rows = len(final_merged_df)
+        key_cols = ['unique_id', 'timestamp']
+        if all(col in final_merged_df.columns for col in key_cols):
+             # Check if key_cols have duplicates before dropping
+             duplicates_exist = final_merged_df.duplicated(subset=key_cols).any()
+             if duplicates_exist:
+                 logger.warning(f"Found duplicate rows based on {key_cols} in the computed merged sample. Dropping duplicates, keeping first.")
+                 final_merged_df = final_merged_df.drop_duplicates(subset=key_cols, keep='first')
+                 dropped_count = initial_rows - len(final_merged_df)
+                 logger.info(f"Dropped {dropped_count} duplicate rows. New shape: {final_merged_df.shape}")
+             else:
+                 logger.info(f"No duplicate rows found based on {key_cols} in the computed merged sample.")
+        else:
+             logger.warning(f"Cannot check/drop duplicates: Columns {key_cols} not all present in the final merged DataFrame.")
+        # --- FIX END ---
+
+
         # 6. Analyze and Plot Relationships (on the computed Pandas sample)
         weather_features_to_plot = ['temperature_2m', 'apparent_temperature', 'relative_humidity_2m']
         for feature in weather_features_to_plot:
-            if feature in final_merged_df.columns and final_merged_df['y'].notna().any() and final_merged_df[feature].notna().any():
+            # Check if 'y' and the feature column exist and have non-NA values
+            if feature in final_merged_df.columns and 'y' in final_merged_df.columns and \
+               final_merged_df['y'].notna().any() and final_merged_df[feature].notna().any():
+
                 plt.figure(figsize=(10, 6))
                 # Use a smaller sample for scatter plots if the merged df is still large
                 plot_sample_frac = 0.1 if len(final_merged_df) > 100000 else 1.0
-                plot_df_sample = final_merged_df.sample(frac=plot_sample_frac, random_state=42)
+                plot_df_sample = final_merged_df.sample(frac=plot_sample_frac, random_state=42) if plot_sample_frac < 1.0 else final_merged_df
 
-                sns.scatterplot(data=plot_df_sample, x=feature, y='y', alpha=0.3, s=10) # Smaller points, some transparency
+                # Ensure no NaNs in columns used for plotting/correlation
+                plot_df_sample_clean = plot_df_sample[['y', feature]].dropna()
+                if plot_df_sample_clean.empty:
+                     logger.warning(f"Skipping plot for '{feature}': No overlapping non-NaN data for 'y' and '{feature}' in the sample.")
+                     plt.close() # Close the empty figure
+                     continue
+
+                sns.scatterplot(data=plot_df_sample_clean, x=feature, y='y', alpha=0.3, s=10) # Smaller points, some transparency
                 plt.title(f'Demand (y) vs {feature.replace("_", " ").title()} (Sampled)')
                 plt.xlabel(feature.replace("_", " ").title())
                 plt.ylabel('Demand (y)')
@@ -551,14 +581,21 @@ def analyze_demand_weather_relationship_sampled(
                 plt.close()
                 logger.info(f"Saved demand vs {feature} scatter plot to {plot_path}")
 
-                # Calculate correlation
+                # Calculate correlation on the cleaned data
                 try:
-                    correlation = final_merged_df['y'].corr(final_merged_df[feature])
-                    logger.info(f"Correlation between 'y' and '{feature}': {correlation:.3f}")
+                    # Use the cleaned data for correlation as well
+                    correlation = plot_df_sample_clean['y'].corr(plot_df_sample_clean[feature])
+                    logger.info(f"Correlation between 'y' and '{feature}' (sampled, non-NaN pairs): {correlation:.3f}")
                 except Exception as corr_err:
                     logger.warning(f"Could not calculate correlation between 'y' and '{feature}': {corr_err}")
             else:
-                logger.warning(f"Skipping plot for '{feature}': Column missing or only NaN values in the computed sample.")
+                if feature not in final_merged_df.columns:
+                     logger.warning(f"Skipping plot for '{feature}': Column missing in the computed sample.")
+                elif 'y' not in final_merged_df.columns:
+                     logger.warning(f"Skipping plot for '{feature}': Column 'y' missing in the computed sample.")
+                else:
+                     logger.warning(f"Skipping plot for '{feature}': Column 'y' or '{feature}' contains only NaN values in the computed sample.")
+
 
     except Exception as e:
         logger.error(f"Error during Demand vs. Weather analysis: {e}", exc_info=True)

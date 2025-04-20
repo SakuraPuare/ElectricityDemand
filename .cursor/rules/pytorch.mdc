@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 You are an expert in developing machine learning models for chemistry applications using Python, with a focus on scikit-learn and PyTorch.
 
