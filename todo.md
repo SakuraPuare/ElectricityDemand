@@ -1,55 +1,80 @@
-# 电力需求数据分析项目
+# Electricity Demand 数据分析任务列表
 
-## 数据来源
+## 第一阶段：数据加载与初步探索
 
-https://huggingface.co/datasets/EDS-lab/electricity-demand
+1.  **设置项目环境**
+    *   [x] 创建项目结构 (src, data, logs, notebooks, etc.)
+    *   [x] 初始化 Python 环境 (e.g., venv)
+    *   [x] 安装所需库 (dask, pandas, loguru, matplotlib, seaborn)
+    *   [x] 配置日志系统 (`src/electricitydemand/utils/log_utils.py`)
 
-## 任务清单
+2.  **数据加载与质量检查 (`src/electricitydemand/load_data.py`)**
+    *   [x] 使用 Dask 加载 `demand.parquet`, `metadata.parquet`, `weather.parquet`
+    *   [x] 记录数据集基本信息 (分区数, 列名, 行数, 样本数据, 数据类型)
+    *   [x] 检查并记录缺失值及其比例
+    *   [~] 检查重复值
+        *   [x] Demand: 基于 `unique_id` 和 `timestamp` (分区内检查未发现重复)
+        *   [~] Metadata: 基于 `unique_id` (全局检查因 `AttributeError` 暂时跳过精确计数)
+        *   [~] Weather: 基于 `location_id` 和 `timestamp` (全局检查因 `AttributeError` 暂时跳过精确计数，已知存在少量重复)
+    *   [x] 记录 Demand 和 Weather 的时间戳范围
+    *   [x] (已完成) 暂时注释掉 `load_data.py` 中导致错误的全局重复值检查代码和 `main` 函数调用。
 
-### 1. 数据分析 (进行中)
-- [x] **环境设置与数据下载**
-  - [x] 配置项目环境 (`pyproject.toml`)
-  - [x] 实现日志记录功能 (`src/electricitydemand/utils/log_utils.py`)
-  - [x] 实现数据下载脚本 (`src/electricitydemand/download_data.py`)
-  - [x] 运行数据下载脚本
-  - [x] 实现数据加载脚本 (`src/electricitydemand/load_data.py`)
-  - [x] 运行数据加载脚本
-- [ ] **数据概览与质量检查 (进行中)**
-  - [x] 查看数据形状 (分区数)、列名、数据类型
-  - [x] 计算行数并查看数据样本
-  - [x] 检查并统计缺失值
-  - [ ] **检查并处理重复值** <--- **当前任务**
-  - [ ] 确定各数据集的时间范围
-- [ ] **探索性数据分析 (EDA)**
-  - [ ] 分析 `demand` 数据 (`y`) 的分布
-  - [ ] 分析 `metadata` 数据 (e.g., `building_class`, `location`)
-  - [ ] 分析 `weather` 数据 (e.g., `temperature_2m`, `precipitation`)
-  - [ ] 分析 `demand` 与 `metadata` 的关系 (e.g., 不同 `building_class` 的需求差异)
-  - [ ] 分析 `demand` 与 `weather` 的关系 (e.g., 需求与温度、湿度的相关性)
-  - [ ] 分析时间序列特性 (初步)
-- [ ] **数据预处理 (初步)**
-  - [ ] (待定，根据 EDA 和建模目标确定)
+## 第二阶段：探索性数据分析 (EDA)
 
-### 2. (后续任务，例如特征工程、模型训练等)
+1.  **创建 EDA 脚本 (`src/electricitydemand/eda.py`)**
+    *   [ ] 设置脚本结构，导入必要库和日志配置。
+    *   [ ] 添加函数以重新加载数据集（或直接从内存传递，如果适用）。
 
----
-**项目技术栈:** Dask, Loguru, Pandas, Matplotlib/Seaborn
+2.  **Demand ('y') 分析**
+    *   [ ] **分布分析:**
+        *   [ ] 计算 `y` 列的详细描述性统计信息 (均值, 中位数, 标准差, 分位数等)。注意处理缺失值。
+        *   [ ] 绘制 `y` 列的直方图和/或核密度估计图 (KDE) 以可视化其分布。由于数据可能高度偏斜，考虑使用对数尺度。
+        *   [ ] 分析 `y <= 0` 的值的比例和情况。
+    *   [ ] **时间序列特性 (抽样):**
+        *   [ ] 抽取少量 `unique_id` 的数据。
+        *   [ ] 绘制这些样本的时间序列图，观察趋势、季节性、异常值。
+        *   [ ] 分析不同 `unique_id` 的时间戳频率是否一致 (与 metadata 中的 `freq` 对比)。
 
-## 数据分析任务列表
+3.  **Metadata 分析**
+    *   [ ] 分析分类特征的分布 (`building_class`, `location`, `freq`, `timezone`, `dataset`)。使用计数图 (count plot) 或条形图。
+    *   [ ] 分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布（如果适用）。
+    *   [ ] 检查 `location_id`, `latitude`, `longitude`, `location` 缺失值的具体情况（哪些 `unique_id` 缺失）。
 
-## 进行中 ⏳
+4.  **Weather 分析**
+    *   [ ] 分析关键数值天气特征的分布 (e.g., `temperature_2m`, `relative_humidity_2m`, `precipitation`, `wind_speed_10m`)。使用直方图、箱线图。
+    *   [ ] 检查数值特征是否存在异常值或不合理的值（如负降水量）。
+    *   [ ] 分析 `weather_code` 的分布。
+    *   [ ] 分析天气数据的时间戳频率。
 
-*   **数据质量检查**: 检查各数据集的重复值 (`.duplicated().sum()`).
+5.  **关系分析 (抽样)**
+    *   [ ] **Demand vs. Metadata:**
+        *   [ ] 按 `building_class` 分组，比较 `y` 的分布 (箱线图)。
+        *   [ ] 按 `location` 或 `timezone` 分组，比较 `y` 的分布。
+    *   [ ] **Demand vs. Weather:**
+        *   [ ] 将 Demand 数据与对应的 Weather 数据合并 (需要基于 `unique_id` -> `location_id` 和 `timestamp` 进行匹配，注意处理时间戳对齐)。
+        *   [ ] 计算 `y` 与关键天气特征的相关性系数 (如温度, 湿度, 降水)。
+        *   [ ] 绘制 `y` 与关键天气特征的散点图。
 
-## 下一步 ➡️
+6.  **保存可视化结果**
+    *   [ ] 将生成的图表保存到项目目录下的 `plots` 或类似文件夹中。
 
-*   **数据质量检查**:
-    *   确定各数据集的时间范围 (`.timestamp.min()`, `.timestamp.max()`).
-*   **探索性数据分析 (EDA)**: 开始分析各数据集的分布等。
+## 第三阶段：数据预处理与特征工程 (待定)
 
-## 已完成 ✅
+*   处理缺失值 (填充或删除)
+*   处理重复值 (Weather)
+*   时间戳对齐 (Demand vs Weather)
+*   特征创建 (e.g., 时间特征: 小时, 星期几, 月份; 滞后特征; 天气交互特征)
+*   数据标准化/归一化
 
-*   环境设置与数据下载
-*   数据加载与基本信息查看 (列名, 分区数)
-*   计算行数并查看数据样本
-*   检查并统计缺失值
+## 第四阶段：模型构建与评估 (待定)
+
+*   选择合适的预测模型 (e.g., ARIMA, Prophet, LightGBM, LSTM)
+*   划分训练集、验证集、测试集
+*   模型训练与调优
+*   模型评估 (选择合适的评估指标, e.g., MAE, RMSE, MAPE)
+
+## 第五阶段：结果解释与报告 (待定)
+
+*   分析模型预测结果
+*   解释特征重要性
+*   撰写分析报告
