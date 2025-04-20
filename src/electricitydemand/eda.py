@@ -829,11 +829,407 @@ def analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=None, sample_
                      client.cancel(ddf_to_cancel)
                      logger.debug("Dask 中间计算取消尝试完成。")
                  except RuntimeError: # 没有正在运行的 Dask client
-                     logger.debug("没有活动的 Dask Client，跳过显式内存清理。")
+                     logger.info("没有活动的 Dask Client，跳过显式内存清理。这在本地运行时是正常的。") # 或者用 Info 明确告知
             except ImportError: # 没有安装 dask.distributed
                  logger.debug("未安装 dask.distributed，跳过显式内存清理。")
             except Exception as e: # 其他潜在错误
-                logger.warning(f"清理 Dask 内存时出现异常: {e}", exc_info=False) # 不打印完整堆栈
+                logger.warning(f"清理 Dask 内存时出现异常: {e}", exc_info=False) # 其他错误仍然是 Warning
+
+def analyze_demand_vs_location(ddf_demand, pdf_metadata, plots_dir=None, sample_frac=0.001, top_n=10, random_state=42):
+    """分析 Demand (y) 与 Top N location 的关系。"""
+    if ddf_demand is None or pdf_metadata is None:
+        logger.warning("需要 Demand 和 Metadata 数据才能进行关系分析。")
+        return
+    if plots_dir is None:
+        logger.error("未提供 plots_dir，无法保存关系分析图。")
+        return
+
+    target_col = 'location'
+    logger.info(f"--- 开始分析 Demand vs {target_col} 关系 (Top {top_n}, 抽样比例: {sample_frac:.1%}) ---")
+
+    try:
+        # 1. 准备数据：抽样 Demand，选择需要的列
+        logger.info("对 Demand 数据进行抽样并选择列 ('unique_id', 'y')...")
+        ddf_demand_sample = ddf_demand[['unique_id', 'y']].dropna(subset=['y']).sample(frac=sample_frac, random_state=random_state).persist()
+        num_samples = len(ddf_demand_sample)
+        logger.info(f"Demand 抽样完成，得到 {num_samples:,} 个非空 'y' 样本。")
+
+        if num_samples == 0:
+             logger.warning("Demand 抽样结果为空，无法进行关系分析。")
+             return
+
+        # 选择 Metadata 中的相关列，并处理缺失的 location
+        pdf_metadata_subset = pdf_metadata[['unique_id', target_col]].copy()
+        pdf_metadata_subset[target_col] = pdf_metadata_subset[target_col].fillna('Missing') # 将 NaN 替换为 'Missing'
+
+        # 2. 合并数据
+        logger.info("合并抽样的 Demand 数据与 Metadata 数据...")
+        ddf_merged = dd.merge(ddf_demand_sample, pdf_metadata_subset, on='unique_id', how='inner').persist()
+        num_merged = len(ddf_merged)
+        logger.info(f"合并完成，得到 {num_merged:,} 行匹配数据。")
+
+        if num_merged == 0:
+             logger.warning("合并后数据为空，无法进行关系分析。")
+             return
+
+        # 3. 计算合并后的 Pandas DataFrame
+        logger.info("计算合并后的 Pandas DataFrame...")
+        pdf_merged = ddf_merged.compute()
+        logger.info("合并后的 Pandas DataFrame 计算完成。")
+
+        # 4. 确定 Top N locations (基于合并后的数据量)
+        location_counts = pdf_merged[target_col].value_counts()
+        top_locations = location_counts.head(top_n).index.tolist()
+        logger.info(f"Top {top_n} locations (by data points in sample): {top_locations}")
+
+        # 5. 筛选出 Top N locations 的数据
+        pdf_merged_top_n = pdf_merged[pdf_merged[target_col].isin(top_locations)].copy() # 使用 .copy() 避免 SettingWithCopyWarning
+        if pdf_merged_top_n.empty:
+             logger.warning(f"未能找到 Top {top_n} locations 的数据，无法绘图。")
+             return
+
+        # 6. 绘制箱线图
+        logger.info(f"绘制 Demand (y) vs Top {top_n} {target_col} 箱线图...")
+        plt.style.use('seaborn-v0_8-whitegrid')
+
+        # --- 原始尺度 ---
+        fig_orig, ax_orig = plt.subplots(figsize=(15, 7)) # 调整尺寸以容纳更多类别
+        sns.boxplot(data=pdf_merged_top_n, x=target_col, y='y', showfliers=False, ax=ax_orig, palette="viridis", order=top_locations) # 指定顺序
+        ax_orig.set_title(f'Demand (y) Distribution by Top {top_n} {target_col} (Original Scale, No Outliers)')
+        ax_orig.set_xlabel(target_col)
+        ax_orig.set_ylabel('Electricity Demand (y) in kWh')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plot_filename_orig = os.path.join(plots_dir, f'demand_vs_top{top_n}_{target_col}_boxplot_orig.png')
+        try:
+            plt.savefig(plot_filename_orig)
+            logger.info(f"原始尺度箱线图已保存到: {plot_filename_orig}")
+            plt.close(fig_orig)
+        except Exception as e:
+            logger.exception(f"保存 Demand vs Top {top_n} {target_col} 原始尺度箱线图时出错: {e}")
+
+        # --- 对数尺度 ---
+        epsilon = 1e-6
+        pdf_merged_top_n['y_log1p'] = np.log1p(pdf_merged_top_n['y'][pdf_merged_top_n['y'] >= 0] + epsilon)
+
+        if pdf_merged_top_n['y_log1p'].isnull().all():
+             logger.warning("没有有效的对数值进行绘图，跳过对数尺度箱线图。")
+        else:
+            fig_log, ax_log = plt.subplots(figsize=(15, 7))
+            sns.boxplot(data=pdf_merged_top_n.dropna(subset=['y_log1p']), x=target_col, y='y_log1p', showfliers=True, ax=ax_log, palette="viridis", order=top_locations) # 指定顺序
+            ax_log.set_title(f'Demand (y) Distribution by Top {top_n} {target_col} (Log1p Scale)')
+            ax_log.set_xlabel(target_col)
+            ax_log.set_ylabel('log1p(Electricity Demand (y) + epsilon)')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            plot_filename_log = os.path.join(plots_dir, f'demand_vs_top{top_n}_{target_col}_boxplot_log1p.png')
+            try:
+                plt.savefig(plot_filename_log)
+                logger.info(f"对数尺度箱线图已保存到: {plot_filename_log}")
+                plt.close(fig_log)
+            except Exception as e:
+                logger.exception(f"保存 Demand vs Top {top_n} {target_col} 对数尺度箱线图时出错: {e}")
+
+    except Exception as e:
+        logger.exception(f"分析 Demand vs {target_col} 关系时发生错误: {e}")
+    finally:
+        # 尝试清理 Dask 中间结果
+        ddf_to_cancel = [var for var_name, var in locals().items() if isinstance(var, dd.DataFrame) and var_name.startswith('ddf_')]
+        if ddf_to_cancel:
+            try:
+                 from dask.distributed import Client
+                 try:
+                     client = Client.current()
+                     logger.debug("尝试取消 Dask 中间计算...")
+                     client.cancel(ddf_to_cancel)
+                     logger.debug("Dask 中间计算取消尝试完成。")
+                 except RuntimeError:
+                     logger.info("没有活动的 Dask Client，跳过显式内存清理。这在本地运行时是正常的。")
+            except ImportError:
+                    logger.debug("未安装 dask.distributed，跳过显式内存清理。")
+            except Exception as e:
+                logger.warning(f"清理 Dask 内存时出现异常: {e}", exc_info=False)
+
+def analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=None, n_sample_ids=50, plot_sample_frac=0.1, random_state=42):
+    """
+    分析 Demand (y) 与 Weather 特征的关系。
+    通过抽样 unique_id，合并数据，计算相关性并可视化。
+    """
+    if ddf_demand is None or pdf_metadata is None or ddf_weather is None:
+        logger.warning("需要 Demand, Metadata 和 Weather 数据才能进行 Demand vs Weather 分析。")
+        return
+    if plots_dir is None:
+        logger.error("未提供 plots_dir，无法保存 Demand vs Weather 分析图。")
+        return
+
+    logger.info(f"--- 开始分析 Demand vs Weather 关系 (抽样 {n_sample_ids} 个 unique_id) ---")
+
+    try:
+        # 1. 抽样 unique_id
+        logger.info(f"从 Metadata 中随机抽取 {n_sample_ids} 个 unique_id...")
+        valid_ids_in_metadata = pdf_metadata['unique_id'].unique()
+        if len(valid_ids_in_metadata) < n_sample_ids:
+            logger.warning(f"Metadata 中 unique_id 数量 ({len(valid_ids_in_metadata)}) 少于请求的样本数量 ({n_sample_ids})，将使用所有可用 ID。")
+            sampled_unique_ids = valid_ids_in_metadata
+            n_sample_ids = len(sampled_unique_ids)
+        else:
+            np.random.seed(random_state)
+            sampled_unique_ids = np.random.choice(valid_ids_in_metadata, n_sample_ids, replace=False)
+        logger.info(f"选取的 unique_id (前 10): {sampled_unique_ids[:10].tolist()}...")
+
+        # 2. 准备 Demand 数据 (筛选 + 获取 location_id)
+        logger.info("筛选 Demand 数据并合并 Metadata 获取 location_id...")
+        ddf_demand_sample = ddf_demand[ddf_demand['unique_id'].isin(sampled_unique_ids)][['unique_id', 'timestamp', 'y']].dropna(subset=['y']).persist()
+        # 从 metadata 获取 location_id
+        pdf_metadata_sample = pdf_metadata[pdf_metadata['unique_id'].isin(sampled_unique_ids)][['unique_id', 'location_id']].drop_duplicates().dropna(subset=['location_id'])
+        if pdf_metadata_sample.empty:
+            logger.warning("抽样的 unique_id 在 Metadata 中没有找到有效的 location_id，无法继续。")
+            return
+
+        # 将 location_id 合并到 demand sample
+        # 使用 dask merge 将 Dask DF 与 Pandas DF 合并
+        ddf_demand_with_loc = dd.merge(ddf_demand_sample, pdf_metadata_sample, on='unique_id', how='inner').persist()
+        num_demand_rows = len(ddf_demand_with_loc)
+        logger.info(f"获取到 {num_demand_rows:,} 条带有 location_id 的 Demand 记录。")
+        if num_demand_rows == 0:
+             logger.warning("未能将 location_id 合并到 Demand 数据，无法继续。")
+             return
+
+        # 3. 准备 Weather 数据 (选择列)
+        weather_cols = ['location_id', 'timestamp', 'temperature_2m', 'relative_humidity_2m', 'apparent_temperature', 'precipitation', 'wind_speed_10m', 'cloud_cover']
+        ddf_weather_subset = ddf_weather[weather_cols].persist()
+
+        # 4. 合并 Demand 和 Weather (使用 merge_asof)
+        logger.info("使用 merge_asof 合并 Demand 和 Weather 数据 (可能需要较长时间)...")
+        # 确保双方都按合并键排序
+        # Dask merge_asof 要求左侧 DataFrame 有序；右侧 DataFrame 必须针对每个组都是单调递增的。
+        # Dask DataFrame 不保证全局有序，但 merge_asof 内部会处理分区。
+        # 为了更可靠，最好先设置索引并排序，但这会增加计算量。
+        # 或者，我们先 compute() 得到 Pandas 再合并（如果样本量允许）
+        # 考虑到 ddf_demand_with_loc 可能仍然很大，先尝试直接 merge_asof
+
+        # 确保 timestamp 是 datetime 类型 (Dask 通常能正确读取 parquet)
+        # ddf_demand_with_loc['timestamp'] = dd.to_datetime(ddf_demand_with_loc['timestamp'])
+        # ddf_weather_subset['timestamp'] = dd.to_datetime(ddf_weather_subset['timestamp'])
+
+        # 使用 merge_asof (向后查找最近的天气数据，容忍1小时差异)
+        # Dask merge_asof 在多分区和非索引列上可能不稳定或效率低。
+        # 更好的方法：将两者都转换为 Pandas (如果内存允许) 或 repartition/set_index。
+        # 折衷：先计算 ddf_demand_with_loc 为 Pandas
+        logger.info("计算抽样的 Demand (带 location_id) 数据为 Pandas DataFrame...")
+        pdf_demand_with_loc = ddf_demand_with_loc.compute().sort_values(['location_id', 'timestamp'])
+        logger.info("Pandas DataFrame 计算完成。")
+
+        # 对 Weather 数据也执行类似操作可能太慢，尝试直接 Dask merge_asof
+        # 需要确保 Weather 数据按 location_id 和 timestamp 排序，至少在分区内
+        # ddf_weather_subset = ddf_weather_subset.set_index('timestamp').persist() # 尝试设置索引
+        # 另一种策略：对 weather 数据也按 location_id 分组，然后应用 merge_asof
+        # 这里采用更简单但可能较慢的方式：直接用 dask merge_asof，依赖其内部处理
+        # 注意：Dask merge_asof 可能需要双方都设置索引以获得最佳性能和稳定性
+        # 由于 Weather 数据量可能很大，直接设置索引再合并可能非常耗时或内存不足
+
+        # 简化策略：将 Weather 数据也转换为 Pandas（如果可行）
+        # 为了避免 Weather 整个转 Pandas，筛选出涉及的 location_id
+        relevant_location_ids = pdf_demand_with_loc['location_id'].unique()
+        logger.info(f"筛选 Weather 数据，只保留 {len(relevant_location_ids)} 个相关的 location_id...")
+        ddf_weather_filtered = ddf_weather_subset[ddf_weather_subset['location_id'].isin(relevant_location_ids)].persist()
+
+        logger.info("计算筛选后的 Weather 数据为 Pandas DataFrame...")
+        pdf_weather_filtered = ddf_weather_filtered.compute().sort_values(['location_id', 'timestamp'])
+        logger.info("Weather Pandas DataFrame 计算完成。")
+
+        logger.info("再次确保合并键已排序并重置索引...")
+        # --- Fix Start ---
+        # 在排序前检查并删除 location_id 或 timestamp 列中的 NaN 值
+        demand_rows_before = len(pdf_demand_with_loc)
+        pdf_demand_with_loc = pdf_demand_with_loc.dropna(subset=['location_id', 'timestamp'])
+        demand_rows_after = len(pdf_demand_with_loc)
+        if demand_rows_before > demand_rows_after:
+            logger.warning(f"从 pdf_demand_with_loc 中删除了 {demand_rows_before - demand_rows_after} 行，因为 location_id 或 timestamp 为 NaN。")
+
+        weather_rows_before = len(pdf_weather_filtered)
+        pdf_weather_filtered = pdf_weather_filtered.dropna(subset=['location_id', 'timestamp'])
+        weather_rows_after = len(pdf_weather_filtered)
+        if weather_rows_before > weather_rows_after:
+             logger.warning(f"从 pdf_weather_filtered 中删除了 {weather_rows_before - weather_rows_after} 行，因为 location_id 或 timestamp 为 NaN。")
+
+        # 现在进行排序
+        pdf_demand_with_loc = pdf_demand_with_loc.sort_values(by=['location_id', 'timestamp']).reset_index(drop=True)
+        pdf_weather_filtered = pdf_weather_filtered.sort_values(by=['location_id', 'timestamp']).reset_index(drop=True)
+        # --- Fix End ---
+
+        # --- New Fix Start: Check and remove duplicates, then verify sort ---
+        logger.info("Checking for duplicate (location_id, timestamp) keys in left DataFrame...")
+        initial_rows_left = len(pdf_demand_with_loc)
+        pdf_demand_with_loc = pdf_demand_with_loc.drop_duplicates(subset=['location_id', 'timestamp'], keep='first')
+        rows_after_dedup_left = len(pdf_demand_with_loc)
+        if initial_rows_left > rows_after_dedup_left:
+            logger.warning(f"Removed {initial_rows_left - rows_after_dedup_left} duplicate (location_id, timestamp) rows from the left DataFrame.")
+            # Re-reset index after dropping rows
+            pdf_demand_with_loc = pdf_demand_with_loc.reset_index(drop=True)
+
+        logger.info("Checking for duplicate (location_id, timestamp) keys in right DataFrame...")
+        initial_rows_right = len(pdf_weather_filtered)
+        pdf_weather_filtered = pdf_weather_filtered.drop_duplicates(subset=['location_id', 'timestamp'], keep='first')
+        rows_after_dedup_right = len(pdf_weather_filtered)
+        if initial_rows_right > rows_after_dedup_right:
+            logger.warning(f"Removed {initial_rows_right - rows_after_dedup_right} duplicate (location_id, timestamp) rows from the right DataFrame.")
+            pdf_weather_filtered = pdf_weather_filtered.reset_index(drop=True)
+
+        # --- Convert location_id to standard string object type ---
+        logger.info("Converting location_id dtype to object (standard string)...")
+        try:
+            pdf_demand_with_loc['location_id'] = pdf_demand_with_loc['location_id'].astype(str)
+            pdf_weather_filtered['location_id'] = pdf_weather_filtered['location_id'].astype(str)
+            logger.info("Data types after conversion (Demand Sample head):")
+            logger.info(pdf_demand_with_loc[['location_id', 'timestamp']].head().dtypes.to_string())
+            logger.info("Data types after conversion (Weather Sample head):")
+            logger.info(pdf_weather_filtered[['location_id', 'timestamp']].head().dtypes.to_string())
+        except Exception as e:
+             logger.exception("Error converting location_id dtype.")
+             # If conversion fails, maybe proceed but it's a sign of trouble
+        # --- End dtype conversion ---
+
+
+        logger.info("Verifying sorting monotonicity before merge_asof...")
+        # Check left DataFrame (pdf_demand_with_loc)
+        # Use .all() after groupby apply/agg for a single boolean result
+        is_left_sorted = pdf_demand_with_loc.groupby('location_id')['timestamp'].apply(lambda x: x.is_monotonic_increasing).all()
+        if not is_left_sorted:
+            logger.error("Initial sorting verification failed for left DataFrame!")
+            # ... (existing error handling) ...
+            pdf_merged = pd.DataFrame()
+        else:
+            logger.info("Initial global sorting verification passed.")
+
+            # --- Rigorous Pre-merge Group-by-Group Sorting Check ---
+            logger.info("Performing rigorous group-by-group sorting check before merge_asof...")
+            all_groups_sorted = True
+            problematic_ids = []
+            for loc_id, group in pdf_demand_with_loc.groupby('location_id'):
+                if not group['timestamp'].is_monotonic_increasing:
+                    all_groups_sorted = False
+                    problematic_ids.append(loc_id)
+                    logger.error(f"Sorting check FAILED for location_id: {loc_id}")
+                    # Log some data from the problematic group
+                    logger.error(f"Problematic group head:\n{group[['timestamp', 'y']].head().to_string()}")
+                    logger.error(f"Problematic group tail:\n{group[['timestamp', 'y']].tail().to_string()}")
+                    diffs = group['timestamp'].diff()
+                    non_positive_diffs = diffs[diffs <= pd.Timedelta(0)]
+                    if not non_positive_diffs.empty:
+                         logger.error(f"Non-positive time differences found:\n{non_positive_diffs}")
+                         logger.error(f"Indices of non-positive diffs:\n{non_positive_diffs.index}")
+                    # Optional: Break after finding the first problematic group to save time
+                    # break
+            # --- End Rigorous Check ---
+
+            if not all_groups_sorted:
+                logger.error(f"Rigorous pre-merge sorting check failed for IDs: {problematic_ids}. Aborting merge.")
+                pdf_merged = pd.DataFrame()
+            else:
+                logger.info("Rigorous group-by-group sorting check passed for all groups.")
+                logger.info("Using Pandas merge_asof 合并数据...")
+                try:
+                    pdf_merged = pd.merge_asof(
+                        pdf_demand_with_loc,
+                        pdf_weather_filtered,
+                        on='timestamp',
+                        by='location_id', # Now using object dtype column
+                        direction='backward',
+                        tolerance=pd.Timedelta('1hour')
+                    )
+                except ValueError as e:
+                    # This block might be redundant if the rigorous check works, but keep for safety
+                    logger.error(f"Pandas merge_asof failed unexpectedly after rigorous check passed: {e}")
+                    logger.exception("Error during merge_asof")
+                    pdf_merged = pd.DataFrame()
+
+        # --- New Fix End ---
+
+        num_merged = len(pdf_merged)
+        logger.info(f"最终合并完成，得到 {num_merged:,} 行数据。")
+
+        if num_merged == 0:
+             logger.warning("最终合并后数据为空，无法进行关系分析。")
+             return
+
+        # 5. 计算相关性
+        logger.info("计算 Demand (y) 与天气特征的相关性...")
+        correlation_cols = ['y'] + [col for col in weather_cols if col not in ['location_id', 'timestamp']]
+        correlation_matrix = pdf_merged[correlation_cols].corr()
+        logger.info(f"相关性矩阵 ('y' vs Weather):\n{correlation_matrix['y'].to_string()}")
+
+        # 6. 可视化
+        # --- 相关性热力图 ---
+        logger.info("绘制相关性热力图...")
+        plt.style.use('seaborn-v0_8-whitegrid')
+        fig_corr, ax_corr = plt.subplots(figsize=(10, 8))
+        sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt=".2f", linewidths=.5, ax=ax_corr)
+        ax_corr.set_title(f'Correlation Matrix: Demand (y) vs Weather Features (Sampled {n_sample_ids} IDs)')
+        plt.tight_layout()
+        plot_filename_corr = os.path.join(plots_dir, 'demand_vs_weather_correlation_heatmap.png')
+        try:
+            plt.savefig(plot_filename_corr)
+            logger.info(f"相关性热力图已保存到: {plot_filename_corr}")
+            plt.close(fig_corr)
+        except Exception as e:
+            logger.exception(f"保存相关性热力图时出错: {e}")
+
+        # --- 散点图 (选择几个特征) ---
+        scatter_cols = ['temperature_2m', 'relative_humidity_2m', 'apparent_temperature']
+        logger.info(f"绘制 Demand (y) vs {', '.join(scatter_cols)} 的散点图 (绘图抽样比例: {plot_sample_frac:.1%})")
+
+        # 从合并后的数据中抽样用于绘图
+        if len(pdf_merged) > 10000: # 如果数据量大，进一步抽样
+            plot_sample = pdf_merged.sample(frac=plot_sample_frac, random_state=random_state)
+        else:
+            plot_sample = pdf_merged
+
+        for col in scatter_cols:
+            if col not in plot_sample.columns:
+                logger.warning(f"列 '{col}' 不在合并数据中，跳过散点图绘制。")
+                continue
+
+            fig_scatter, ax_scatter = plt.subplots(figsize=(10, 6))
+            sns.scatterplot(data=plot_sample, x=col, y='y', alpha=0.5, s=10, ax=ax_scatter) # 使用小点和透明度
+            ax_scatter.set_title(f'Demand (y) vs {col} (Sampled Data)')
+            ax_scatter.set_xlabel(col)
+            ax_scatter.set_ylabel('Electricity Demand (y) in kWh')
+
+            # 添加相关系数标注
+            corr_val = correlation_matrix.loc['y', col]
+            ax_scatter.text(0.05, 0.95, f'Corr: {corr_val:.3f}', transform=ax_scatter.transAxes,
+                            verticalalignment='top', bbox=dict(boxstyle='round,pad=0.5', fc='wheat', alpha=0.5))
+
+            plt.tight_layout()
+            plot_filename_scatter = os.path.join(plots_dir, f'demand_vs_weather_{col}_scatterplot.png')
+            try:
+                plt.savefig(plot_filename_scatter)
+                logger.info(f"散点图 ({col}) 已保存到: {plot_filename_scatter}")
+                plt.close(fig_scatter)
+            except Exception as e:
+                logger.exception(f"保存 Demand vs {col} 散点图时出错: {e}")
+
+
+    except Exception as e:
+        logger.exception(f"分析 Demand vs Weather 关系时发生错误: {e}")
+    finally:
+        # 清理 Dask 中间结果
+        ddf_to_cancel = [var for var_name, var in locals().items() if isinstance(var, dd.DataFrame) and var_name.startswith('ddf_')]
+        if ddf_to_cancel:
+            try:
+                from dask.distributed import Client
+                try:
+                    client = Client.current()
+                    logger.debug("尝试取消 Dask 中间计算...")
+                    client.cancel(ddf_to_cancel)
+                    logger.debug("Dask 中间计算取消尝试完成。")
+                except RuntimeError:
+                    logger.info("没有活动的 Dask Client，跳过显式内存清理。这在本地运行时是正常的。")
+            except ImportError:
+                    logger.debug("未安装 dask.distributed，跳过显式内存清理。")
+            except Exception as e:
+                logger.warning(f"清理 Dask 内存时出现异常: {e}", exc_info=False)
 
 
 def main():
@@ -843,7 +1239,7 @@ def main():
     # 根据需要取消注释
     ddf_demand = load_demand_data()
     pdf_metadata = load_metadata()
-    # ddf_weather = load_weather_data()
+    ddf_weather = load_weather_data() # 加载 Weather 数据
 
     # --- Demand Analysis (Commented out for now) ---
     # ...
@@ -860,8 +1256,17 @@ def main():
     # Demand vs Metadata (building_class)
     analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001) # 使用 0.1% 样本
 
-    # 后续添加 Demand vs Weather 等分析
-    # ...
+    # Demand vs Metadata (location)
+    analyze_demand_vs_location(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=10) # 比较 Top 10 地点
+
+    # Demand vs Weather (Commented out due to persistent merge_asof bug)
+    # logger.info("--- 跳过 Demand vs Weather 分析 (遇到 merge_asof 排序 Bug) ---")
+    # try:
+    #     analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=plots_dir, n_sample_ids=50) # 使用 50 个 unique_id 样本
+    # except Exception as e:
+    #     logger.exception("Demand vs Weather 分析中发生未捕获的错误 (已尝试处理 merge_asof Bug)")
+    # logger.info("--- 完成 Demand vs Weather 分析 (或跳过) ---")
+
 
     logger.info("--- 完成关系分析 ---")
 
