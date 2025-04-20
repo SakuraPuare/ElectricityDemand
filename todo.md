@@ -23,7 +23,7 @@
 
 1.  **创建 EDA 脚本 (`src/electricitydemand/eda.py`)**
     *   [x] 设置脚本结构，导入必要库和日志配置。
-    *   [x] 添加函数以加载数据集 (`load_demand_data`, `load_metadata`)。
+    *   [x] 添加函数以加载数据集 (`load_demand_data`, `load_metadata`, `load_weather_data`)。
 
 2.  **Demand ('y') 分析**
     *   [x] **分布分析:**
@@ -42,9 +42,9 @@
     *   [x] 检查 `location_id`, `latitude`, `longitude`, `location` 缺失值的具体情况（与 Building Data Genome 2 数据集关联）。
 
 4.  **Weather 分析**
-    *   [ ] 加载 `weather.parquet` 数据 (使用 Dask)。
-    *   [ ] 分析关键数值天气特征的分布 (e.g., `temperature_2m`, `relative_humidity_2m`, `precipitation`, `wind_speed_10m`)。计算统计信息并绘制分布图 (考虑抽样)。
-    *   [ ] 检查数值特征是否存在异常值或不合理的值（如负降水量）。
+    *   [x] 加载 `weather.parquet` 数据 (使用 Dask)。
+    *   [x] 分析关键数值天气特征的分布 (e.g., `temperature_2m`, `relative_humidity_2m`, `precipitation`, `wind_speed_10m`)。计算统计信息并绘制分布图。
+    *   [x] 检查数值特征是否存在异常值或不合理的值（如负降水量）。
     *   [ ] 分析 `weather_code` 的分布。
     *   [ ] 分析天气数据的时间戳频率。
 
@@ -89,21 +89,20 @@
 ## 进行中 ⏳
 
 *   **探索性数据分析 (EDA) - Weather 分析**:
-    *   加载 `weather.parquet` 数据。
-    *   分析关键数值天气特征（如温度、湿度、降水等）的分布。
+    *   分析 `weather_code` 的分布。
+    *   分析天气数据的时间戳频率。
 
 ## 下一步 ➡️
 
 *   **探索性数据分析 (EDA)**:
-    *   **Weather 分析**: 检查天气数值特征的异常值，分析 `weather_code` 和时间戳频率。
-    *   **关系分析**: 开始探索 Demand 与 Metadata/Weather 之间的关系。
+    *   **关系分析**: 开始探索 Demand 与 Metadata/Weather 之间的关系 (例如，不同 `building_class` 的需求分布；需求与温度的相关性)。
 
 ## 已完成 ✅
 *   环境设置与数据下载
 *   数据加载与基本信息查看
 *   数据质量检查 (缺失值, 重复值初步检查, 时间范围)
 *   `load_data.py` 重构和错误处理
-*   `eda.py` 脚本创建和数据加载 (Demand, Metadata)
+*   `eda.py` 脚本创建和数据加载 (Demand, Metadata, Weather)
 *   Demand ('y') 分布的描述性统计计算 (基于抽样)
 *   Demand ('y') 非正值检查 (基于抽样)
 *   Demand ('y') 分布的可视化 (直方图/箱线图，原始/对数尺度，基于抽样)
@@ -111,3 +110,5 @@
 *   Metadata 分类特征分析与可视化。
 *   Metadata 数值特征分析与可视化。
 *   Metadata 缺失位置信息分析。
+*   Weather 关键数值特征分析与可视化。
+*   Weather 降水相关特征负值检查。

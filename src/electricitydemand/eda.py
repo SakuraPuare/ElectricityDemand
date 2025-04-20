@@ -49,8 +49,8 @@ logger.info(f"图表目录: {plots_dir}")
 # --- 数据文件路径 ---
 data_dir = os.path.join(project_root, "data")
 demand_path = os.path.join(data_dir, "demand.parquet")
-metadata_path = os.path.join(data_dir, "metadata.parquet") # 取消注释
-# weather_path = os.path.join(data_dir, "weather.parquet") # 暂时不需要
+metadata_path = os.path.join(data_dir, "metadata.parquet")
+weather_path = os.path.join(data_dir, "weather.parquet") # 取消注释
 logger.info(f"数据目录: {data_dir}")
 
 def load_demand_data():
@@ -87,6 +87,23 @@ def load_metadata():
         sys.exit(1)
     except Exception as e:
         logger.exception(f"加载 Metadata 数据集时发生错误: {e}")
+        sys.exit(1)
+
+def load_weather_data():
+    """加载 Weather 数据集 (Dask)."""
+    logger.info("开始加载 Weather 数据集...")
+    try:
+        ddf_weather = dd.read_parquet(weather_path)
+        logger.info(f"成功加载 Weather 数据: {weather_path}")
+        logger.info(f"Weather Dask DataFrame npartitions: {ddf_weather.npartitions}, columns: {ddf_weather.columns}")
+        # 检查下数据类型
+        logger.info(f"Weather dtypes:\n{ddf_weather.dtypes.to_string()}")
+        return ddf_weather
+    except FileNotFoundError as e:
+        logger.error(f"Weather 数据文件未找到: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(f"加载 Weather 数据集时发生错误: {e}")
         sys.exit(1)
 
 def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42):
@@ -504,6 +521,91 @@ def analyze_missing_locations(pdf_metadata):
 
     logger.info("缺失位置信息分析完成。")
 
+def analyze_weather_numerical(ddf_weather, columns_to_analyze=None, plot_sample_frac=0.1, plots_dir=None, random_state=42):
+    """分析 Weather Dask DataFrame 中指定数值列的分布并记录/绘图。"""
+    if ddf_weather is None:
+        logger.warning("输入的 Weather Dask DataFrame 为空，跳过数值特征分析。")
+        return
+    if plots_dir is None:
+        logger.warning("未提供 plots_dir，将仅记录统计信息，不绘制 Weather 数值特征图。")
+        plot = False
+    else:
+        plot = True
+
+    if columns_to_analyze is None:
+        columns_to_analyze = ['temperature_2m', 'relative_humidity_2m', 'precipitation', 'rain', 'snowfall', 'wind_speed_10m', 'cloud_cover']
+
+    logger.info(f"--- 开始分析 Weather 数值特征分布 ({', '.join(columns_to_analyze)}) ---")
+
+    # 计算所有列的描述性统计（一次性计算可能更高效）
+    try:
+        logger.info("计算选中天气特征的描述性统计信息 (可能需要一些时间)...")
+        desc_stats_all = ddf_weather[columns_to_analyze].describe().compute()
+        logger.info(f"描述性统计:\n{desc_stats_all.to_string()}")
+    except Exception as e:
+        logger.exception(f"计算天气特征描述性统计时出错: {e}")
+        # 如果整体计算失败，可以尝试逐列计算
+        desc_stats_all = None # 标记为 None
+
+    # 检查负值 (针对特定列)
+    precipitation_cols = ['precipitation', 'rain', 'snowfall']
+    for col in precipitation_cols:
+        if col in columns_to_analyze and col in ddf_weather.columns:
+            try:
+                negative_count = (ddf_weather[col] < 0).sum().compute()
+                if negative_count > 0:
+                    logger.warning(f"列 '{col}' 检测到 {negative_count} 个负值！需要检查数据源或处理。")
+                else:
+                    logger.info(f"列 '{col}' 未检测到负值。")
+            except Exception as e:
+                logger.exception(f"检查列 '{col}' 负值时出错: {e}")
+
+
+    # 逐列绘图 (如果需要)
+    if plot:
+        logger.info(f"开始绘制天气特征分布图 (抽样比例: {plot_sample_frac:.1%}) ...")
+        for col in columns_to_analyze:
+            if col not in ddf_weather.columns:
+                logger.warning(f"列 '{col}' 不在 Weather DataFrame 中，跳过绘图。")
+                continue
+            if desc_stats_all is not None and col not in desc_stats_all.columns: # 如果整体统计成功但该列失败
+                 logger.warning(f"列 '{col}' 未能计算统计信息，跳过绘图。")
+                 continue
+
+            logger.info(f"绘制列: {col}")
+            try:
+                # 从 Dask DataFrame 抽样并计算得到 Pandas Series 用于绘图
+                logger.debug(f"为列 '{col}' 抽样并计算 Pandas Series...")
+                col_sample_pd = ddf_weather[col].dropna().sample(frac=plot_sample_frac, random_state=random_state).compute()
+                logger.debug(f"列 '{col}' 抽样完成，样本量: {len(col_sample_pd):,}")
+
+                if col_sample_pd.empty:
+                    logger.warning(f"列 '{col}' 抽样结果为空，跳过绘图。")
+                    continue
+
+                # 绘制直方图和箱线图
+                fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+
+                sns.histplot(col_sample_pd, kde=True, ax=axes[0])
+                axes[0].set_title(f'Distribution of {col} (Sampled)')
+                axes[0].set_xlabel(col)
+                axes[0].set_ylabel('Frequency')
+
+                sns.boxplot(x=col_sample_pd, ax=axes[1])
+                axes[1].set_title(f'Boxplot of {col} (Sampled)')
+                axes[1].set_xlabel(col)
+
+                plt.tight_layout()
+                plot_filename = os.path.join(plots_dir, f'weather_distribution_{col}.png')
+                plt.savefig(plot_filename)
+                logger.info(f"图表已保存到: {plot_filename}")
+                plt.close(fig)
+
+            except Exception as e:
+                logger.exception(f"绘制列 '{col}' 的分布图时出错: {e}")
+
+    logger.info("Weather 数值特征分析完成。")
+
 def main():
     """主执行函数，编排 EDA 步骤。"""
     # --- Demand Analysis (Commented out for now) ---
@@ -518,21 +620,21 @@ def main():
     # logger.info("--- 完成 Demand 数据分析 ---")
 
 
-    # --- Metadata Analysis ---
-    logger.info("--- 开始 Metadata 数据分析 ---")
-    pdf_metadata = load_metadata()
+    # --- Metadata Analysis (Commented out for now) ---
+    # ...
 
-    # # 分析分类特征 (已完成，注释掉)
-    # analyze_metadata_categorical(pdf_metadata)
-    # plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=15)
+    # --- Weather Analysis ---
+    logger.info("--- 开始 Weather 数据分析 ---")
+    ddf_weather = load_weather_data()
 
     # 分析数值特征
-    analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir)
+    analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.1) # 使用 10% 样本绘图
 
-    # 分析缺失的位置信息
-    analyze_missing_locations(pdf_metadata)
+    # 后续可以添加 weather_code 和时间戳频率分析
+    # analyze_weather_categorical(ddf_weather, ['weather_code'])
+    # analyze_weather_timestamp_frequency(ddf_weather)
 
-    logger.info("--- 完成 Metadata 数据分析 ---")
+    logger.info("--- 完成 Weather 数据分析 ---")
 
 
     logger.info("EDA 脚本执行完毕。")
