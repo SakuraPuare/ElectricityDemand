@@ -13,9 +13,9 @@
     *   [x] 分析 'y' 列分布 (抽样) - *计算统计量*
     *   [x] 可视化 'y' 列分布 (原始尺度和对数尺度)
     *   [x] 检查非正值比例
-    *   [>] 分析时间序列特性 (抽样 `unique_id`, 绘制序列图, 分析频率) - *进行中*
-*   [ ] **Metadata**
-    *   [ ] 分析分类特征分布 (`building_class`, `location`, `freq`, etc.)
+    *   [x] 分析时间序列特性 (抽样 `unique_id`, 绘制序列图, 分析频率)
+*   [>] **Metadata** - *进行中*
+    *   [>] 分析分类特征分布 (`building_class`, `location`, `freq`, etc.) - *进行中*
     *   [ ] 可视化分类特征分布 (Top N)
     *   [ ] 分析数值特征分布 (`latitude`, `longitude`, `cluster_size`) 并可视化
     *   [ ] 分析位置信息缺失情况
@@ -43,9 +43,9 @@
 
 **当前任务:**
 
-*   完成 **Demand (y)** 的时间序列特性分析 (抽样)。
+*   分析 **Metadata** 的分类特征分布 (日志输出)。
 
 **下一步:**
 
-*   开始分析 **Metadata**。
+*   可视化 Metadata 的分类特征分布。
 *   (长期) 回头尝试修复 `analyze_demand_vs_weather` 中的 `merge_asof` bug 或寻找替代合并方法。

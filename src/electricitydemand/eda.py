@@ -980,11 +980,11 @@ def main():
 
     # Demand 'y' 分析
     logger.info("--- 开始 Demand 'y' 分析 ---")
-    y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
-    if y_sample_pd is not None:
-         plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
-    # analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 减少样本量加快速度
-    logger.info("--- 完成 Demand 'y' 分布分析 ---")
+    # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
+    # if y_sample_pd is not None:
+    #      plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
+    analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 减少样本量加快速度
+    logger.info("--- 完成 Demand 'y' 分析 (或已注释) ---")
 
 
     # Metadata 分析
