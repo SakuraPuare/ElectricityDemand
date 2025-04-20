@@ -76,32 +76,62 @@ except Exception as e:
     logger.exception(f"加载数据时发生未预期错误: {e}") # 使用 logger.exception 记录堆栈信息
 
 # --- 1. 获取行数 ---
-print("--- 行数 ---")
+logger.info("--- 计算行数 ---")
 # Demand (可能是近似值)
 num_demand_rows = len(ddf_demand)
-print(f"Demand 数据行数 (估算): {num_demand_rows:,}") # 使用逗号分隔符
+logger.info(f"Demand 数据行数 (估算): {num_demand_rows:,}")
 
 # Metadata (可能是精确值，因为分区少)
 num_metadata_rows = len(ddf_metadata)
-print(f"Metadata 数据行数: {num_metadata_rows:,}")
+logger.info(f"Metadata 数据行数: {num_metadata_rows:,}")
 
 # Weather (可能是精确值，因为分区少)
 num_weather_rows = len(ddf_weather)
-print(f"Weather 数据行数: {num_weather_rows:,}")
+logger.info(f"Weather 数据行数: {num_weather_rows:,}")
 
 
 # --- 2. 查看数据样本 ---
-print("\n--- Demand 数据前 5 行 ---")
-print(ddf_demand.head())
+logger.info("--- 查看数据样本 (前 5 行) ---")
+# 使用 to_string() 避免日志截断或格式混乱
+logger.info(f"Demand head:\n{ddf_demand.head().to_string()}")
+logger.info(f"Metadata head:\n{ddf_metadata.head().to_string()}")
+logger.info(f"Weather head:\n{ddf_weather.head().to_string()}")
 
-print("\n--- Metadata 数据前 5 行 ---")
-print(ddf_metadata.head())
-
-print("\n--- Weather 数据前 5 行 ---")
-print(ddf_weather.head())
 
 # --- 3. 查看数据类型 ---
-print("\n--- 数据类型 ---")
-print("Demand dtypes:\n", ddf_demand.dtypes)
-print("\nMetadata dtypes:\n", ddf_metadata.dtypes)
-print("\nWeather dtypes:\n", ddf_weather.dtypes)
+logger.info("--- 查看数据类型 ---")
+# 转换为字符串以便完整记录
+logger.info(f"Demand dtypes:\n{ddf_demand.dtypes.to_string()}")
+logger.info(f"Metadata dtypes:\n{ddf_metadata.dtypes.to_string()}")
+logger.info(f"Weather dtypes:\n{ddf_weather.dtypes.to_string()}")
+
+
+# --- 4. 检查缺失值 ---
+logger.info("--- 检查缺失值 ---")
+
+# Demand 缺失值
+logger.info("Demand 缺失值统计:")
+missing_demand = ddf_demand.isnull().sum().compute()
+logger.info(f"\n{missing_demand.to_string()}") # 转换为字符串
+logger.info(f"Demand 总行数 (估算): {num_demand_rows:,}") # 参考总行数
+
+# Metadata 缺失值
+logger.info("Metadata 缺失值统计:")
+missing_metadata = ddf_metadata.isnull().sum().compute()
+logger.info(f"\n{missing_metadata.to_string()}")
+logger.info(f"Metadata 总行数: {num_metadata_rows:,}")
+
+# Weather 缺失值
+logger.info("Weather 缺失值统计:")
+missing_weather = ddf_weather.isnull().sum().compute()
+logger.info(f"\n{missing_weather.to_string()}")
+logger.info(f"Weather 总行数: {num_weather_rows:,}")
+
+# 计算缺失比例
+logger.info("--- 计算缺失值比例 ---")
+if num_demand_rows > 0: # 使用之前计算的行数
+    logger.info(f"Demand 缺失值比例:\n{(missing_demand / num_demand_rows).to_string()}")
+if num_metadata_rows > 0:
+    logger.info(f"Metadata 缺失值比例:\n{(missing_metadata / num_metadata_rows).to_string()}")
+if num_weather_rows > 0:
+    logger.info(f"Weather 缺失值比例:\n{(missing_weather / num_weather_rows).to_string()}")
