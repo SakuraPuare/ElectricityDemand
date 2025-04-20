@@ -99,50 +99,49 @@ def run_all_eda():
     # --- 单变量分析 ---
     logger.info("--- 步骤 2: 单变量分析 ---")
 
-    # Demand 'y' 分析
+    # Demand 'y' 分析 (已完成，保持注释)
     logger.info("--- 开始 Demand 'y' 分析 ---")
-    y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
-    if y_sample_pd is not None and not y_sample_pd.empty:
-         plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
-    analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 减少样本量加快速度
+    # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005) # 已完成，注释掉
+    # if y_sample_pd is not None and not y_sample_pd.empty: # 已完成，注释掉
+    #      plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000) # 已完成，注释掉
+    # analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 已完成，注释掉
     logger.info("--- 完成 Demand 'y' 分析 ---")
 
 
-    # Metadata 分析
+    # Metadata 分析 (取消注释以验证修复)
     logger.info("--- 开始 Metadata 分析 ---")
-    analyze_metadata_categorical(pdf_metadata)
-    plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=10)
-    analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir)
-    analyze_missing_locations(pdf_metadata)
+    analyze_metadata_categorical(pdf_metadata) 
+    plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=10) 
+    analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir) 
+    analyze_missing_locations(pdf_metadata) 
     logger.info("--- 完成 Metadata 分析 ---")
 
 
-    # Weather 分析
+    # Weather 分析 (保持不注释)
     logger.info("--- 开始 Weather 分析 ---")
-    analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.05) # 减少抽样比例
+    analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
     analyze_weather_categorical(ddf_weather, plots_dir=plots_dir, top_n=15)
     logger.info("--- 完成 Weather 分析 ---")
 
 
-    # --- 关系分析 ---
+    # --- 关系分析 --- (保持未注释)
     logger.info("--- 步骤 3: 关系分析 ---")
 
-    # Demand vs Metadata (building_class)
-    logger.info("--- 开始 Demand vs building_class 分析 ---")
-    analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001)
-    logger.info("--- 完成 Demand vs building_class 分析 ---")
+    # Demand vs Metadata (building_class) - 已成功，暂时注释以加速
+    # logger.info("--- 开始 Demand vs building_class 分析 ---")
+    # analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001)
+    # logger.info("--- 完成 Demand vs building_class 分析 ---")
 
-    # Demand vs Metadata (location)
-    logger.info("--- 开始 Demand vs location 分析 ---")
-    analyze_demand_vs_location(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5) # 减少 TopN
-    logger.info("--- 完成 Demand vs location 分析 ---")
+    # Demand vs Metadata (location) - 已成功，暂时注释以加速
+    # logger.info("--- 开始 Demand vs location 分析 ---")
+    # analyze_demand_vs_location(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5)
+    # logger.info("--- 完成 Demand vs location 分析 ---")
 
-    # Demand vs Weather (可能跳过)
+    # Demand vs Weather (需要修复)
     logger.info("--- 开始 Demand vs Weather 分析 ---")
     try:
         analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=plots_dir, n_sample_ids=50)
     except Exception as e:
-         # analyze_demand_vs_weather 内部已记录详细错误，这里只记录简要信息
          logger.error(f"Demand vs Weather 分析执行期间遇到问题: {e}")
     logger.info("--- 完成 Demand vs Weather 分析 ---")
 
@@ -153,4 +152,8 @@ def run_all_eda():
 
 
 if __name__ == "__main__":
-    run_all_eda()
+    try:
+        run_all_eda()
+    except Exception as e:
+        logger.exception(f"执行过程中发生错误: {e}")
+        sys.exit(1)

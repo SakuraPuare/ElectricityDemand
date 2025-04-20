@@ -5,7 +5,7 @@ import seaborn as sns
 from loguru import logger
 
 # 使用相对导入
-from ..utils.eda_utils import dask_compute_context, plot_numerical_distribution, log_value_counts, save_plot
+from ..utils.eda_utils import dask_compute_context, plot_numerical_distribution, log_value_counts, save_plot, plot_categorical_distribution
 
 def analyze_weather_numerical(ddf_weather, columns_to_analyze=None, plot_sample_frac=0.1, plots_dir=None, random_state=42):
     """分析 Weather Dask DataFrame 中指定数值列的分布并记录/绘图。"""
@@ -134,64 +134,38 @@ def analyze_weather_categorical(ddf_weather, columns_to_analyze=None, top_n=20, 
         logger.info(f"--- Analyzing column: {col} ---")
         try:
             logger.info(f"Computing value counts for column '{col}'...")
-            counts_dask = ddf_weather[col].value_counts()
-            with dask_compute_context(counts_dask) as persisted_counts:
-                 if not persisted_counts:
-                     logger.error(f"Failed to persist value counts for column '{col}'.")
-                     continue
-                 try:
-                     counts_pd = persisted_counts[0].compute() # Get Pandas Series
-                 except Exception as compute_counts_e:
-                     logger.exception(f"Error computing value counts for column '{col}': {compute_counts_e}")
-                     continue # Skip if compute fails
+            # Compute to Pandas Series first
+            counts_pd_series = ddf_weather[col].value_counts().compute()
 
+            if counts_pd_series is None or counts_pd_series.empty:
+                 logger.warning(f"未能计算或计算结果为空，跳过记录列 '{col}' 的值分布。")
+                 continue # Skip to next column if counts are empty
 
-            if counts_pd is None or counts_pd.empty:
-                 logger.warning(f"Value counts for column '{col}' are empty or computation failed.")
-                 continue
+            # Convert Series to DataFrame for log_value_counts when is_already_counts=True
+            # Reset index to make the original index a column, then rename columns
+            counts_df_for_log = counts_pd_series.reset_index()
+            # Rename columns appropriately - handle potential type of index name
+            original_index_name = counts_pd_series.index.name if counts_pd_series.index.name else 'index' # Default name if index had no name
+            counts_df_for_log.columns = [original_index_name, '计数'] # Assume index is category, value is count
 
-            # Log value counts (using Pandas Series, passing is_already_counts=True)
-            log_value_counts(counts_pd, col, top_n=top_n, is_already_counts=True) # <-- Use helper
+            # Log the counts using the DataFrame
+            log_value_counts(counts_df_for_log, col, top_n=top_n, is_already_counts=True) # <-- 传入 DataFrame
 
-            # Plot (if needed)
-            if plot and not counts_pd.empty:
+            # Plotting
+            if plot:
                 logger.info(f"Plotting column: {col}")
-                try:
-                    fig, ax = plt.subplots(figsize=(12, 6))
-                    data_to_plot = counts_pd.head(top_n)
-                    num_unique = len(counts_pd)
-                    title = f'Weather Top {top_n} {col} Distribution'
-                    if num_unique > top_n:
-                        title += " (Others not shown)"
-
-                    # Ensure index is treated as string for plotting
-                    plot_index = data_to_plot.index.astype(str)
-                    order = plot_index # Use count order (default) or try numeric sort if appropriate
-
-                    # Optional: Try sorting by numeric value of code if possible
-                    try:
-                        # Sort original index numerically, then convert to string for ordering
-                        numeric_index_order = data_to_plot.index.astype(float).sort_values().astype(str)
-                        # Reindex plot_index based on numeric order found
-                        order = [idx for idx in numeric_index_order if idx in plot_index]
-                        logger.debug(f"Using numeric sort order for '{col}' plot.")
-                    except (ValueError, TypeError):
-                        logger.debug(f"Cannot sort '{col}' index numerically, using default order.")
-                        order = plot_index.tolist() # Fallback to default order as list
-
-                    sns.barplot(x=plot_index, y=data_to_plot.values, ax=ax, palette="viridis", order=order)
-                    ax.set_title(title)
-                    ax.set_xlabel(f'{col} (WMO Code)' if col == 'weather_code' else col)
-                    ax.set_ylabel('Count')
-                    plt.xticks(rotation=45, ha='right')
-                    plt.tight_layout()
-                    save_plot(fig, f'weather_distribution_{col}.png', plots_dir)
-                except Exception as plot_e:
-                    logger.exception(f"Error plotting categorical distribution for '{col}': {plot_e}")
-                    plt.close(fig) # Ensure plot is closed
-
+                # Pass the original computed Pandas Series to plotting function
+                plot_categorical_distribution(
+                     counts_pd_series, # <-- 绘图函数通常接受 Series
+                     col,
+                     f"weather_distribution_{col}",
+                     plots_dir,
+                     top_n=top_n, # Use the same top_n as log
+                     title_prefix="Weather "
+                 )
 
         except Exception as e:
             logger.exception(f"Error analyzing column '{col}': {e}")
+            # Continue to the next column if error occurs
 
     logger.info("Weather categorical feature analysis complete.") 

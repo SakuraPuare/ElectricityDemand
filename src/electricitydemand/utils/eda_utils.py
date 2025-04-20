@@ -117,66 +117,189 @@ def plot_categorical_distribution(data_pd_series, col_name, filename_base, plots
         logger.exception(f"Error plotting distribution for column '{col_name}': {e}")
         plt.close(fig)
 
-def log_value_counts(data_pd_series, col_name, top_n=10, is_already_counts=False):
-    """记录 Pandas Series 的值计数和百分比。
+def log_value_counts(data, column_name, top_n=10, is_already_counts=False, normalize=True):
+    """记录 Series 或 Dask Series 的值分布。"""
+    logger.info(f"--- 分析列: {column_name} 值分布 ---")
 
-    Args:
-        data_pd_series: Pandas Series containing the data or pre-computed value counts.
-        col_name: Name of the original column for logging.
-        top_n: How many top values to display in the log.
-        is_already_counts: Set to True if data_pd_series is already the result of value_counts().
-    """
-    logger.info(f"--- 分析列: {col_name} 值分布 ---")
+    dist_df = None # Initialize dist_df
+    total_count = 0 # Initialize total_count
 
-    # Input validation
-    if not isinstance(data_pd_series, pd.Series):
-        logger.warning(f"输入给 log_value_counts 的 '{col_name}' 不是 Pandas Series，跳过。类型: {type(data_pd_series)}")
-        return
-    if data_pd_series.empty:
-        logger.warning(f"列 '{col_name}' 的数据为空，跳过值计数记录。")
-        return
-
+    # --- Existing logic to calculate dist_df and total_count ---
     if is_already_counts:
-        counts = data_pd_series
-        total_rows = int(counts.sum()) # Total is the sum of counts
-        logger.debug(f"处理预先计算的计数值，总计: {total_rows}")
+        # ... (代码未改变) ...
+        if not isinstance(data, (pd.DataFrame, pd.Series)):
+             logger.error(f"当 is_already_counts=True 时，期望输入为 Pandas DataFrame/Series，但收到 {type(data)}")
+             return
+        dist_df = data.copy()
+        # Try to infer count and percentage columns or require specific names
+        count_col = '计数' if '计数' in dist_df.columns else (dist_df.columns[0] if len(dist_df.columns) > 0 else None)
+        perc_col = '百分比 (%)' if '百分比 (%)' in dist_df.columns else None
+
+        if count_col is None:
+             logger.error("无法在已计数的 DataFrame 中找到计数列。")
+             return
+
+        total_count = dist_df[count_col].sum()
+        if perc_col is None and normalize and total_count > 0:
+            dist_df['百分比 (%)'] = (dist_df[count_col] / total_count * 100).round(2)
+            perc_col = '百分比 (%)'
+        elif perc_col is None:
+            dist_df['百分比 (%)'] = 0.0 # Default percentage if not calculable
+            perc_col = '百分比 (%)'
+        # Ensure columns exist for sorting
+        if count_col not in dist_df.columns or perc_col not in dist_df.columns:
+             logger.error(f"计数或百分比列 ('{count_col}', '{perc_col}') 在 DataFrame 中缺失。")
+             return
+
+    elif isinstance(data, pd.Series):
+        # ... (代码未改变) ...
+        try:
+            # Pandas Series
+            value_counts = data.value_counts(dropna=False)
+            total_count = len(data) # More direct for Pandas
+            dist_df = pd.DataFrame({'计数': value_counts})
+            if normalize and total_count > 0:
+                 dist_df['百分比 (%)'] = (dist_df['计数'] / total_count * 100).round(2)
+            else:
+                 dist_df['百分比 (%)'] = 0.0
+        except Exception as e:
+            logger.error(f"计算 Pandas Series '{column_name}' 值计数时出错: {e}")
+            return
+
+    elif isinstance(data, (pd.Series, pd.Index)):
+         # ... (代码未改变) ...
+         try:
+             # Pandas Series or Index
+             value_counts = data.value_counts(dropna=False)
+             total_count = len(data) # More direct for Pandas
+             dist_df = pd.DataFrame({'计数': value_counts})
+             if normalize and total_count > 0:
+                 dist_df['百分比 (%)'] = (dist_df['计数'] / total_count * 100).round(2)
+             else:
+                 dist_df['百分比 (%)'] = 0.0
+         except Exception as e:
+             logger.error(f"计算 Pandas Series/Index '{column_name}' 值计数时出错: {e}")
+             return
     else:
-        total_rows = len(data_pd_series)
-        logger.debug(f"计算原始数据的计数值，总行数: {total_rows}")
-        counts = data_pd_series.value_counts(dropna=False) # 包含 NaN
+        logger.error(f"不支持的数据类型进行值计数: {type(data)} for column '{column_name}'")
+        return
 
-    if total_rows > 0:
-        percentage = (counts / total_rows * 100).round(2)
-        dist_df = pd.DataFrame({'计数': counts.astype(int), '百分比 (%)': percentage}) # Cast counts to int for clarity
+    # --- End of logic to calculate dist_df ---
+
+    # Check if dist_df was successfully created
+    if dist_df is None or dist_df.empty:
+         logger.warning(f"未能计算列 '{column_name}' 的值分布，或结果为空。")
+         # Check for NaN values in the original data if applicable and not already done
+         if isinstance(data, (pd.Series, pd.Index)) and not is_already_counts:
+              nan_count = data.isnull().sum()
+              if nan_count > 0:
+                   logger.warning(f"列 '{column_name}' 包含 {nan_count} 个 NaN 值 ({nan_count/len(data)*100:.2f}%)。")
+              else:
+                   logger.info(f"列 '{column_name}' 不包含 NaN 值。")
+         elif isinstance(data, pd.Series) and not is_already_counts:
+              try:
+                   nan_count = data.isnull().sum()
+                   total_s = len(data)
+                   if total_s > 0 and nan_count > 0:
+                        logger.warning(f"列 '{column_name}' 包含 {nan_count} 个 NaN 值 ({nan_count/total_s*100:.2f}%)。")
+                   elif total_s > 0:
+                        logger.info(f"列 '{column_name}' 不包含 NaN 值。")
+                   else:
+                        logger.warning(f"无法计算 Pandas Series '{column_name}' 的大小。")
+
+              except Exception as e:
+                   logger.warning(f"检查 Pandas Series '{column_name}' 的 NaN 时出错: {e}")
+
+         return # Exit if dist_df is None or empty
+
+    # --- Sort by count descending ---
+    # Ensure '计数' column exists before sorting
+    count_col_name = '计数' if '计数' in dist_df.columns else (dist_df.columns[0] if len(dist_df.columns) > 0 else None)
+    if count_col_name:
+        try:
+            dist_df = dist_df.sort_values(by=count_col_name, ascending=False)
+        except Exception as e:
+            logger.error(f"按 '{count_col_name}' 列排序时出错: {e}\nDataFrame:\n{dist_df.head()}")
+            return # Stop if sorting fails
     else:
-        dist_df = pd.DataFrame({'计数': counts.astype(int), '百分比 (%)': 0.0})
-        logger.warning(f"列 '{col_name}' 总行数为 0，百分比将为 0。")
+        logger.error("在 dist_df 中找不到用于排序的计数列。")
+        return
 
 
-    log_str = f"值分布 (含 NaN):\n{dist_df.head(top_n).to_string()}"
-    if len(dist_df) > top_n:
-        log_str += "\n..."
-    logger.info(log_str)
-
-    # Unique count calculation needs care if input is counts
-    if is_already_counts:
-        # If counts include NaN, it will be in the index
-        num_unique = len(counts)
-        has_nan = counts.index.isnull().any()
+    # --- Handle top_n logic ---
+    original_len = len(dist_df)
+    # *** 修改在这里：只有当 top_n 不是 None 时才进行比较和截断 ***
+    if top_n is not None and original_len > top_n:
+        logger.info(f"列 '{column_name}' 唯一值过多 ({original_len})，仅显示 Top {top_n}。")
+        display_df = dist_df.head(top_n)
+        # Note: Adding 'Others' row removed for simplicity, can be added back if needed carefully
+        log_message = f"值分布 (Top {top_n}, 含 NaN):\n{display_df.to_string()}"
     else:
-        num_unique = data_pd_series.nunique(dropna=False)
-        has_nan = data_pd_series.isnull().any()
+        # If top_n is None or len <= top_n, display all
+        display_df = dist_df
+        log_message = f"值分布 (含 NaN):\n{display_df.to_string()}"
 
-    logger.info(f"列 '{col_name}' 唯一值数量 (含 NaN): {num_unique}")
-    if has_nan:
-        # Find the NaN count properly depending on input type
-        if is_already_counts:
-            nan_count = counts[counts.index.isnull()].sum()
-        else:
-            nan_count = data_pd_series.isnull().sum()
-        nan_perc = (nan_count / total_rows * 100).round(2) if total_rows > 0 else 0
-        logger.warning(f"列 '{col_name}' 存在缺失值 (NaN)。数量: {nan_count}, 百分比: {nan_perc:.2f}%")
+    logger.info(log_message)
 
+
+    # --- 检查 NaN 值 ---
+    # Check for NaN in the index of the counts DataFrame if normalization was done
+    # If dropna=False was used, NaN should appear as an index level
+    nan_present_in_index = pd.NA in display_df.index or None in display_df.index or np.nan in display_df.index
+    # More robust check across index types
+    try:
+        nan_present_in_index = any(pd.isna(idx) for idx in display_df.index)
+    except TypeError: # Handle cases like multi-index where isna might fail directly
+         logger.warning(f"无法直接检查列 '{column_name}' 值计数索引中的 NaN。")
+         nan_present_in_index = False # Assume no NaNs if check fails
+
+
+    if nan_present_in_index:
+         try:
+             nan_row = display_df.loc[[idx for idx in display_df.index if pd.isna(idx)]]
+             if not nan_row.empty:
+                 nan_count = nan_row['计数'].iloc[0] # Get count from the first NaN row found
+                 nan_perc = nan_row['百分比 (%)'].iloc[0] # Get percentage
+                 logger.warning(f"列 '{column_name}' 存在缺失值 (NaN)。数量: {nan_count}, 百分比: {nan_perc:.2f}%")
+             else:
+                # This case should not happen if nan_present_in_index is True, but adding for safety
+                logger.info(f"列 '{column_name}' 值计数中未明确找到 NaN 行，尽管索引检查提示存在。")
+         except KeyError:
+            logger.warning(f"无法在列 '{column_name}' 的值计数中定位 NaN 行进行统计。")
+         except Exception as e:
+             logger.warning(f"检查列 '{column_name}' 的 NaN 统计时出错: {e}")
+
+    else:
+        # Check original data if NaN wasn't in counts (e.g., if dropna=True was somehow used or data had no NaNs)
+        # This check might be redundant if already performed when dist_df was empty, but can be a fallback.
+        if not is_already_counts: # Only check original if we calculated counts
+            nan_in_original = False
+            original_nan_count = 0
+            original_total = 0
+            if isinstance(data, (pd.Series, pd.Index)):
+                 original_nan_count = data.isnull().sum()
+                 original_total = len(data)
+                 nan_in_original = original_nan_count > 0
+            elif isinstance(data, pd.Series):
+                try:
+                    original_nan_count = data.isnull().sum()
+                    original_total = len(data)
+                    nan_in_original = original_nan_count > 0
+                except Exception as e:
+                    logger.warning(f"检查原始 Pandas Series '{column_name}' 的 NaN 时出错: {e}")
+
+            if nan_in_original and original_total > 0:
+                 logger.warning(f"列 '{column_name}' 原始数据中发现 NaN，但在最终值计数中未显示。"
+                               f" 原始 NaN 数量: {original_nan_count}, 百分比: {original_nan_count/original_total*100:.2f}%")
+            elif not nan_in_original:
+                 logger.info(f"列 '{column_name}' 值计数中未发现 NaN。")
+
+
+    # Log unique value count
+    unique_count = original_len # Number of unique values including NaN if present
+    logger.info(f"列 '{column_name}' 唯一值数量 (含 NaN): {unique_count}")
+
+    logger.info("-" * 20) # Separator
 
 @contextlib.contextmanager
 def dask_compute_context(*dask_objects):

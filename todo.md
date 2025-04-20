@@ -26,23 +26,23 @@
     -   [x] 绘制数值特征分布图 (`analyze_metadata_numerical` 中包含)
     -   [x] 分析缺失位置信息 (`analyze_missing_locations`)
 
--   [>] **Weather 数据**:
-    -   [>] 分析数值特征分布 (`analyze_weather_numerical`)
-    -   [>] 绘制数值特征分布图 (`analyze_weather_numerical` 中包含)
-    -   [>] 分析分类特征分布 (`analyze_weather_categorical`)
-    -   [>] 绘制分类特征分布图 (`analyze_weather_categorical` 中包含)
+-   [x] **Weather 数据**:
+    -   [x] 分析数值特征分布 (`analyze_weather_numerical`)
+    -   [x] 绘制数值特征分布图 (`analyze_weather_numerical` 中包含)
+    -   [x] 分析分类特征分布 (`analyze_weather_categorical`)
+    -   [x] 绘制分类特征分布图 (`analyze_weather_categorical` 中包含)
     -   [ ] *(待定)* 分析天气数据时间戳频率 (如果需要单独函数)
 
 ## 阶段三：关系分析 (基于抽样)
 
--   [x] **Demand vs Metadata**:
-    -   [x] Demand (y) vs building_class (`analyze_demand_vs_metadata`)
-    -   [x] Demand (y) vs location (Top N) (`analyze_demand_vs_location`)
+-   [>] **Demand vs Metadata**:
+    -   [>] Demand (y) vs building_class (`analyze_demand_vs_metadata`)
+    -   [>] Demand (y) vs location (Top N) (`analyze_demand_vs_location`)
 
--   [x] **Demand vs Weather**:
-    -   [x] 计算相关性 (`analyze_demand_vs_weather`)
-    -   [x] 绘制相关性热力图 (`analyze_demand_vs_weather`)
-    -   [x] 绘制关键特征散点图 (`analyze_demand_vs_weather`)
+-   [>] **Demand vs Weather**:
+    -   [>] 计算相关性 (`analyze_demand_vs_weather`)
+    -   [>] 绘制相关性热力图 (`analyze_demand_vs_weather`)
+    -   [>] 绘制关键特征散点图 (`analyze_demand_vs_weather`)
 
 ## 阶段四：总结与后续步骤
 
@@ -54,6 +54,6 @@
 
 **下一步建议**:
 
-当前任务是 **分析 Weather 数据**。请运行 `eda.py` 脚本。这次将分析 Weather 数据中的数值和分类特征。由于 Weather 数据量较大，Dask 的计算可能会花费一些时间。请关注日志输出（特别是数值特征的统计信息、负值检查结果、`weather_code` 的分布）以及保存在 `plots` 目录下的新图表（如 `weather_distribution_*.png`）。
+当前任务是 **执行关系分析** (`Demand vs Metadata` 和 `Demand vs Weather`)。我们还将重新运行 Metadata 分析以确认之前的修复有效。请运行 `run_eda.py` 脚本。注意：关系分析，特别是 `Demand vs Weather` 可能需要较长时间进行计算，因为它涉及合并和处理较大的 Dask DataFrame。请关注日志输出和 `plots` 目录下的新图表 (如 `demand_vs_*.png`, `correlation_heatmap.png`, `demand_weather_scatter_*.png`)。
 
-完成后请告诉我，我们将进入关系分析阶段。
+完成后请告诉我，我们将评估结果并进入总结阶段。

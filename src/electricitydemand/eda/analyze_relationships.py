@@ -246,7 +246,7 @@ def analyze_demand_vs_location(ddf_demand, pdf_metadata, plots_dir=None, sample_
 
 
 def analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=None, n_sample_ids=50, plot_sample_frac=0.1, random_state=42):
-    """分析 Demand (y) 与 Weather 特征的关系 (抽样 unique_id)。"""
+    """分析 Demand (y) 与 Weather 特征的关系 (抽样 unique_id)。"""    
     if ddf_demand is None or pdf_metadata is None or ddf_weather is None:
         logger.warning("Need Demand, Metadata, and Weather data for Demand vs Weather analysis.")
         return
@@ -402,6 +402,7 @@ def analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=N
         else:
             logger.info("Data sorting check passed.")
             logger.info("Merging data using Pandas merge_asof...")
+            logger.warning("FIXME: THIS IS A BUG, IT IS NOT WORKING")
             try:
                 pdf_merged = pd.merge_asof(
                     pdf_demand_with_loc,
