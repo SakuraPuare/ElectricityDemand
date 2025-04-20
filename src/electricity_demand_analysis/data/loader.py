@@ -55,7 +55,7 @@ def _optimize_pandas_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 def load_electricity_data(
     dataset_name: str = "EDS-lab/electricity-demand",
     return_format: str = "pandas",
-    npartitions: int | None = None,
+    npartitions: int | None = None, # Desired number of partitions for Dask DataFrames. Adjust based on core count and I/O speed for potential performance tuning.
     optimize_meta_weather: bool = True,
     demand_storage_options: dict | None = None, # For potential authentication if needed
     weather_storage_options: dict | None = None
@@ -71,6 +71,9 @@ def load_electricity_data(
         dataset_name: Name of the dataset on Hugging Face Hub (e.g., 'Org/DatasetName').
         return_format: Output format ('pandas' or 'dask').
         npartitions: Desired number of partitions for Dask DataFrames.
+                     Defaults to os.cpu_count() * 2. Increasing this might improve speed
+                     on machines with many cores and fast I/O, but excessive partitions
+                     can add overhead. Experimentation might be needed.
         optimize_meta_weather: Whether to optimize dtypes for metadata (Pandas)
                                and weather (Pandas only).
         demand_storage_options: Storage options for dask/fsspec for demand parquet URL.
@@ -125,7 +128,12 @@ def load_electricity_data(
         # --- Load Demand and Weather ---
         if return_format == "dask":
             if npartitions is None:
+                # Default logic: good starting point
                 npartitions = os.cpu_count() * 2 if os.cpu_count() else 4
+                logger.info(f"Defaulting npartitions to {npartitions} for Dask DataFrames.")
+            # Ensure npartitions is at least 1
+            npartitions = max(1, npartitions)
+
             logger.info(f"Loading Demand and Weather as Dask DataFrames ({npartitions} partitions)...")
 
             # --- Download/Cache and get local path for Demand ---
@@ -167,10 +175,12 @@ def load_electricity_data(
                 demand_ddf = dd.read_parquet(
                     demand_local_path,
                     engine='pyarrow',
-                    dtype=demand_dtypes
-                    # No storage_options needed for local files
+                    dtype=demand_dtypes,
+                    # Consider setting blocksize or split_row_groups for finer control if needed later
                 )
-                logger.success(f"Demand Dask DataFrame created (Initial partitions: {demand_ddf.npartitions}).")
+                # Repartition *after* loading to the desired number
+                demand_ddf = demand_ddf.repartition(npartitions=npartitions)
+                logger.success(f"Demand Dask DataFrame created and repartitioned to {demand_ddf.npartitions} partitions.")
             except Exception as read_err:
                 logger.error(f"Failed to read demand parquet file '{demand_local_path}' with Dask: {read_err}", exc_info=True)
                 logger.error("Check if the file is corrupted or if Dask/PyArrow have issues.")
@@ -182,9 +192,10 @@ def load_electricity_data(
                 weather_ddf = dd.read_parquet(
                     weather_local_path,
                     engine='pyarrow'
-                    # Let Dask infer types initially for local read
                 )
-                logger.info(f"Weather Dask DataFrame read with inferred types (Partitions: {weather_ddf.npartitions}).")
+                # Repartition *after* loading
+                weather_ddf = weather_ddf.repartition(npartitions=npartitions)
+                logger.info(f"Weather Dask DataFrame read and repartitioned to {weather_ddf.npartitions} partitions.")
                 logger.info(f"Inferred weather dtypes:\n{weather_ddf.dtypes}")
             except Exception as read_err:
                  logger.error(f"Failed to read weather parquet file '{weather_local_path}' with Dask: {read_err}", exc_info=True)

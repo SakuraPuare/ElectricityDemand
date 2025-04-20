@@ -10,6 +10,7 @@ import multiprocessing
 import matplotlib.pyplot as plt # 导入 matplotlib
 import seaborn as sns          # 导入 seaborn
 from dask.distributed import Client, LocalCluster # Import Client/LocalCluster if using persist
+import random # For sampling unique_ids
 
 # 确保可以导入 src 目录下的模块
 # 获取当前脚本文件所在的目录
@@ -368,12 +369,307 @@ def plot_weather_distribution(weather_ddf: dd.DataFrame, output_dir: str):
              logger.warning(f"Cannot plot weather distribution: Column '{col}' in sample is not numeric.")
 
 
+# --- New Analysis Functions ---
+
+def analyze_demand_metadata_relationship_sampled(
+    demand_sample_df: pd.DataFrame | None,
+    metadata_df: pd.DataFrame,
+    output_dir: str
+):
+    """
+    Analyzes the relationship between demand (sampled) and metadata features (e.g., building_class).
+    Uses the pre-computed demand sample (Pandas DataFrame).
+    """
+    logger.info("--- Analyzing Demand vs. Metadata Relationship (Sampled) ---")
+    if demand_sample_df is None or demand_sample_df.empty:
+        logger.warning("Skipping Demand vs. Metadata analysis: Demand sample is missing or empty.")
+        return
+    if 'unique_id' not in demand_sample_df.columns:
+        logger.warning("Skipping Demand vs. Metadata analysis: 'unique_id' missing in demand sample.")
+        return
+    if 'unique_id' not in metadata_df.columns or 'building_class' not in metadata_df.columns:
+         logger.warning("Skipping Demand vs. Metadata analysis: 'unique_id' or 'building_class' missing in metadata.")
+         return
+
+    logger.info("Merging demand sample with metadata...")
+    try:
+        # Ensure unique_id types match if possible (category can cause issues sometimes)
+        demand_sample_df['unique_id'] = demand_sample_df['unique_id'].astype(str)
+        metadata_df['unique_id'] = metadata_df['unique_id'].astype(str)
+
+        merged_df = pd.merge(demand_sample_df, metadata_df[['unique_id', 'building_class']], on='unique_id', how='left')
+        logger.info(f"Merged sample shape: {merged_df.shape}")
+
+        if merged_df.empty or 'building_class' not in merged_df.columns or merged_df['building_class'].isnull().all():
+            logger.warning("Merged DataFrame is empty or lacks non-null 'building_class' values.")
+            return
+
+        # Plot: Demand distribution by Building Class (using the sample)
+        plt.figure(figsize=(14, 7))
+        # Use showfliers=False to avoid plotting extreme outliers which can skew the view
+        sns.boxplot(data=merged_df, x='building_class', y='y', showfliers=False, palette="viridis")
+        plt.title('Demand (y) Distribution by Building Class (Sampled, Outliers Hidden)')
+        plt.xlabel('Building Class')
+        plt.ylabel('Demand (y)')
+        plt.xticks(rotation=45, ha='right')
+        plt.tight_layout()
+        plot_path = os.path.join(output_dir, 'demand_y_vs_building_class_boxplot_sampled.png')
+        plt.savefig(plot_path)
+        plt.close()
+        logger.info(f"Saved demand vs building class boxplot to {plot_path}")
+
+        # Plot: Log Demand distribution by Building Class
+        plt.figure(figsize=(14, 7))
+        merged_df_pos = merged_df[merged_df['y'] > 0].copy() # Use positive values for log scale
+        if not merged_df_pos.empty:
+            sns.boxplot(data=merged_df_pos, x='building_class', y='y', showfliers=False, palette="viridis")
+            plt.yscale('log')
+            plt.title('Log Demand (y>0) Distribution by Building Class (Sampled, Outliers Hidden)')
+            plt.xlabel('Building Class')
+            plt.ylabel('Demand (y) - Log Scale')
+            plt.xticks(rotation=45, ha='right')
+            plt.tight_layout()
+            plot_path_log = os.path.join(output_dir, 'demand_log_y_vs_building_class_boxplot_sampled.png')
+            plt.savefig(plot_path_log)
+            plt.close()
+            logger.info(f"Saved log demand vs building class boxplot to {plot_path_log}")
+        else:
+            logger.warning("No positive 'y' values in the merged sample to create log scale plot.")
+
+    except Exception as e:
+        logger.error(f"Error during Demand vs. Metadata analysis: {e}", exc_info=True)
+
+
+def analyze_demand_weather_relationship_sampled(
+    demand_ddf: dd.DataFrame,
+    weather_ddf: dd.DataFrame,
+    metadata_df: pd.DataFrame,
+    output_dir: str,
+    n_sample_ids: int = 50 # Number of unique IDs to sample for this analysis
+):
+    """
+    Analyzes the relationship between demand, weather, and metadata using a sample of unique IDs.
+    Merges Dask DataFrames for the sample, computes to Pandas, and plots relationships.
+    """
+    logger.info(f"--- Analyzing Demand vs. Weather Relationship (Sample of {n_sample_ids} unique IDs) ---")
+    if not all(col in metadata_df.columns for col in ['unique_id', 'location_id']):
+        logger.warning("Skipping Demand vs. Weather: Metadata missing 'unique_id' or 'location_id'.")
+        return
+    if 'unique_id' not in demand_ddf.columns:
+        logger.warning("Skipping Demand vs. Weather: Demand Dask DF missing 'unique_id'.")
+        return
+    if 'location_id' not in weather_ddf.columns or 'timestamp' not in weather_ddf.columns:
+         logger.warning("Skipping Demand vs. Weather: Weather Dask DF missing 'location_id' or 'timestamp'.")
+         return
+
+    # 1. Sample unique IDs from metadata
+    if n_sample_ids >= len(metadata_df['unique_id'].unique()):
+        sample_ids = metadata_df['unique_id'].unique().tolist()
+        logger.info("Using all available unique IDs for analysis.")
+    else:
+        all_ids = metadata_df['unique_id'].unique().tolist()
+        sample_ids = random.sample(all_ids, n_sample_ids)
+        logger.info(f"Sampled {len(sample_ids)} unique IDs.")
+
+    # 2. Filter Demand Dask DataFrame
+    logger.info("Filtering Demand Dask DataFrame for sampled IDs...")
+    demand_filtered_ddf = demand_ddf[demand_ddf['unique_id'].isin(sample_ids)]
+
+    # 3. Merge filtered Demand with Metadata (to get location_id) - using Dask merge
+    logger.info("Merging filtered Demand Dask DF with Metadata (Pandas)...")
+    # Ensure unique_id type compatibility for merge
+    metadata_subset = metadata_df[['unique_id', 'location_id']].astype({'unique_id': 'object', 'location_id': 'object'}).drop_duplicates()
+    # Convert demand_ddf unique_id to object if it's category before merge
+    demand_filtered_ddf['unique_id'] = demand_filtered_ddf['unique_id'].astype('object')
+
+    # Perform Dask merge. Metadata is small, broadcast should be efficient.
+    try:
+        # Ensure timestamp exists and handle potential index issues
+        if 'timestamp' not in demand_filtered_ddf.columns:
+             demand_filtered_ddf = demand_filtered_ddf.reset_index() # Make timestamp a column if it's index
+             if 'timestamp' not in demand_filtered_ddf.columns:
+                  logger.error("Timestamp column not found in demand data after reset_index.")
+                  return
+
+        merged_demand_meta_ddf = dd.merge(
+            demand_filtered_ddf[['unique_id', 'timestamp', 'y']], # Select only needed columns
+            metadata_subset,
+            on='unique_id',
+            how='left'
+        )
+        logger.info("Demand + Metadata merge initiated (Dask).")
+
+        # 4. Merge result with Weather Dask DataFrame
+        logger.info("Merging result with Weather Dask DataFrame...")
+        # Prepare weather ddf for merge: ensure types match, select columns
+        weather_ddf['location_id'] = weather_ddf['location_id'].astype('object')
+        # Reset index if timestamp is the index
+        if 'timestamp' not in weather_ddf.columns:
+            weather_ddf = weather_ddf.reset_index()
+            if 'timestamp' not in weather_ddf.columns:
+                logger.error("Timestamp column not found in weather data after reset_index.")
+                return
+
+        # Select key weather columns for analysis
+        weather_cols_to_keep = ['location_id', 'timestamp', 'temperature_2m', 'apparent_temperature', 'relative_humidity_2m', 'precipitation']
+        weather_subset_ddf = weather_ddf[[col for col in weather_cols_to_keep if col in weather_ddf.columns]]
+
+        # Perform the final Dask merge on location_id and timestamp
+        final_merged_ddf = dd.merge(
+            merged_demand_meta_ddf,
+            weather_subset_ddf,
+            on=['location_id', 'timestamp'],
+            how='left' # Keep all demand records, match weather where possible
+        )
+        logger.info("Demand + Metadata + Weather merge initiated (Dask).")
+
+        # 5. Compute the merged sample to Pandas
+        logger.info("Computing the final merged sample to Pandas...")
+        final_merged_df = compute_with_progress(final_merged_ddf, desc="Compute merged sample D->M->W")
+        logger.info(f"Computed final merged sample shape: {final_merged_df.shape}")
+
+        if final_merged_df.empty:
+            logger.warning("Final merged sample is empty. Cannot proceed with relationship analysis.")
+            return
+
+        # 6. Analyze and Plot Relationships (on the computed Pandas sample)
+        weather_features_to_plot = ['temperature_2m', 'apparent_temperature', 'relative_humidity_2m']
+        for feature in weather_features_to_plot:
+            if feature in final_merged_df.columns and final_merged_df['y'].notna().any() and final_merged_df[feature].notna().any():
+                plt.figure(figsize=(10, 6))
+                # Use a smaller sample for scatter plots if the merged df is still large
+                plot_sample_frac = 0.1 if len(final_merged_df) > 100000 else 1.0
+                plot_df_sample = final_merged_df.sample(frac=plot_sample_frac, random_state=42)
+
+                sns.scatterplot(data=plot_df_sample, x=feature, y='y', alpha=0.3, s=10) # Smaller points, some transparency
+                plt.title(f'Demand (y) vs {feature.replace("_", " ").title()} (Sampled)')
+                plt.xlabel(feature.replace("_", " ").title())
+                plt.ylabel('Demand (y)')
+                plt.tight_layout()
+                plot_path = os.path.join(output_dir, f'demand_y_vs_{feature}_scatter_sampled.png')
+                plt.savefig(plot_path)
+                plt.close()
+                logger.info(f"Saved demand vs {feature} scatter plot to {plot_path}")
+
+                # Calculate correlation
+                try:
+                    correlation = final_merged_df['y'].corr(final_merged_df[feature])
+                    logger.info(f"Correlation between 'y' and '{feature}': {correlation:.3f}")
+                except Exception as corr_err:
+                    logger.warning(f"Could not calculate correlation between 'y' and '{feature}': {corr_err}")
+            else:
+                logger.warning(f"Skipping plot for '{feature}': Column missing or only NaN values in the computed sample.")
+
+    except Exception as e:
+        logger.error(f"Error during Demand vs. Weather analysis: {e}", exc_info=True)
+        # Log specific info if it's a merge error
+        if "MergeError" in str(e) or "ValueError" in str(e):
+             logger.error("Potential issues: mismatched dtypes between Dask/Pandas, presence of NaNs in merge keys, or complex index structures.")
+
+
+def analyze_timestamp_frequency_sampled(
+    demand_ddf: dd.DataFrame,
+    weather_ddf: dd.DataFrame,
+    metadata_df: pd.DataFrame,
+    n_sample_ids: int = 10, # Fewer samples needed for frequency check
+    n_sample_locations: int = 10
+):
+    """
+    Analyzes the timestamp frequency in demand and weather data for sampled IDs/locations.
+    Compares inferred frequency with metadata['freq'].
+    """
+    logger.info(f"--- Analyzing Timestamp Frequency (Sample of {n_sample_ids} IDs, {n_sample_locations} Locations) ---")
+
+    # --- Analyze Demand Frequency ---
+    if 'unique_id' in demand_ddf.columns and 'timestamp' in demand_ddf.columns:
+        if n_sample_ids >= metadata_df['unique_id'].nunique():
+            demand_sample_ids = metadata_df['unique_id'].unique().tolist()
+        else:
+            demand_sample_ids = random.sample(metadata_df['unique_id'].unique().tolist(), n_sample_ids)
+
+        logger.info(f"Filtering Demand for {len(demand_sample_ids)} IDs to check frequency...")
+        demand_sample_freq_ddf = demand_ddf[demand_ddf['unique_id'].isin(demand_sample_ids)][['unique_id', 'timestamp']].persist() # Persist small sample
+
+        logger.info("Computing demand sample for frequency analysis...")
+        demand_sample_freq_df = compute_with_progress(demand_sample_freq_ddf, "Compute demand sample for freq")
+
+        if not demand_sample_freq_df.empty:
+            logger.info("Calculating timestamp differences for demand sample...")
+            demand_sample_freq_df = demand_sample_freq_df.sort_values(['unique_id', 'timestamp'])
+            # Calculate diff within each group - crucial step
+            demand_sample_freq_df['time_diff'] = demand_sample_freq_df.groupby('unique_id')['timestamp'].diff()
+
+            common_freqs = demand_sample_freq_df['time_diff'].dropna().value_counts().head(5)
+            logger.info(f"Most common time differences (frequencies) found in demand sample:\n{common_freqs}")
+
+            # Compare with metadata['freq'] for these IDs
+            metadata_freqs = metadata_df[metadata_df['unique_id'].isin(demand_sample_ids)][['unique_id', 'freq']].drop_duplicates()
+            logger.info(f"Metadata 'freq' for sampled demand IDs:\n{metadata_freqs.set_index('unique_id')}")
+            # Add more detailed comparison logic here if needed (e.g., converting pd.Timedelta to string)
+        else:
+            logger.warning("Demand sample for frequency analysis is empty.")
+        if 'persist' in locals() and demand_sample_freq_ddf is not None: # Clean up persisted dask df
+             from dask.distributed import client, Future
+             try:
+                 client = dd.get_client()
+                 client.cancel(demand_sample_freq_ddf)
+             except Exception:
+                 pass # Ignore if client not running or other error
+    else:
+        logger.warning("Skipping demand frequency analysis: 'unique_id' or 'timestamp' missing.")
+
+
+    # --- Analyze Weather Frequency ---
+    if 'location_id' in weather_ddf.columns and 'timestamp' in weather_ddf.columns:
+        all_locations = weather_ddf['location_id'].unique().compute() # Need unique locations
+        if n_sample_locations >= len(all_locations):
+            weather_sample_locs = all_locations.tolist()
+        else:
+            weather_sample_locs = random.sample(all_locations.tolist(), n_sample_locations)
+
+        logger.info(f"Filtering Weather for {len(weather_sample_locs)} locations to check frequency...")
+        weather_sample_freq_ddf = weather_ddf[weather_ddf['location_id'].isin(weather_sample_locs)][['location_id', 'timestamp']].persist()
+
+        logger.info("Computing weather sample for frequency analysis...")
+        weather_sample_freq_df = compute_with_progress(weather_sample_freq_ddf, "Compute weather sample for freq")
+
+        if not weather_sample_freq_df.empty:
+            logger.info("Calculating timestamp differences for weather sample...")
+            weather_sample_freq_df = weather_sample_freq_df.sort_values(['location_id', 'timestamp'])
+            weather_sample_freq_df['time_diff'] = weather_sample_freq_df.groupby('location_id')['timestamp'].diff()
+
+            common_freqs_weather = weather_sample_freq_df['time_diff'].dropna().value_counts().head(5)
+            logger.info(f"Most common time differences (frequencies) found in weather sample:\n{common_freqs_weather}")
+            # Typically weather data is hourly, check if Timedelta('0 days 01:00:00') is dominant
+        else:
+            logger.warning("Weather sample for frequency analysis is empty.")
+
+        if 'persist' in locals() and weather_sample_freq_ddf is not None: # Clean up persisted dask df
+             from dask.distributed import client, Future
+             try:
+                 client = dd.get_client()
+                 client.cancel(weather_sample_freq_ddf)
+             except Exception:
+                 pass
+    else:
+        logger.warning("Skipping weather frequency analysis: 'location_id' or 'timestamp' missing.")
+
+    # --- Matching Check ---
+    # Log the dominant frequencies found above side-by-side for comparison
+    # Add specific check for hourly frequency (Timedelta(hours=1))
+    logger.info("Frequency Summary: Check if Demand and Weather frequencies align (often hourly).")
+    # (Further checks could involve joining demand/weather samples on time and checking gaps)
+
+
 # --- Main EDA Execution (Using Dask) ---
 
-def run_eda_dask(demand_sample_frac: float = 0.01):
-    """Loads data using Dask and performs EDA checks and plotting."""
+def run_eda_dask(demand_sample_frac: float = 0.01, n_relation_sample_ids: int = 50, n_freq_sample_ids: int = 10):
+    """Loads data using Dask and performs EDA checks, plotting, relationship, and frequency analysis."""
     logger.info("--- Starting EDA process (Dask) ---")
-    logger.info(f"Demand data analysis/plotting will use a {demand_sample_frac*100:.2f}% sample.")
+    logger.info(f"Demand distribution analysis/plotting uses {demand_sample_frac*100:.2f}% sample.")
+    logger.info(f"Demand-Weather relation analysis uses {n_relation_sample_ids} unique IDs.")
+    logger.info(f"Timestamp frequency analysis uses {n_freq_sample_ids} unique IDs/locations.")
+
 
     # --- Setup ---
     setup_plotting_style()
@@ -399,50 +695,73 @@ def run_eda_dask(demand_sample_frac: float = 0.01):
         "Weather (Dask)": weather_ddf # Use original loaded ddf
     }
 
-    computed_sample = None # To store the computed demand sample
+    computed_demand_sample = None # To store the computed demand sample for reuse
 
     for name, df_obj in dataframes_info.items():
         logger.info(f"\n--- Analyzing {name} ---")
         is_dask = isinstance(df_obj, dd.DataFrame)
 
         if is_dask:
-            logger.info(f"Schema (dtypes):\n{df_obj.dtypes}")
+            # logger.info(f"Schema (dtypes):\n{df_obj.dtypes}") # Can be verbose
+            dtypes_str = "\n".join([f"- {col}: {dtype}" for col, dtype in df_obj.dtypes.items()])
+            logger.info(f"Schema (dtypes):\n{dtypes_str}")
             check_missing_values_dask(df_obj, name)
             if name == "Weather (Dask)":
-                 # Use map_partitions based check
                  check_duplicate_values_dask(df_obj, name, subset=['location_id', 'timestamp'])
-            else:
-                 logger.info(f"Skipping full duplicate check for {name} due to potential cost.")
+            elif name == "Demand (Dask)":
+                 check_duplicate_values_dask(df_obj, name, subset=['unique_id', 'timestamp']) # Check Demand duplicates too
 
             if name == "Demand (Dask)":
-                computed_sample = analyze_demand_distribution_dask(df_obj, sample_frac=demand_sample_frac)
+                # Compute the sample ONCE and store it
+                computed_demand_sample = analyze_demand_distribution_dask(df_obj, sample_frac=demand_sample_frac)
                 analyze_timestamp_info_dask(df_obj, name)
             elif name == "Weather (Dask)":
                 analyze_weather_numeric_dask(df_obj)
                 analyze_timestamp_info_dask(df_obj, name)
 
         else: # Pandas DataFrame (Metadata)
-            df_obj.info(verbose=True, show_counts=True)
+            df_obj.info(verbose=False, show_counts=True) # Less verbose info
             check_missing_values(df_obj, name)
-            check_duplicate_values(df_obj, name) # Use Pandas version here
-            logger.info(f"{name} Head:\n{df_obj.head()}")
+            check_duplicate_values(df_obj, name, subset=['unique_id']) # Check metadata duplicates by ID
+            # logger.info(f"{name} Head:\n{df_obj.head()}") # Head can be large
             analyze_metadata_categorical(df_obj)
 
-    # --- Generating Plots ---
-    logger.info("\n--- Generating Plots (using computed samples where necessary) ---")
+    # --- Generating Distribution Plots ---
+    logger.info("\n--- Generating Distribution Plots (using computed samples where necessary) ---")
     try:
-        if computed_sample is not None:
-            plot_demand_distribution(computed_sample, plot_output_dir)
+        if computed_demand_sample is not None:
+            plot_demand_distribution(computed_demand_sample, plot_output_dir)
         else:
             logger.warning("Skipping demand distribution plots as sample computation failed or was skipped.")
 
         plot_metadata_distribution(metadata_df, plot_output_dir)
+        # plot_weather_distribution can be memory intensive if weather is huge, ensure sampling works
         plot_weather_distribution(weather_ddf, plot_output_dir)
 
     except Exception as e:
-        logger.error(f"An error occurred during plot generation: {e}", exc_info=True)
+        logger.error(f"An error occurred during distribution plot generation: {e}", exc_info=True)
 
-    logger.success("EDA checks and plot generation completed (Dask).")
+    # --- Analyzing Relationships ---
+    logger.info("\n--- Analyzing Relationships (using computed samples) ---")
+    try:
+        # Demand vs Metadata (uses the demand sample already computed)
+        analyze_demand_metadata_relationship_sampled(computed_demand_sample, metadata_df, plot_output_dir)
+
+        # Demand vs Weather (involves merging Dask dataframes for new samples)
+        analyze_demand_weather_relationship_sampled(demand_ddf, weather_ddf, metadata_df, plot_output_dir, n_sample_ids=n_relation_sample_ids)
+
+    except Exception as e:
+         logger.error(f"An error occurred during relationship analysis: {e}", exc_info=True)
+
+    # --- Analyzing Timestamp Frequency ---
+    logger.info("\n--- Analyzing Timestamp Frequency (using new samples) ---")
+    try:
+         analyze_timestamp_frequency_sampled(demand_ddf, weather_ddf, metadata_df, n_sample_ids=n_freq_sample_ids, n_sample_locations=n_freq_sample_ids) # Reuse n_freq_sample_ids for locations too
+    except Exception as e:
+         logger.error(f"An error occurred during frequency analysis: {e}", exc_info=True)
+
+
+    logger.success("EDA process completed (including relationship and frequency analysis).")
 
 
 # --- Helper functions for Pandas checks (if needed, copy from original eda.py) ---
@@ -475,4 +794,20 @@ def check_duplicate_values(df: pd.DataFrame, df_name: str, subset=None):
 
 
 if __name__ == "__main__":
-    run_eda_dask(demand_sample_frac=0.01)
+    # Consider setting up Dask client for better resource management and dashboard
+    # try:
+    #     # Use LocalCluster for simplicity, adjust memory/cores as needed
+    #     cluster = LocalCluster(n_workers=os.cpu_count() // 2, threads_per_worker=2, memory_limit='4GB')
+    #     client = Client(cluster)
+    #     logger.info(f"Dask dashboard link: {client.dashboard_link}")
+    # except Exception as client_err:
+    #     logger.warning(f"Could not start Dask client/cluster: {client_err}. Running sequentially.")
+
+    run_eda_dask(demand_sample_frac=0.005, n_relation_sample_ids=50, n_freq_sample_ids=10) # Reduce demand sample slightly
+
+    # Optional: Shutdown client if started
+    # if 'client' in locals() and client:
+    #     logger.info("Shutting down Dask client and cluster...")
+    #     client.close()
+    #     cluster.close()
+    #     logger.info("Dask client and cluster shut down.")

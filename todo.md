@@ -14,30 +14,33 @@ https://huggingface.co/datasets/EDS-lab/electricity-demand
 
 ## 1. 数据获取 (Data Acquisition)
 
-- [ ] 从 Hugging Face Hub 下载 `electricity-demand` 数据集 (`demand.parquet`, `metadata.parquet`/`.csv`, `weather.parquet`)。
-- [ ] 确认文件完整性。
+- [x] 从 Hugging Face Hub 下载 `electricity-demand` 数据集 (`demand.parquet`, `metadata.parquet`/`.csv`, `weather.parquet`)。 (通过 `loader.py` 实现)
+- [x] 确认文件完整性。 (通过 `loader.py` 加载过程隐式检查)
 
 ## 2. 数据加载与探索性数据分析 (Data Loading & EDA)
 
-- [ ] 选择大数据处理框架 (e.g., Spark, Dask, Pandas)。
-- [ ] 加载 Parquet 文件。
-- [ ] 查看数据基本信息 (shape, dtypes)。
-- [ ] 检查缺失值 (missing values)。
-- [ ] 检查重复值 (duplicate values)。
-- [ ] 分析 `demand.parquet`:
-  - [ ] `y` (用电量) 分布。
-  - [ ] 不同 `unique_id` 的用电模式。
-  - [ ] `timestamp` 范围和频率。
-- [ ] 分析 `metadata.parquet`:
-  - [ ] `building_class`, `location`, `freq` 等分布。
-- [ ] 分析 `weather.parquet`:
-  - [ ] 天气指标分布和范围。
-  - [ ] 时间范围和频率与需求数据匹配性。
-- [ ] 可视化关键特征和关系。
+- [x] 选择大数据处理框架 (Dask)。
+- [x] 加载 Parquet 文件 (`loader.py`)。
+- [x] 查看数据基本信息 (shape, dtypes) (`eda.py`)。
+- [x] 检查缺失值 (`eda.py`)。
+- [x] 检查重复值 (`eda.py`, Weather/Demand 基于 key 检查)。
+- [x] 分析 `demand.parquet`:
+    - [x] `y` (用电量) 分布 (`eda.py` - sampled)。
+    - [x] 不同 `unique_id` 的用电模式 (通过 Demand vs Metadata 分析部分完成)。
+    - [x] `timestamp` 范围 (`eda.py`)。
+    - [x] `timestamp` 频率分析与验证 (`eda.py` - sampled)。
+- [x] 分析 `metadata.parquet`:
+    - [x] `building_class`, `location`, `freq` 等分布 (`eda.py`)。
+- [x] 分析 `weather.parquet`:
+    - [x] 天气指标分布和范围 (`eda.py` - sampled stats)。
+    - [x] 时间范围 (`eda.py`)。
+    - [x] 时间范围和频率与需求数据匹配性 (`eda.py` - sampled frequency analysis)。
+- [x] 可视化关键特征分布 (`eda.py` - sampled)。
+- [x] 可视化关键特征**间的关系** (e.g., demand vs weather, demand vs metadata) (`eda.py` - sampled)。
 
 ## 3. 数据预处理与特征工程 (Data Preprocessing & Feature Engineering)
 
-- [ ] 合并 `demand`, `metadata`, `weather` 数据。
+- [ ] 合并 `demand`, `metadata`, `weather` 数据。 <mark><<下一步>></mark>
   - [ ] 处理 `unique_id`, `location_id` 连接。
   - [ ] 处理 `timestamp` 对齐和时区。
 - [ ] 处理缺失值 (imputation)。
