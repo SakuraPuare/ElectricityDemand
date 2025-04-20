@@ -75,8 +75,33 @@ except FileNotFoundError as e:
 except Exception as e:
     logger.exception(f"加载数据时发生未预期错误: {e}") # 使用 logger.exception 记录堆栈信息
 
-# 可以在这里添加 ddf_demand.head(), ddf_metadata.head(), ddf_weather.head()
-# 来查看前几行数据，但注意 .head() 会触发计算
-# logger.info("Demand 数据前5行:\n", ddf_demand.head())
-# logger.info("Metadata 数据前5行:\n", ddf_metadata.head())
-# logger.info("Weather 数据前5行:\n", ddf_weather.head())
+# --- 1. 获取行数 ---
+print("--- 行数 ---")
+# Demand (可能是近似值)
+num_demand_rows = len(ddf_demand)
+print(f"Demand 数据行数 (估算): {num_demand_rows:,}") # 使用逗号分隔符
+
+# Metadata (可能是精确值，因为分区少)
+num_metadata_rows = len(ddf_metadata)
+print(f"Metadata 数据行数: {num_metadata_rows:,}")
+
+# Weather (可能是精确值，因为分区少)
+num_weather_rows = len(ddf_weather)
+print(f"Weather 数据行数: {num_weather_rows:,}")
+
+
+# --- 2. 查看数据样本 ---
+print("\n--- Demand 数据前 5 行 ---")
+print(ddf_demand.head())
+
+print("\n--- Metadata 数据前 5 行 ---")
+print(ddf_metadata.head())
+
+print("\n--- Weather 数据前 5 行 ---")
+print(ddf_weather.head())
+
+# --- 3. 查看数据类型 ---
+print("\n--- 数据类型 ---")
+print("Demand dtypes:\n", ddf_demand.dtypes)
+print("\nMetadata dtypes:\n", ddf_metadata.dtypes)
+print("\nWeather dtypes:\n", ddf_weather.dtypes)

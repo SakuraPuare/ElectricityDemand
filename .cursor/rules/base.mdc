@@ -7,6 +7,9 @@ alwaysApply: true
 
 在合适的时候 尽量对数据进行可视化 和 通过日志输出一些信息
 
+我需要进行 https://huggingface.co/datasets/EDS-lab/electricity-demand 这个数据库的 数据分析 请一步一步教我如何进行操作 并更新到 [todo.md](mdc:todo.md) 中
+
+
 # 技术栈
 
 本项目使用 dask 框架 使用 loguru 作为日志库 日志存在 logs 下 使用我们自己的logger [log_utils.py](mdc:src/electricitydemand/utils/log_utils.py)

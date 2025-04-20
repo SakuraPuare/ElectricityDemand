@@ -1,16 +1,22 @@
 # 电力需求数据分析项目
 
 ## 数据来源
+
 https://huggingface.co/datasets/EDS-lab/electricity-demand
 
 ## 任务清单
 
 ### 1. 数据分析 (进行中)
-- [ ] **环境设置与数据加载**
-  - [ ] 导入所需库 (dask, loguru, pandas, 可视化库)
-  - [ ] 使用 dask 加载 `demand.parquet`, `metadata.parquet`, `weather.parquet`
-- [ ] **数据概览与质量检查**
-  - [ ] 查看数据形状、列名、数据类型
+- [x] **环境设置与数据下载**
+  - [x] 配置项目环境 (`pyproject.toml`)
+  - [x] 实现日志记录功能 (`src/electricitydemand/utils/log_utils.py`)
+  - [x] 实现数据下载脚本 (`src/electricitydemand/download_data.py`)
+  - [x] 运行数据下载脚本
+  - [x] 实现数据加载脚本 (`src/electricitydemand/load_data.py`)
+  - [x] 运行数据加载脚本
+- [ ] **数据概览与质量检查 (进行中)**
+  - [x] 查看数据形状 (分区数)、列名、数据类型 (部分完成，加载脚本已提供)
+  - [ ] **计算行数并查看数据样本** <--- **当前任务**
   - [ ] 检查并统计缺失值
   - [ ] 检查并处理重复值
   - [ ] 确定各数据集的时间范围
@@ -33,16 +39,16 @@ https://huggingface.co/datasets/EDS-lab/electricity-demand
 
 ## 进行中 ⏳
 
-*   **数据加载**: 使用 Dask 加载 `demand`, `metadata`, `weather` Parquet 文件。
+*   **数据概览与质量检查**: 计算行数，查看数据样本 (`.head()`)。
 
 ## 下一步 ➡️
 
-*   **初步数据探索**:
-    *   查看每个数据集的基本信息 (列名, 数据类型, 分区数)。
-    *   计算 `demand` 数据集的大致行数 (使用 `len()`)。
-    *   检查 `metadata` 和 `weather` 数据集的具体行数 (因为它们较小，可以调用 `.compute()` 或直接使用 `len()` 查看已知的行数)。
-    *   使用 `.head()` 查看每个数据集的前几行数据，了解具体内容。
+*   **数据质量检查**:
+    *   检查各数据集的缺失值 (`.isnull().sum()`).
+    *   检查各数据集的重复值 (`.duplicated().sum()`).
+    *   检查各数据集的时间范围 (`.timestamp.min()`, `.timestamp.max()`).
 
 ## 已完成 ✅
 
-*   *(暂无)*
+*   环境设置与数据下载
+*   数据加载与基本信息查看 (列名, 分区数)
