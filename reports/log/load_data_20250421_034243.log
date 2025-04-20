@@ -1,0 +1,219 @@
+2025-04-21 03:42:43.875 | INFO     | src.electricitydemand.utils.log_utils:setup_logger:131 - 文本日志将写入: /home/ubuntu/ElectricityDemand/logs/load_data_20250421_034243.log
+2025-04-21 03:42:43.876 | INFO     | src.electricitydemand.utils.log_utils:setup_logger:169 - 已拦截标准库 logging。
+2025-04-21 03:42:43.876 | INFO     | src.electricitydemand.utils.log_utils:setup_logger:174 - 已设置全局异常处理钩子 (sys.excepthook)。
+2025-04-21 03:42:43.876 | INFO     | src.electricitydemand.utils.log_utils:setup_logger:176 - Loguru 初始化完成。默认级别: INFO. 控制台: INFO. 文件: INFO.
+2025-04-21 03:42:43.876 | WARNING  | src.electricitydemand.utils.log_utils:setup_logger:178 - Diagnose 和 Backtrace 已启用。注意：在生产环境中 'diagnose=True' 可能泄露敏感数据！
+2025-04-21 03:42:43.876 | INFO     | __main__:<module>:37 - 项目根目录: /home/ubuntu/ElectricityDemand
+2025-04-21 03:42:43.876 | INFO     | __main__:<module>:38 - 日志目录: /home/ubuntu/ElectricityDemand/logs
+2025-04-21 03:42:43.877 | INFO     | __main__:<module>:45 - 数据目录: /home/ubuntu/ElectricityDemand/data
+2025-04-21 03:42:43.877 | INFO     | __main__:load_datasets:49 - 开始加载数据集...
+2025-04-21 03:42:45.528 | INFO     | __main__:load_datasets:52 - 成功加载 Demand 数据: /home/ubuntu/ElectricityDemand/data/demand.parquet
+2025-04-21 03:42:45.533 | INFO     | __main__:load_datasets:55 - 成功加载 Metadata 数据: /home/ubuntu/ElectricityDemand/data/metadata.parquet
+2025-04-21 03:42:45.564 | INFO     | __main__:load_datasets:58 - 成功加载 Weather 数据: /home/ubuntu/ElectricityDemand/data/weather.parquet
+2025-04-21 03:42:45.564 | INFO     | __main__:load_datasets:60 - 所有数据集加载完成。
+2025-04-21 03:42:45.564 | INFO     | __main__:log_basic_info:71 - --- 记录数据集基本信息 ---
+2025-04-21 03:42:49.468 | INFO     | __main__:log_basic_info:74 - Demand Dask DataFrame npartitions: 12, columns: Index(['unique_id', 'timestamp', 'y'], dtype='object')
+2025-04-21 03:42:49.469 | INFO     | __main__:log_basic_info:75 - Metadata Dask DataFrame npartitions: 1, columns: Index(['unique_id', 'dataset', 'building_id', 'location_id', 'latitude',
+       'longitude', 'location', 'timezone', 'building_class', 'cluster_size',
+       'freq'],
+      dtype='object')
+2025-04-21 03:42:49.470 | INFO     | __main__:log_basic_info:76 - Weather Dask DataFrame npartitions: 1, columns: Index(['timestamp', 'temperature_2m', 'relative_humidity_2m', 'dew_point_2m',
+       'apparent_temperature', 'precipitation', 'rain', 'snowfall',
+       'snow_depth', 'weather_code', 'pressure_msl', 'surface_pressure',
+       'cloud_cover', 'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high',
+       'et0_fao_evapotranspiration', 'vapour_pressure_deficit',
+       'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
+       'soil_temperature_0_to_7cm', 'soil_temperature_7_to_28cm',
+       'soil_moisture_0_to_7cm', 'soil_moisture_7_to_28cm', 'is_day',
+       'sunshine_duration', 'shortwave_radiation', 'direct_radiation',
+       'diffuse_radiation', 'direct_normal_irradiance',
+       'terrestrial_radiation', 'location_id'],
+      dtype='object')
+2025-04-21 03:42:49.470 | INFO     | __main__:log_basic_info:79 - --- 计算行数 ---
+2025-04-21 03:42:49.668 | INFO     | __main__:log_basic_info:85 - Demand 数据行数 (估算): 237,944,171
+2025-04-21 03:42:49.668 | INFO     | __main__:log_basic_info:86 - Metadata 数据行数: 7,572
+2025-04-21 03:42:49.669 | INFO     | __main__:log_basic_info:87 - Weather 数据行数: 604,848
+2025-04-21 03:42:49.669 | INFO     | __main__:log_basic_info:90 - --- 查看数据样本 (前 5 行) ---
+2025-04-21 03:42:54.043 | INFO     | __main__:log_basic_info:92 - Demand head:
+          unique_id           timestamp    y
+0  a4077c2f0ac5f939 2012-10-12 00:30:00  0.0
+1  a4077c2f0ac5f939 2012-10-12 01:00:00  0.0
+2  a4077c2f0ac5f939 2012-10-12 01:30:00  0.0
+3  a4077c2f0ac5f939 2012-10-12 02:00:00  0.0
+4  a4077c2f0ac5f939 2012-10-12 02:30:00  0.0
+2025-04-21 03:42:54.054 | INFO     | __main__:log_basic_info:93 - Metadata head:
+          unique_id                  dataset building_id   location_id  latitude  longitude    location       timezone building_class  cluster_size freq
+0  a4077c2f0ac5f939  London Smart Meter Data   MAC000002  gcpvj4cmfb0f     51.52      -0.13  London, UK  Europe/London    Residential             1  30T
+1  c413415b78b2cd28  London Smart Meter Data   MAC000003  gcpvj4cmfb0f     51.52      -0.13  London, UK  Europe/London    Residential             1  30T
+2  4ef97f530574813a  London Smart Meter Data   MAC000004  gcpvj4cmfb0f     51.52      -0.13  London, UK  Europe/London    Residential             1  30T
+3  0c9e78f7ca4842c2  London Smart Meter Data   MAC000005  gcpvj4cmfb0f     51.52      -0.13  London, UK  Europe/London    Residential             1  30T
+4  e881429cbec2cf4d  London Smart Meter Data   MAC000006  gcpvj4cmfb0f     51.52      -0.13  London, UK  Europe/London    Residential             1  30T
+2025-04-21 03:42:54.417 | INFO     | __main__:log_basic_info:94 - Weather head:
+            timestamp  temperature_2m  relative_humidity_2m  dew_point_2m  apparent_temperature  precipitation  rain  snowfall  snow_depth  weather_code  pressure_msl  surface_pressure  cloud_cover  cloud_cover_low  cloud_cover_mid  cloud_cover_high  et0_fao_evapotranspiration  vapour_pressure_deficit  wind_speed_10m  wind_direction_10m  wind_gusts_10m  soil_temperature_0_to_7cm  soil_temperature_7_to_28cm  soil_moisture_0_to_7cm  soil_moisture_7_to_28cm  is_day  sunshine_duration  shortwave_radiation  direct_radiation  diffuse_radiation  direct_normal_irradiance  terrestrial_radiation   location_id
+0 2011-01-01 00:00:00          4.1265             97.229843        3.7265              1.484439            0.0   0.0       0.0         0.0           3.0   1025.699951       1020.408630    88.199997             98.0              0.0               0.0                         0.0                 0.022793        7.993297          305.837738       14.759999                     3.1765                      3.1265                   0.393                    0.393     0.0                0.0                  0.0               0.0                0.0                       0.0                    0.0  gcpvj4cmfb0f
+1 2011-01-01 01:00:00          4.1765             95.872025        3.5765              1.345968            0.0   0.0       0.0         0.0           3.0   1025.599976       1020.310120    89.099998             99.0              0.0               0.0                         0.0                 0.034084        9.085988          303.690094       16.919998                     3.2265                      3.1265                   0.393                    0.393     0.0                0.0                  0.0               0.0                0.0                       0.0                    0.0  gcpvj4cmfb0f
+2 2011-01-01 02:00:00          3.9265             94.853752        3.1765              0.957560            0.0   0.0       0.0         0.0           3.0   1025.199951       1019.907349    84.599998             94.0              0.0               0.0                         0.0                 0.041752        9.511088          299.475800       18.359999                     3.1265                      3.1265                   0.393                    0.393     0.0                0.0                  0.0               0.0                0.0                       0.0                    0.0  gcpvj4cmfb0f
+3 2011-01-01 03:00:00          3.6765             94.174149        2.8265              0.634312            0.0   0.0       0.0         0.0           3.0   1025.099976       1019.803040    85.500000             95.0              0.0               0.0                         0.0                 0.046443        9.565437          289.798950       18.359999                     3.0265                      3.0765                   0.393                    0.393     0.0                0.0                  0.0               0.0                0.0                       0.0                    0.0  gcpvj4cmfb0f
+4 2011-01-01 04:00:00          3.3765             93.826447        2.4765              0.180433            0.0   0.0       0.0         0.0           3.0   1024.500000       1019.200500    86.399994             96.0              0.0               0.0                         0.0                 0.048185       10.182337          278.130005       18.359999                     2.8765                      3.0765                   0.392                    0.392     0.0                0.0                  0.0               0.0                0.0                       0.0                    0.0  gcpvj4cmfb0f
+2025-04-21 03:42:54.417 | INFO     | __main__:log_basic_info:97 - --- 查看数据类型 ---
+2025-04-21 03:42:54.418 | INFO     | __main__:log_basic_info:98 - Demand dtypes:
+unique_id    string[pyarrow]
+timestamp     datetime64[ns]
+y                    float64
+2025-04-21 03:42:54.418 | INFO     | __main__:log_basic_info:99 - Metadata dtypes:
+unique_id         string[pyarrow]
+dataset           string[pyarrow]
+building_id       string[pyarrow]
+location_id       string[pyarrow]
+latitude                  float64
+longitude                 float64
+location          string[pyarrow]
+timezone          string[pyarrow]
+building_class    string[pyarrow]
+cluster_size                int64
+freq              string[pyarrow]
+2025-04-21 03:42:54.419 | INFO     | __main__:log_basic_info:100 - Weather dtypes:
+timestamp                      datetime64[ns]
+temperature_2m                        float32
+relative_humidity_2m                  float32
+dew_point_2m                          float32
+apparent_temperature                  float32
+precipitation                         float32
+rain                                  float32
+snowfall                              float32
+snow_depth                            float32
+weather_code                          float32
+pressure_msl                          float32
+surface_pressure                      float32
+cloud_cover                           float32
+cloud_cover_low                       float32
+cloud_cover_mid                       float32
+cloud_cover_high                      float32
+et0_fao_evapotranspiration            float32
+vapour_pressure_deficit               float32
+wind_speed_10m                        float32
+wind_direction_10m                    float32
+wind_gusts_10m                        float32
+soil_temperature_0_to_7cm             float32
+soil_temperature_7_to_28cm            float32
+soil_moisture_0_to_7cm                float32
+soil_moisture_7_to_28cm               float32
+is_day                                float32
+sunshine_duration                     float32
+shortwave_radiation                   float32
+direct_radiation                      float32
+diffuse_radiation                     float32
+direct_normal_irradiance              float32
+terrestrial_radiation                 float32
+location_id                   string[pyarrow]
+2025-04-21 03:42:54.419 | INFO     | __main__:check_missing_values:106 - --- 检查缺失值 ---
+2025-04-21 03:42:54.420 | INFO     | __main__:check_missing_values:109 - Demand 缺失值统计:
+2025-04-21 03:43:05.950 | INFO     | __main__:check_missing_values:111 - 
+unique_id          0
+timestamp          0
+y            3086278
+2025-04-21 03:43:05.951 | INFO     | __main__:check_missing_values:113 - Demand 缺失值比例:
+unique_id    0.0%
+timestamp    0.0%
+y            1.3%
+dtype: object
+2025-04-21 03:43:05.951 | INFO     | __main__:check_missing_values:119 - Metadata 缺失值统计:
+2025-04-21 03:43:05.964 | INFO     | __main__:check_missing_values:121 - 
+unique_id           0
+dataset             0
+building_id         0
+location_id       237
+latitude          237
+longitude         237
+location          237
+timezone            0
+building_class      0
+cluster_size        0
+freq                0
+2025-04-21 03:43:05.965 | INFO     | __main__:check_missing_values:123 - Metadata 缺失值比例:
+unique_id          0.0%
+dataset            0.0%
+building_id        0.0%
+location_id       3.13%
+latitude          3.13%
+longitude         3.13%
+location          3.13%
+timezone           0.0%
+building_class     0.0%
+cluster_size       0.0%
+freq               0.0%
+dtype: object
+2025-04-21 03:43:05.965 | INFO     | __main__:check_missing_values:129 - Weather 缺失值统计:
+2025-04-21 03:43:06.287 | INFO     | __main__:check_missing_values:131 - 
+timestamp                     0
+temperature_2m                0
+relative_humidity_2m          0
+dew_point_2m                  0
+apparent_temperature          0
+precipitation                 0
+rain                          0
+snowfall                      0
+snow_depth                    0
+weather_code                  0
+pressure_msl                  0
+surface_pressure              0
+cloud_cover                   0
+cloud_cover_low               0
+cloud_cover_mid               0
+cloud_cover_high              0
+et0_fao_evapotranspiration    0
+vapour_pressure_deficit       0
+wind_speed_10m                0
+wind_direction_10m            0
+wind_gusts_10m                0
+soil_temperature_0_to_7cm     0
+soil_temperature_7_to_28cm    0
+soil_moisture_0_to_7cm        0
+soil_moisture_7_to_28cm       0
+is_day                        0
+sunshine_duration             0
+shortwave_radiation           0
+direct_radiation              0
+diffuse_radiation             0
+direct_normal_irradiance      0
+terrestrial_radiation         0
+location_id                   0
+2025-04-21 03:43:06.288 | INFO     | __main__:check_missing_values:133 - Weather 缺失值比例:
+timestamp                     0.0%
+temperature_2m                0.0%
+relative_humidity_2m          0.0%
+dew_point_2m                  0.0%
+apparent_temperature          0.0%
+precipitation                 0.0%
+rain                          0.0%
+snowfall                      0.0%
+snow_depth                    0.0%
+weather_code                  0.0%
+pressure_msl                  0.0%
+surface_pressure              0.0%
+cloud_cover                   0.0%
+cloud_cover_low               0.0%
+cloud_cover_mid               0.0%
+cloud_cover_high              0.0%
+et0_fao_evapotranspiration    0.0%
+vapour_pressure_deficit       0.0%
+wind_speed_10m                0.0%
+wind_direction_10m            0.0%
+wind_gusts_10m                0.0%
+soil_temperature_0_to_7cm     0.0%
+soil_temperature_7_to_28cm    0.0%
+soil_moisture_0_to_7cm        0.0%
+soil_moisture_7_to_28cm       0.0%
+is_day                        0.0%
+sunshine_duration             0.0%
+shortwave_radiation           0.0%
+direct_radiation              0.0%
+diffuse_radiation             0.0%
+direct_normal_irradiance      0.0%
+terrestrial_radiation         0.0%
+location_id                   0.0%
+dtype: object
+2025-04-21 03:43:06.289 | INFO     | __main__:log_time_ranges:188 - --- 计算时间范围 ---
+2025-04-21 03:43:18.716 | INFO     | __main__:log_time_ranges:192 - Demand 时间范围: 从 2011-01-01 00:30:00 到 2017-12-31 23:00:00
+2025-04-21 03:43:19.005 | INFO     | __main__:log_time_ranges:199 - Weather 时间范围: 从 2011-01-01 00:00:00 到 2019-01-01 06:00:00
+2025-04-21 03:43:19.005 | INFO     | __main__:main:223 - 数据加载和初步检查脚本执行完毕。
