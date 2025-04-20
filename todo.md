@@ -40,10 +40,10 @@ https://huggingface.co/datasets/EDS-lab/electricity-demand
 
 ## 3. 数据预处理与特征工程 (Data Preprocessing & Feature Engineering)
 
-- [x] 合并 `demand`, `metadata`, `weather` 数据。 (`preprocessor.py`)
+- [x] 合并 `demand`, `metadata`, `weather` 数据。 (`preprocessor.py` - merge_data 框架)
   - [x] 处理 `unique_id`, `location_id` 连接。 (已在 `merge_data` 实现)
-  - [x] 处理 `timestamp` 对齐和时区。 (对齐已在 `merge_data` 实现，时区转换待后续处理)
-- [ ] 处理缺失值 (imputation)。 <mark><<下一步>></mark>
+- [ ] 处理时间戳时区 (统一转换为 UTC)。 <mark><<下一步>></mark> (在 `merge_data` 中实现，确保基于 UTC 合并)
+- [ ] 处理缺失值 (imputation)。 (在时区统一后执行 `impute_missing_values`)
 - [ ] 处理异常值 (outlier detection/treatment)。
 - [ ] 创建时间特征 (year, month, day, hour, weekday, holiday etc.)。
 - [ ] 创建滞后特征 (lag features for `y`)。
