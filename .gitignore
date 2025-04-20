@@ -56,7 +56,7 @@ cover/
 *.pot
 
 # Django stuff:
-*.log
+# *.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -184,4 +184,3 @@ data/
 
 # 忽略所有 logs/ 目录下的文件
 logs/
-*.log

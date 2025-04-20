@@ -226,6 +226,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    # 暂时注释掉 main() 的直接调用，因为后续步骤会在新脚本中进行
-    # main()
-    pass
+    main()
