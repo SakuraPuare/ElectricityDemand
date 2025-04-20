@@ -4,6 +4,7 @@ import os
 import stat # 用于设置文件权限
 from datetime import datetime, UTC
 from loguru import logger
+from tqdm import tqdm # <--- 导入 tqdm
 
 # --- 全局异常处理钩子 ---
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -89,16 +90,18 @@ def setup_logger(
     effective_console_level = console_level.upper() if console_level else level.upper()
     effective_file_level = file_level.upper() if file_level else level.upper()
 
-    # --- 配置控制台日志 ---
+    # --- 配置控制台日志 (使用 tqdm.write) ---
     log_format_console = ( # 稍微简化控制台格式
         "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
         "<level>{level: <8}</level> | "
         "<cyan>{name}:{function}:{line}</cyan> - <level>{message}</level>"
     )
+    # 使用 lambda 将消息传递给 tqdm.write，并确保消息末尾没有多余换行符
+    # colorize=True 可以在 tqdm.write 中保持颜色
     logger.add(
-        sys.stderr,
+        lambda msg: tqdm.write(msg, end=""), # <--- 使用 tqdm.write
         level=effective_console_level,
-        colorize=True,
+        colorize=True, # <--- 保持颜色
         format=log_format_console,
         backtrace=diagnose_backtrace,
         diagnose=diagnose_backtrace
@@ -180,6 +183,7 @@ def setup_logger(
 
 # --- 示例和测试 ---
 if __name__ == '__main__':
+    import time # <--- 导入 time 用于测试
 
     # 配置日志记录器，启用 JSON 和安全权限
     setup_logger(
@@ -243,7 +247,6 @@ if __name__ == '__main__':
     def expensive_calculation(n):
         logger.debug(f"--- 正在执行昂贵的计算 for {n} ---")
         # 模拟耗时操作
-        import time
         time.sleep(0.1)
         return n * n
 
@@ -252,8 +255,15 @@ if __name__ == '__main__':
     # 如果控制台级别是 WARNING，这个 lambda 就不会执行
     logger.opt(lazy=True).info("另一个惰性求值示例: {data}", data=lambda: expensive_calculation(5))
 
+    # 7. 测试与 tqdm 的兼容性
+    print("-" * 20 + " 测试 tqdm 兼容性 " + "-" * 20)
+    logger.info("开始 tqdm 循环测试...")
+    for i in tqdm(range(5), desc="测试进度条"):
+        logger.info(f"tqdm 循环内日志 - 迭代 {i}")
+        time.sleep(0.2)
+    logger.info("tqdm 循环结束。")
 
-    # 7. 测试全局异常处理 (触发一个未捕获的异常)
+    # 8. 测试全局异常处理 (触发一个未捕获的异常)
     print("-" * 20 + " 测试全局异常钩子 " + "-" * 20)
     logger.warning("接下来将故意触发一个未捕获的 ZeroDivisionError 来测试全局钩子...")
     # 注意：这会终止脚本执行，除非你在调用 main 的地方也加了 try...except
