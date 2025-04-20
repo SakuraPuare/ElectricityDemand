@@ -7,44 +7,9 @@ alwaysApply: true
 
 在合适的时候 尽量对数据进行可视化 和 通过日志输出一些信息
 
-## 项目结构
+# 技术栈
 
-建议的项目结构:
-
-```
-electricity-demand-analysis/
-├── .gitignore             # 指定 Git 忽略的文件 (如数据缓存、日志)
-├── pyproject.toml         # 使用 Poetry 或 Rye 管理依赖和项目元数据
-├── README.md              # 项目说明、如何安装、如何运行
-├── config/                # 存放配置文件 (例如数据集名称、路径、模型参数)
-│   └── config.yaml        # (可选)
-├── data/                  # 存放数据 (通常会被 .gitignore 忽略)
-│   ├── raw/               # 存放原始下载数据 (Hugging Face datasets 库会缓存，这里可以不放实际文件)
-│   └── processed/         # 存放处理后的数据
-├── notebooks/             # Jupyter Notebooks 用于探索性分析和可视化
-│   └── 01_eda.ipynb       # 探索性数据分析 notebook
-├── src/                   # 项目源代码目录
-│   └── electricity_demand_analysis/ # Python 包名
-│       ├── __init__.py
-│       ├── data/          # 处理数据的相关模块
-│       │   ├── __init__.py
-│       │   └── loader.py    # <--- 将你的数据加载代码放在这里
-│       │   └── preprocessor.py # (未来) 用于数据清洗、合并等
-│       ├── features/      # (未来) 特征工程相关模块
-│       │   └── __init__.py
-│       │   └── build_features.py
-│       ├── models/        # (未来) 模型定义、训练脚本
-│       │   └── __init__.py
-│       │   └── train_model.py
-│       ├── visualization/ # (未来) 可视化代码
-│       │   └── __init__.py
-│       └── main.py        # (可选) 主执行脚本，用于串联整个流程
-├── tests/                 # 单元测试
-│   └── data/
-│       └── test_loader.py # 针对 loader.py 的测试
-└── logs/                  # 存放日志文件 (应被 .gitignore 忽略)
-    └── data_loading.log
-```
+本项目使用 dask 框架
 
 ## 数据集信息
 
