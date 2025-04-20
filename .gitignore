@@ -177,3 +177,7 @@ cython_debug/
 .vscode/
 
 *.lock
+
+# 忽略所有 data/ 目录下的文件
+data/
+*.parquet
