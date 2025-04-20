@@ -1,13 +1,15 @@
 import pandas as pd
+import dask.dataframe as dd # Import Dask
+from dask.diagnostics import ProgressBar
 from loguru import logger
 import sys
 import os
 import numpy as np # 导入 numpy 用于计算分位数等
 from tqdm import tqdm # 导入 tqdm
-from tqdm.contrib.concurrent import process_map # 导入 process_map
 import multiprocessing
 import matplotlib.pyplot as plt # 导入 matplotlib
 import seaborn as sns          # 导入 seaborn
+from dask.distributed import Client, LocalCluster # Import Client/LocalCluster if using persist
 
 # 确保可以导入 src 目录下的模块
 # 获取当前脚本文件所在的目录
@@ -30,106 +32,143 @@ import matplotlib
 matplotlib.use('Agg')
 
 # 配置 loguru
-log_file_path = os.path.join(project_root, "logs", "eda_analysis.log")
+log_file_path = os.path.join(project_root, "logs", "eda_analysis_dask.log")
 os.makedirs(os.path.dirname(log_file_path), exist_ok=True) # 确保日志目录存在
 logger.add(log_file_path, rotation="10 MB", level="INFO") # 单独的 EDA 日志
 
-def check_missing_values(df: pd.DataFrame, df_name: str):
-    """Checks and logs missing value information for a DataFrame."""
-    logger.info(f"--- Checking Missing Values for {df_name} ---")
-    missing_counts = df.isnull().sum()
-    missing_percentages = (df.isnull().sum() / len(df)) * 100
+def compute_with_progress(dask_obj, desc="Computing"):
+    """Helper function to compute Dask object with progress bar."""
+    logger.info(f"Starting computation: {desc}")
+    with ProgressBar(dt=1.0): # Update progress every 1 second
+        result = dask_obj.compute()
+    logger.success(f"Computation finished: {desc}")
+    return result
+
+def check_missing_values_dask(ddf: dd.DataFrame, df_name: str):
+    """Checks and logs missing value information for a Dask DataFrame."""
+    logger.info(f"--- Checking Missing Values for {df_name} (Dask) ---")
+    # Compute length lazily first if possible
+    try:
+        total_rows = compute_with_progress(ddf.index.size, desc=f"Total row count for {df_name}")
+        logger.info(f"Total rows (computed): {total_rows}")
+    except Exception as e:
+        logger.warning(f"Could not compute exact row count efficiently, using len(): {e}")
+        total_rows = len(ddf) # Fallback, might compute
+        logger.info(f"Total rows (fallback using len): {total_rows}")
+
+    missing_counts = compute_with_progress(ddf.isnull().sum(), desc=f"Missing counts for {df_name}")
+    if missing_counts.sum() == 0:
+        logger.info(f"No missing values found in {df_name}.")
+        return pd.DataFrame({'Missing Count': [], 'Missing Percentage (%)': []})
+
+    missing_percentages = (missing_counts / total_rows) * 100 if total_rows > 0 else 0
     missing_info = pd.DataFrame({
         'Missing Count': missing_counts,
         'Missing Percentage (%)': missing_percentages
-    })
-    # 只显示有缺失值的列
+    }).reset_index().rename(columns={'index': 'Column'})
+
     missing_info = missing_info[missing_info['Missing Count'] > 0]
     if not missing_info.empty:
-        logger.info(f"Missing values found in {df_name}:\n{missing_info}")
+        logger.info(f"Missing values found in {df_name}:\n{missing_info.to_string()}")
     else:
         logger.info(f"No missing values found in {df_name}.")
     return missing_info
 
-def check_duplicate_values(df: pd.DataFrame, df_name: str, sample_mode: bool = False):
-    """Checks and logs duplicate value information for a DataFrame."""
-    mode_info = "(Sampled)" if sample_mode else "(Full)"
-    logger.info(f"--- Checking Duplicate Values for {df_name} {mode_info} ---")
-    # 对非常大的 demand_df，即使在样本上检查重复也可能慢，可以考虑抽更小的样本或跳过
-    # if df_name == "Demand" and sample_mode and df.shape[0] > 1_000_000: # Example threshold
-    #     logger.warning("Duplicate check on large sampled Demand DF might still be slow.")
 
-    num_duplicates = df.duplicated().sum()
-    if num_duplicates > 0:
-        logger.info(f"Found {num_duplicates} duplicate rows in {df_name} {mode_info}.")
+def check_duplicate_values_dask(ddf: dd.DataFrame, df_name: str, subset=None):
+    """Checks and logs duplicate value information using map_partitions."""
+    logger.info(f"--- Checking Duplicate Values for {df_name} (Dask map_partitions) ---")
+
+    if subset:
+         logger.info(f"Checking duplicates based on subset: {subset}")
+         # Define the function to apply to each partition
+         def count_duplicates_subset(df, subset_cols):
+             return df.duplicated(subset=subset_cols).sum()
+         # Apply the function using map_partitions
+         # Need to provide metadata about the output type (it's a single integer)
+         partition_dup_counts = ddf.map_partitions(
+             count_duplicates_subset, subset_cols=subset, meta=('duplicates', 'int64')
+         )
     else:
-        logger.info(f"No duplicate rows found in {df_name} {mode_info}.")
-    return num_duplicates
+         logger.info("Checking duplicates based on all columns...")
+         def count_duplicates_all(df):
+             return df.duplicated().sum()
+         partition_dup_counts = ddf.map_partitions(
+             count_duplicates_all, meta=('duplicates', 'int64')
+         )
 
-def analyze_demand_distribution(demand_df: pd.DataFrame, sample_mode: bool = False):
-    """Analyzes and logs the distribution of the 'y' column (electricity demand)."""
-    mode_info = "(Sampled)" if sample_mode else "(Full)"
-    logger.info(f"--- Analyzing Demand (y) Distribution {mode_info} ---")
-    if 'y' not in demand_df.columns:
-        logger.warning("Column 'y' not found in Demand DataFrame.")
-        return
+    # Sum the duplicate counts from all partitions
+    total_duplicates = compute_with_progress(partition_dup_counts.sum(), desc=f"Duplicate check for {df_name}")
 
-    # 计算描述性统计量 (忽略 NaN)
-    logger.info(f"Calculating descriptive statistics for 'y' {mode_info}...")
-    desc_stats = demand_df['y'].describe(percentiles=[.01, .05, .25, .5, .75, .95, .99])
-    logger.info(f"Descriptive Statistics for 'y' {mode_info}:\n{desc_stats}")
+    if total_duplicates > 0:
+        logger.info(f"Found {total_duplicates} duplicate rows in {df_name}.")
+    else:
+        logger.info(f"No duplicate rows found in {df_name}.")
+    return total_duplicates
 
-    # 检查是否存在非正值
-    logger.info(f"Checking non-positive values for 'y' {mode_info}...")
-    non_positive_count = (demand_df['y'] <= 0).sum()
-    # 计算百分比时，如果使用样本，基于样本大小计算
-    denominator = len(demand_df['y'].dropna())
+
+def analyze_demand_distribution_dask(demand_ddf: dd.DataFrame, sample_frac: float = 0.01):
+    """Analyzes and logs the distribution of 'y' using a sample from the Dask DataFrame."""
+    logger.info(f"--- Analyzing Demand (y) Distribution (Sampled {sample_frac*100:.2f}% from Dask) ---")
+    if 'y' not in demand_ddf.columns:
+        logger.warning("Column 'y' not found in Demand Dask DataFrame.")
+        return None
+
+    # Sample the Dask DataFrame first
+    logger.info(f"Sampling {sample_frac*100:.2f}% of Demand Dask DataFrame...")
+    demand_sample_ddf = demand_ddf.sample(frac=sample_frac, random_state=42)
+
+    # Compute the sample into a Pandas DataFrame
+    demand_sample_df = compute_with_progress(demand_sample_ddf, desc="Computing demand sample")
+    logger.info(f"Computed sample size: {len(demand_sample_df)} rows")
+
+    if demand_sample_df.empty or 'y' not in demand_sample_df.columns:
+         logger.warning("Computed sample is empty or 'y' column missing.")
+         return None
+
+    # Now perform analysis on the Pandas sample
+    logger.info("Calculating descriptive statistics for 'y' (sampled)...")
+    desc_stats = demand_sample_df['y'].describe(percentiles=[.01, .05, .25, .5, .75, .95, .99])
+    logger.info(f"Descriptive Statistics for 'y' (sampled):\n{desc_stats}")
+
+    logger.info("Checking non-positive values for 'y' (sampled)...")
+    y_non_missing_sample = demand_sample_df['y'].dropna()
+    non_positive_count = (y_non_missing_sample <= 0).sum()
+    denominator = len(y_non_missing_sample)
     non_positive_perc = (non_positive_count / denominator) * 100 if denominator > 0 else 0
-    logger.info(f"Count of non-positive (<= 0) demand values {mode_info}: {non_positive_count} ({non_positive_perc:.2f}% of non-missing values in the analyzed set)")
+    logger.info(f"Count of non-positive (<= 0) demand values (sampled): {non_positive_count} ({non_positive_perc:.2f}% of non-missing values in sample)")
 
-    # 检查是否存在极端值 (示例：基于 IQR)
-    # Q1 = demand_df['y'].quantile(0.25)
-    # Q3 = demand_df['y'].quantile(0.75)
-    # IQR = Q3 - Q1
-    # lower_bound = Q1 - 1.5 * IQR
-    # upper_bound = Q3 + 1.5 * IQR
-    # outliers = demand_df[(demand_df['y'] < lower_bound) | (demand_df['y'] > upper_bound)]
-    # logger.info(f"Potential outliers based on 1.5*IQR rule: {len(outliers)} rows")
-    # 注意：对于大数据集，计算 IQR 和查找离群值可能非常耗时，这里暂时注释掉或考虑抽样计算
-
-    # 提示：后续可以使用 matplotlib/seaborn 进行可视化，例如绘制直方图或箱线图
-    logger.info("Suggestion: Visualize the distribution using histograms or box plots for better understanding.")
+    logger.info("Suggestion: Visualize the distribution using histograms or box plots (using the computed sample).")
+    return demand_sample_df # Return the computed sample for plotting
 
 
-def analyze_timestamp_info(df: pd.DataFrame, df_name: str, time_col: str = 'timestamp'):
-    """Analyzes and logs timestamp range and frequency."""
-    logger.info(f"--- Analyzing Timestamp Info for {df_name} ---")
-    if time_col not in df.columns:
+def analyze_timestamp_info_dask(ddf: dd.DataFrame, df_name: str, time_col: str = 'timestamp'):
+    """Analyzes and logs timestamp range using Dask."""
+    logger.info(f"--- Analyzing Timestamp Info for {df_name} (Dask) ---")
+    if time_col not in ddf.columns:
         logger.warning(f"Timestamp column '{time_col}' not found in {df_name}.")
         return
 
-    # 获取时间范围通常很快，可以在完整数据集上执行
-    min_ts = df[time_col].min()
-    max_ts = df[time_col].max()
+    # Compute min and max (efficient in Dask)
+    min_ts = compute_with_progress(ddf[time_col].min(), desc=f"Min timestamp for {df_name}")
+    max_ts = compute_with_progress(ddf[time_col].max(), desc=f"Max timestamp for {df_name}")
     logger.info(f"Timestamp range: {min_ts} to {max_ts}")
 
-    # 移除全局排序检查，因为它慢且意义不大
-    # is_sorted = df[time_col].is_monotonic_increasing
-    # logger.info(f"Is timestamp column globally sorted? {is_sorted}")
+    # is_monotonic_increasing is very expensive and often impractical in Dask, skip it.
+    # logger.info("Skipping global sorted check (impractical for large Dask DataFrames).")
 
 
 def analyze_metadata_categorical(metadata_df: pd.DataFrame):
-    """Analyzes and logs distribution of key categorical features in metadata."""
-    logger.info("--- Analyzing Metadata Categorical Features ---")
+    """Analyzes and logs distribution of key categorical features in metadata (Pandas)."""
+    logger.info("--- Analyzing Metadata Categorical Features (Pandas) ---")
     categorical_cols = ['building_class', 'location', 'freq', 'timezone', 'dataset']
     for col in categorical_cols:
         if col in metadata_df.columns:
             logger.info(f"\nValue Counts for '{col}':")
-            # 计算并打印值计数，显示 top N 和 other (如果类别太多)
-            value_counts = metadata_df[col].value_counts(dropna=False) # 包括 NaN
-            num_unique = value_counts.nunique()
+            value_counts = metadata_df[col].value_counts(dropna=False)
+            num_unique = len(value_counts) # Use len() for Series value_counts
             logger.info(f"Number of unique values (including NaN): {num_unique}")
-            if num_unique > 20: # 如果唯一值过多，只显示最常见的
+            if num_unique > 20:
                  logger.info(f"Top 20 values:\n{value_counts.head(20)}")
                  other_count = value_counts.iloc[20:].sum()
                  logger.info(f"... and {other_count} in other categories.")
@@ -139,79 +178,73 @@ def analyze_metadata_categorical(metadata_df: pd.DataFrame):
             logger.warning(f"Categorical column '{col}' not found in Metadata DataFrame.")
 
 
-def analyze_weather_numeric(weather_df: pd.DataFrame):
-    """Analyzes and logs distribution of key numerical weather features."""
-    logger.info("--- Analyzing Weather Numeric Features ---")
-    # 选择一些关键的天气指标进行分析
+def analyze_weather_numeric_dask(weather_ddf: dd.DataFrame):
+    """Analyzes and logs distribution of key numerical weather features using Dask."""
+    logger.info("--- Analyzing Weather Numeric Features (Dask) ---")
     numeric_cols = [
         'temperature_2m', 'relative_humidity_2m', 'dew_point_2m',
         'apparent_temperature', 'precipitation', 'rain', 'snowfall',
-        'pressure_msl', 'cloud_cover', 'wind_speed_10m', 'shortwave_radiation'
+        'pressure_msl', 'cloud_cover', 'wind_speed_10m' # Removed shortwave_radiation if not present
+        # Check weather_ddf.columns if you added prefixes like 'weather_'
     ]
-    present_cols = [col for col in numeric_cols if col in weather_df.columns]
+    # Adjust column names if they have prefixes from merging later
+    prefixed_numeric_cols = [f"weather_{col}" if f"weather_{col}" in weather_ddf.columns else col for col in numeric_cols]
+    present_cols = [col for col in prefixed_numeric_cols if col in weather_ddf.columns]
 
     if not present_cols:
-        logger.warning("None of the selected key numeric weather columns found.")
+        logger.warning("None of the selected key numeric weather columns found in Weather Dask DataFrame.")
         return
 
-    # 计算描述性统计量
-    desc_stats = weather_df[present_cols].describe(percentiles=[.01, .25, .5, .75, .99]).transpose()
-    logger.info(f"Descriptive Statistics for Key Weather Variables:\n{desc_stats}")
+    # Compute descriptive statistics (can be memory intensive for many columns)
+    logger.info("Calculating descriptive statistics for key weather variables (Dask)...")
+    desc_stats_dask = weather_ddf[present_cols].describe(percentiles=[.01, .25, .5, .75, .99])
+    desc_stats = compute_with_progress(desc_stats_dask, desc="Weather descriptive stats")
+    logger.info(f"Descriptive Statistics for Key Weather Variables:\n{desc_stats.transpose()}") # Transpose for better readability
 
-    # 检查降水、雨、雪等是否有非负值
-    for col in ['precipitation', 'rain', 'snowfall']:
-        if col in weather_df.columns:
-            negative_count = (weather_df[col] < 0).sum()
+    # Check for negative values (compute required for each check)
+    for col in ['weather_precipitation', 'weather_rain', 'weather_snowfall']: # Use prefixed names if applicable
+        if col in weather_ddf.columns:
+            logger.info(f"Checking for negative values in '{col}' (Dask)...")
+            negative_count = compute_with_progress((weather_ddf[col] < 0).sum(), desc=f"Negative check for {col}")
             if negative_count > 0:
                  logger.warning(f"Found {negative_count} negative values in '{col}', which might be unusual.")
 
 
-# 为 process_map 创建一个简单的包装器，因为它需要一个接受单个参数的函数
-def check_duplicates_wrapper(args):
-    """Wrapper for check_duplicate_values to be used with process_map."""
-    try:
-        df, df_name, sample_mode = args
-        # 注意：直接在子进程中调用 loguru 可能导致日志重复或行为异常
-        # 一个更健壮的方法是返回结果，在主进程中记录日志
-        # 但为了简单起见，我们暂时保留直接调用
-        check_duplicate_values(df, df_name, sample_mode=sample_mode)
-        return f"{df_name}: OK" # 返回一个简单的状态
-    except Exception as e:
-        # 在子进程中记录错误可能不可靠，最好返回错误信息
-        return f"{df_name}: Error - {e}"
-
-# --- Plotting Functions ---
+# --- Plotting Functions (Mostly Unchanged, expect Pandas input) ---
+# These functions expect Pandas DataFrames (e.g., the computed sample)
 
 def setup_plotting_style():
     """Sets a consistent style for plots."""
     sns.set_theme(style="whitegrid")
-    plt.rcParams['figure.figsize'] = (12, 6) # 设置默认图形大小
+    plt.rcParams['figure.figsize'] = (12, 6)
 
 def plot_demand_distribution(demand_df_sampled: pd.DataFrame, output_dir: str):
-    """Plots the distribution of electricity demand (y) using sampled data."""
-    logger.info("Generating demand distribution plots (sampled)...")
-    if 'y' not in demand_df_sampled.columns or demand_df_sampled['y'].isnull().all():
-        logger.warning("Cannot plot demand distribution: 'y' column missing or all null in sample.")
+    """Plots the distribution of electricity demand (y) using sampled Pandas data."""
+    logger.info("Generating demand distribution plots (from computed sample)...")
+    if demand_df_sampled is None or 'y' not in demand_df_sampled.columns or demand_df_sampled['y'].isnull().all():
+        logger.warning("Cannot plot demand distribution: Sample data is missing, empty, or lacks 'y' column.")
         return
 
     y_data = demand_df_sampled['y'].dropna()
+    if y_data.empty:
+         logger.warning("No non-missing 'y' data in the sample to plot.")
+         return
 
-    # Plot 1: Histogram
+    # Plot 1: Histogram (Log Scale Y)
     plt.figure()
-    sns.histplot(y_data, kde=False, bins=100) # 使用更多 bins 可能需要调整
+    sns.histplot(y_data, kde=False, bins=100)
     plt.title('Distribution of Electricity Demand (y) - Sampled')
     plt.xlabel('Demand (y)')
-    plt.ylabel('Frequency')
-    # 由于数据高度右偏，可能需要对数刻度或限制范围才能看清主体
-    plt.yscale('log') # 使用对数刻度 Y 轴
+    plt.ylabel('Frequency (Log Scale)')
+    plt.yscale('log')
     plt.tight_layout()
     plot_path = os.path.join(output_dir, 'demand_y_histogram_sampled_log_scale.png')
     plt.savefig(plot_path)
     plt.close()
     logger.info(f"Saved demand histogram (log y-scale) to {plot_path}")
 
-    # Plot 2: Histogram (zoomed in, linear scale) - 排除极端值以看清主体
-    q99 = y_data.quantile(0.99) # 只绘制 99% 分位数以下的数据
+    # Plot 2: Histogram (Zoomed Linear Scale)
+    q99 = y_data.quantile(0.99) if not y_data.empty else 0
     plt.figure()
     sns.histplot(y_data[y_data <= q99], kde=False, bins=50)
     plt.title(f'Distribution of Electricity Demand (y <= {q99:.2f}) - Sampled')
@@ -223,28 +256,33 @@ def plot_demand_distribution(demand_df_sampled: pd.DataFrame, output_dir: str):
     plt.close()
     logger.info(f"Saved zoomed demand histogram to {plot_path}")
 
-    # Plot 3: Box plot (可能因离群值过多而难以阅读，尝试对数刻度)
+    # Plot 3: Box plot (Log Scale X)
     plt.figure()
     sns.boxplot(x=y_data)
-    plt.title('Box Plot of Electricity Demand (y) - Sampled')
+    plt.title('Box Plot of Electricity Demand (y) - Sampled (Log Scale X)')
     plt.xlabel('Demand (y)')
-    plt.xscale('log') # 使用对数刻度 X 轴可能更好
+    try:
+        # Only set log scale if there are positive values
+        if (y_data > 0).any():
+             plt.xscale('log')
+        else:
+             logger.warning("Cannot use log scale for boxplot: no positive y values in sample.")
+    except Exception as e:
+        logger.warning(f"Could not set log scale for boxplot: {e}")
     plt.tight_layout()
     plot_path = os.path.join(output_dir, 'demand_y_boxplot_sampled_log_scale.png')
     plt.savefig(plot_path)
     plt.close()
     logger.info(f"Saved demand boxplot (log x-scale) to {plot_path}")
 
-
 def plot_metadata_distribution(metadata_df: pd.DataFrame, output_dir: str):
-    """Plots the distribution of key categorical features in metadata."""
+    """Plots the distribution of key categorical features in metadata (Pandas)."""
     logger.info("Generating metadata distribution plots...")
-    categorical_cols = ['building_class', 'freq', 'location'] # 选择要可视化的列
+    categorical_cols = ['building_class', 'freq', 'location']
 
     for col in categorical_cols:
         if col in metadata_df.columns:
             plt.figure()
-            # 如果类别过多，只绘制 top N
             top_n = 15
             value_counts = metadata_df[col].value_counts(dropna=False)
             if len(value_counts) > top_n:
@@ -254,7 +292,7 @@ def plot_metadata_distribution(metadata_df: pd.DataFrame, output_dir: str):
                 data_to_plot = value_counts
                 plot_title = f'Distribution of {col.replace("_", " ").title()}'
 
-            sns.barplot(x=data_to_plot.index.astype(str), y=data_to_plot.values, palette="viridis") # 转为 str 避免类型问题
+            sns.barplot(x=data_to_plot.index.astype(str), y=data_to_plot.values, palette="viridis")
             plt.title(plot_title)
             plt.xlabel(col.replace("_", " ").title())
             plt.ylabel('Count')
@@ -267,154 +305,174 @@ def plot_metadata_distribution(metadata_df: pd.DataFrame, output_dir: str):
         else:
              logger.warning(f"Cannot plot metadata distribution: Column '{col}' not found.")
 
-
-def plot_weather_distribution(weather_df: pd.DataFrame, output_dir: str):
-    """Plots the distribution of key numerical weather features."""
-    logger.info("Generating weather distribution plots...")
-    numeric_cols = [
+def plot_weather_distribution(weather_ddf: dd.DataFrame, output_dir: str):
+    """Plots the distribution of key numerical weather features using Dask samples."""
+    logger.info("Generating weather distribution plots (sampled from Dask)...")
+    numeric_cols = [ # Use prefixed names if applicable from merging later
         'temperature_2m', 'relative_humidity_2m', 'precipitation', 'wind_speed_10m'
-    ] # 选择几个关键变量
+    ]
+    prefixed_numeric_cols = [f"weather_{col}" if f"weather_{col}" in weather_ddf.columns else col for col in numeric_cols]
+    present_cols = [col for col in prefixed_numeric_cols if col in weather_ddf.columns]
 
-    for col in numeric_cols:
-        if col in weather_df.columns and pd.api.types.is_numeric_dtype(weather_df[col]):
+    # Weather data is much smaller than demand, but still potentially large.
+    # Sample it for plotting to be safe, or compute directly if confident it fits memory.
+    sample_frac_weather = 0.1 # Use a larger sample for weather if needed
+    logger.info(f"Sampling {sample_frac_weather*100:.1f}% of Weather Dask DataFrame for plotting...")
+    weather_sample_ddf = weather_ddf[present_cols].sample(frac=sample_frac_weather, random_state=42)
+    weather_sample_df = compute_with_progress(weather_sample_ddf, desc="Computing weather sample for plotting")
+
+    for col in present_cols:
+        if col in weather_sample_df.columns and pd.api.types.is_numeric_dtype(weather_sample_df[col]):
             plt.figure()
-            data_to_plot = weather_df[col].dropna()
-            sns.histplot(data_to_plot, kde=True, bins=50) # 可以加 kde 核密度估计
-            plt.title(f'Distribution of {col.replace("_", " ").title()}')
+            data_to_plot = weather_sample_df[col].dropna()
+            if data_to_plot.empty:
+                logger.warning(f"No non-missing data for '{col}' in weather sample.")
+                plt.close()
+                continue
+
+            sns.histplot(data_to_plot, kde=True, bins=50)
+            plot_title = f'Distribution of {col.replace("_", " ").title()} (Sampled)'
+            plt.title(plot_title)
             plt.xlabel(col.replace("_", " ").title())
             plt.ylabel('Frequency')
 
-            # 特别处理降水，它可能有很多 0 值
-            if col == 'precipitation' and (data_to_plot > 0).any():
-                plt.yscale('log') # 尝试对数刻度
-                plt.title(f'Distribution of {col.replace("_", " ").title()} (Log Scale, >0)')
-                # 只绘制大于 0 的部分，因为 log(0) 无定义
+            # Special handling for precipitation (log scale)
+            if 'precipitation' in col and (data_to_plot > 0).any():
+                plt.figure() # Create a new figure for the log scale plot
                 sns.histplot(data_to_plot[data_to_plot > 0], kde=True, bins=50)
+                plt.yscale('log')
+                plt.title(f'{plot_title} (Log Scale, >0)')
+                plt.xlabel(col.replace("_", " ").title())
+                plt.ylabel('Frequency (Log Scale)')
+                plt.tight_layout()
+                plot_path_log = os.path.join(output_dir, f'{col}_distribution_sampled_log.png')
+                plt.savefig(plot_path_log)
+                plt.close() # Close the log scale plot
+                logger.info(f"Saved {col} log distribution plot to {plot_path_log}")
+                # Continue to save the linear scale plot as well
+                plt.figure() # Re-create the linear plot figure
+                sns.histplot(data_to_plot, kde=True, bins=50)
+                plt.title(plot_title)
+                plt.xlabel(col.replace("_", " ").title())
+                plt.ylabel('Frequency')
+
 
             plt.tight_layout()
-            plot_path = os.path.join(output_dir, f'weather_{col}_distribution.png')
+            plot_path = os.path.join(output_dir, f'{col}_distribution_sampled.png')
             plt.savefig(plot_path)
-            plt.close()
+            plt.close() # Close the linear scale plot figure
             logger.info(f"Saved {col} distribution plot to {plot_path}")
-        elif col not in weather_df.columns:
-             logger.warning(f"Cannot plot weather distribution: Column '{col}' not found.")
+        elif col not in weather_sample_df.columns:
+             logger.warning(f"Cannot plot weather distribution: Column '{col}' not found in sample.")
         else:
-             logger.warning(f"Cannot plot weather distribution: Column '{col}' is not numeric.")
+             logger.warning(f"Cannot plot weather distribution: Column '{col}' in sample is not numeric.")
 
 
-def run_eda(demand_sample_frac: float | None = 0.01):
-    """Loads data and performs EDA checks, with optional sampling, parallelism, and plotting."""
-    logger.info("Starting EDA process...")
-    if demand_sample_frac is not None and 0 < demand_sample_frac < 1:
-        logger.info(f"Demand data analysis will use a {demand_sample_frac*100:.2f}% sample for intensive operations.")
-    elif demand_sample_frac is not None:
-        logger.warning("Invalid sample fraction provided. Using full dataset analysis.")
-        demand_sample_frac = None
-    else:
-        logger.info("No sampling requested for Demand DataFrame. Analyzing full dataset.")
+# --- Main EDA Execution (Using Dask) ---
+
+def run_eda_dask(demand_sample_frac: float = 0.01):
+    """Loads data using Dask and performs EDA checks and plotting."""
+    logger.info("--- Starting EDA process (Dask) ---")
+    logger.info(f"Demand data analysis/plotting will use a {demand_sample_frac*100:.2f}% sample.")
 
     # --- Setup ---
-    setup_plotting_style() # 设置绘图风格
-    # 定义并创建输出目录
-    plot_output_dir = os.path.join(project_root, "reports", "figures", "eda")
+    setup_plotting_style()
+    plot_output_dir = os.path.join(project_root, "reports", "figures", "eda_dask") # New output dir
     os.makedirs(plot_output_dir, exist_ok=True)
     logger.info(f"Plots will be saved to: {plot_output_dir}")
 
-    # --- Data Loading ---
-    # 数据加载保持串行
-    loaded_data = load_electricity_data()
+    # --- Data Loading (Request Dask format) ---
+    logger.info("Loading data as Dask DataFrames...")
+    npartitions = os.cpu_count() * 2 if os.cpu_count() else 4
+    loaded_data = load_electricity_data(return_format="dask", npartitions=npartitions)
     if not loaded_data:
         logger.error("Data loading failed. Exiting EDA.")
         return
-    demand_df, metadata_df, weather_df = loaded_data
+    demand_ddf, metadata_df, weather_ddf = loaded_data
+    logger.info("Data loaded successfully (Demand/Weather as Dask, Metadata as Pandas).")
+    logger.info(f"Demand partitions: {demand_ddf.npartitions}, Weather partitions: {weather_ddf.npartitions}")
 
-    # --- Sampling ---
-    demand_df_sampled = demand_df # 默认为完整 DF
-    is_sampled = False
-    if demand_sample_frac is not None:
-        logger.info(f"Creating {demand_sample_frac*100:.2f}% sample of Demand DataFrame...")
-        try:
-            # 使用 tqdm 包装 sample 操作
-            with tqdm(total=1, desc="Sampling Demand DF", unit="op") as pbar:
-                demand_df_sampled = demand_df.sample(frac=demand_sample_frac, random_state=42)
-                pbar.update(1)
-            logger.info(f"Sample created with {len(demand_df_sampled)} rows.")
-            is_sampled = True
-        except Exception as e:
-            logger.error(f"Failed to create sample for demand_df: {e}. Proceeding with full dataset analysis.")
-            demand_df_sampled = demand_df # Fallback to full df
-            is_sampled = False
-
-    # --- Initial Checks (Sequential Part) ---
+    # --- Initial Checks (using Dask compute) ---
     dataframes_info = {
-        "Demand": (demand_df, demand_df_sampled, is_sampled), # Pass both original and sampled
-        "Metadata": (metadata_df, metadata_df, False),
-        "Weather": (weather_df, weather_df, False)
+        "Demand (Dask)": demand_ddf,
+        "Metadata (Pandas)": metadata_df,
+        "Weather (Dask)": weather_ddf # Use original loaded ddf
     }
 
-    for name, (df_full, df_analysis, _) in dataframes_info.items():
-        logger.info(f"\n--- Analyzing {name} DataFrame ---")
-        if name == "Demand":
-            df_full.info(verbose=True) # info on full df (no counts)
-        else:
-            df_full.info(verbose=True, show_counts=True) # info on smaller dfs
-        check_missing_values(df_full, name) # Missing values on full df is usually ok
-        logger.info(f"{name} DataFrame Head:\n{df_full.head()}") # Head is fast
+    computed_sample = None # To store the computed demand sample
 
-    # --- Initial Checks (Parallel Part: Duplicates) ---
-    logger.info("\n--- Checking Duplicates (Parallel) ---")
-    duplicate_check_args = [
-        (dataframes_info["Demand"][1], "Demand", dataframes_info["Demand"][2]), # Use sampled demand
-        (dataframes_info["Metadata"][1], "Metadata", dataframes_info["Metadata"][2]),
-        (dataframes_info["Weather"][1], "Weather", dataframes_info["Weather"][2]),
-    ]
+    for name, df_obj in dataframes_info.items():
+        logger.info(f"\n--- Analyzing {name} ---")
+        is_dask = isinstance(df_obj, dd.DataFrame)
 
-    # 确定工作进程数 (保守一点，避免过多内存占用)
-    # max_workers = max(1, multiprocessing.cpu_count() // 2)
-    max_workers = 3 # 或者直接指定一个固定的数量，比如 3，因为我们只有 3 个任务
-    logger.info(f"Using up to {max_workers} workers for duplicate checks.")
+        if is_dask:
+            logger.info(f"Schema (dtypes):\n{df_obj.dtypes}")
+            check_missing_values_dask(df_obj, name)
+            if name == "Weather (Dask)":
+                 # Use map_partitions based check
+                 check_duplicate_values_dask(df_obj, name, subset=['location_id', 'timestamp'])
+            else:
+                 logger.info(f"Skipping full duplicate check for {name} due to potential cost.")
 
-    # 使用 process_map 并行执行包装函数
-    results = process_map(check_duplicates_wrapper, duplicate_check_args,
-                          max_workers=max_workers,
-                          desc="Duplicate Checks",
-                          chunksize=1) # chunksize=1 适用于任务差异较大的情况
+            if name == "Demand (Dask)":
+                computed_sample = analyze_demand_distribution_dask(df_obj, sample_frac=demand_sample_frac)
+                analyze_timestamp_info_dask(df_obj, name)
+            elif name == "Weather (Dask)":
+                analyze_weather_numeric_dask(df_obj)
+                analyze_timestamp_info_dask(df_obj, name)
 
-    # 可以在这里检查 results 中的状态/错误
-    logger.info(f"Duplicate check results: {results}")
-
-
-    # --- Deeper Dive (Sequential Analysis) ---
-    logger.info("\n--- Deeper Dive Analysis ---")
-    analyze_demand_distribution(demand_df_sampled, sample_mode=is_sampled)
-    analyze_timestamp_info(demand_df, "Demand")
-    analyze_metadata_categorical(metadata_df)
-    analyze_weather_numeric(weather_df)
-    analyze_timestamp_info(weather_df, "Weather")
+        else: # Pandas DataFrame (Metadata)
+            df_obj.info(verbose=True, show_counts=True)
+            check_missing_values(df_obj, name)
+            check_duplicate_values(df_obj, name) # Use Pandas version here
+            logger.info(f"{name} Head:\n{df_obj.head()}")
+            analyze_metadata_categorical(df_obj)
 
     # --- Generating Plots ---
-    logger.info("\n--- Generating Plots ---")
+    logger.info("\n--- Generating Plots (using computed samples where necessary) ---")
     try:
-        # 基于抽样数据绘制 Demand 分布
-        if is_sampled:
-            plot_demand_distribution(demand_df_sampled, plot_output_dir)
+        if computed_sample is not None:
+            plot_demand_distribution(computed_sample, plot_output_dir)
         else:
-            logger.warning("Skipping demand distribution plots as sampling was not performed or failed.")
+            logger.warning("Skipping demand distribution plots as sample computation failed or was skipped.")
 
-        # 绘制 Metadata 分布
         plot_metadata_distribution(metadata_df, plot_output_dir)
-
-        # 绘制 Weather 分布
-        plot_weather_distribution(weather_df, plot_output_dir)
-
-        # TODO: 添加更多图表，例如时间序列图 (可能需要更多数据处理)
-        # plot_demand_timeseries(demand_df_sampled, plot_output_dir) # 示例
+        plot_weather_distribution(weather_ddf, plot_output_dir)
 
     except Exception as e:
-        logger.error(f"An error occurred during plot generation: {e}")
+        logger.error(f"An error occurred during plot generation: {e}", exc_info=True)
+
+    logger.success("EDA checks and plot generation completed (Dask).")
 
 
-    logger.success("EDA checks and plot generation completed.")
+# --- Helper functions for Pandas checks (if needed, copy from original eda.py) ---
+# Add check_missing_values and check_duplicate_values for Pandas if they are not globally available
+def check_missing_values(df: pd.DataFrame, df_name: str):
+    """Checks and logs missing value information for a Pandas DataFrame."""
+    logger.info(f"--- Checking Missing Values for {df_name} (Pandas) ---")
+    missing_counts = df.isnull().sum()
+    missing_percentages = (df.isnull().sum() / len(df)) * 100
+    missing_info = pd.DataFrame({
+        'Missing Count': missing_counts,
+        'Missing Percentage (%)': missing_percentages
+    })
+    missing_info = missing_info[missing_info['Missing Count'] > 0]
+    if not missing_info.empty:
+        logger.info(f"Missing values found in {df_name}:\n{missing_info.to_string()}")
+    else:
+        logger.info(f"No missing values found in {df_name}.")
+    return missing_info
+
+def check_duplicate_values(df: pd.DataFrame, df_name: str, subset=None):
+    """Checks and logs duplicate value information for a Pandas DataFrame."""
+    logger.info(f"--- Checking Duplicate Values for {df_name} (Pandas) ---")
+    num_duplicates = df.duplicated(subset=subset).sum()
+    if num_duplicates > 0:
+        logger.info(f"Found {num_duplicates} duplicate rows in {df_name}.")
+    else:
+        logger.info(f"No duplicate rows found in {df_name}.")
+    return num_duplicates
+
 
 if __name__ == "__main__":
-    run_eda(demand_sample_frac=0.01)
+    run_eda_dask(demand_sample_frac=0.01)

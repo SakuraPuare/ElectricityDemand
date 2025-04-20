@@ -12,6 +12,7 @@ dependencies = [
     "fastparquet>=2024.11.0",
     "loguru>=0.7.3",
     "tqdm>=4.67.1",
+    "dask[distributed]>=2025.3.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
