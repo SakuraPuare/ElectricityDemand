@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from loguru import logger # 提前导入 logger
+import numpy as np # 需要 numpy 来处理对数变换中的 0 或负值
 
 # --- 项目设置 (路径和日志) ---
 project_root = None
@@ -113,23 +114,103 @@ def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42
         # client.cancel(y_sample) # 尝试取消计算并释放内存
         pass
 
+def plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000, random_state=42):
+    """绘制 Demand 'y' 列 (抽样) 的分布图并保存。
+    为了提高绘图性能，会从输入的 y_sample_pd 中进一步抽样。
+    """
+    if y_sample_pd is None or y_sample_pd.empty:
+        logger.warning("输入的 y_sample_pd 为空，跳过绘图。")
+        return
+
+    # --- 从已有样本中进一步抽样用于绘图 ---
+    if len(y_sample_pd) > plot_sample_size:
+        logger.info(f"原始样本量 {len(y_sample_pd):,} 较大，进一步抽样 {plot_sample_size:,} 个点用于绘图。")
+        y_plot_sample = y_sample_pd.sample(n=plot_sample_size, random_state=random_state)
+    else:
+        logger.info(f"原始样本量 {len(y_sample_pd):,} 不大于绘图样本量 {plot_sample_size:,}，使用全部样本绘图。")
+        y_plot_sample = y_sample_pd
+
+    logger.info(f"--- 开始绘制 Demand 'y' 列分布图 (绘图样本量: {len(y_plot_sample):,}) ---")
+    plt.style.use('seaborn-v0_8-whitegrid') # 使用一种 seaborn 风格
+
+    # --- 绘制直方图和箱线图 (原始尺度) ---
+    logger.info("绘制原始尺度分布图 (禁用 KDE 和箱线图离群点显示)...")
+    fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+
+    # 直方图 (原始尺度, 无 KDE)
+    sns.histplot(y_plot_sample, kde=False, ax=axes[0]) # kde=False
+    axes[0].set_title(f'Demand (y) Distribution (Original Scale - {len(y_plot_sample):,} Samples)')
+    axes[0].set_xlabel('Electricity Demand (y) in kWh')
+    axes[0].set_ylabel('Frequency')
+
+    # 箱线图 (原始尺度, 不显示离群点)
+    sns.boxplot(x=y_plot_sample, ax=axes[1], showfliers=False) # showfliers=False
+    axes[1].set_title(f'Demand (y) Boxplot (Original Scale, No Outliers - {len(y_plot_sample):,} Samples)')
+    axes[1].set_xlabel('Electricity Demand (y) in kWh')
+
+    plt.tight_layout()
+    plot_filename_orig = os.path.join(plots_dir, 'demand_y_distribution_original_scale_sampled_plot.png') # 文件名加后缀
+    try:
+        plt.savefig(plot_filename_orig)
+        logger.info(f"原始尺度分布图已保存到: {plot_filename_orig}")
+        plt.close(fig)
+    except Exception as e:
+        logger.exception(f"保存原始尺度分布图时出错: {e}")
+
+
+    # --- 绘制直方图和箱线图 (对数尺度) ---
+    # 对数变换时仍然使用 y_plot_sample
+    epsilon = 1e-6
+    # 确保只对非负值进行变换
+    y_plot_sample_non_neg = y_plot_sample[y_plot_sample >= 0]
+    if y_plot_sample_non_neg.empty:
+        logger.warning("绘图样本中没有非负值，跳过对数尺度绘图。")
+        return
+
+    y_log_transformed = np.log1p(y_plot_sample_non_neg + epsilon)
+    num_valid_log = len(y_log_transformed)
+
+    logger.info("绘制对数 (log1p) 尺度分布图...")
+    fig_log, axes_log = plt.subplots(2, 1, figsize=(12, 10))
+
+    # 直方图 (对数尺度, 可以带 KDE)
+    sns.histplot(y_log_transformed, kde=True, ax=axes_log[0])
+    axes_log[0].set_title(f'Demand (y) Distribution (Log1p Scale - {num_valid_log:,} Samples)')
+    axes_log[0].set_xlabel('log1p(Electricity Demand (y) + epsilon)')
+    axes_log[0].set_ylabel('Frequency')
+
+    # 箱线图 (对数尺度, 可以显示离群点，因为对数变换后范围缩小)
+    sns.boxplot(x=y_log_transformed, ax=axes_log[1], showfliers=True)
+    axes_log[1].set_title(f'Demand (y) Boxplot (Log1p Scale - {num_valid_log:,} Samples)')
+    axes_log[1].set_xlabel('log1p(Electricity Demand (y) + epsilon)')
+
+    plt.tight_layout()
+    plot_filename_log = os.path.join(plots_dir, 'demand_y_distribution_log1p_scale_sampled_plot.png') # 文件名加后缀
+    try:
+        plt.savefig(plot_filename_log)
+        logger.info(f"对数尺度分布图已保存到: {plot_filename_log}")
+        plt.close(fig_log)
+    except Exception as e:
+        logger.exception(f"保存对数尺度分布图时出错: {e}")
+
+    logger.info("Demand 'y' 列分布图绘制完成。")
+
 
 def main():
     """主执行函数，编排 EDA 步骤。"""
     # 步骤 1: 加载数据
     ddf_demand = load_demand_data()
 
-    # 步骤 2: 分析 Demand 'y' 列的分布
-    y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005) # 使用 0.5% 抽样
+    # 步骤 2: 分析 Demand 'y' 列的分布 (获取抽样数据)
+    y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
 
-    # 后续可以添加绘图等步骤
+    # 步骤 3: 可视化 'y' 列的分布
     if y_sample_pd is not None and not y_sample_pd.empty:
-        logger.info("后续可以基于 y_sample_pd 进行绘图分析。")
-        # plot_demand_y_distribution(y_sample_pd) # 例如调用绘图函数
+        plot_demand_y_distribution(y_sample_pd, plots_dir) # 调用绘图函数
     else:
-        logger.warning("由于抽样数据为空或分析出错，跳过后续基于 'y' 的分析步骤。")
+        logger.warning("由于抽样数据为空或分析出错，跳过 'y' 分布的绘图步骤。")
 
-    logger.info("EDA 脚本初步执行完毕。")
+    logger.info("EDA 脚本 - Demand(y) 分布分析执行完毕。")
 
 
 if __name__ == "__main__":
