@@ -94,12 +94,22 @@ def load_electricity_data(
         })
         # Getting token isn't strictly necessary here if logged in, but good practice
         hf_token = HfFolder.get_token()
-        metadata_ds = load_dataset(
-            dataset_name, name="metadata", split="train",
-            features=metadata_features, trust_remote_code=True,
-            token=hf_token
-        )
+        logger.debug(f"Using Hugging Face token: {'Yes' if hf_token else 'No'}")
+        logger.debug(f"Calling load_dataset for metadata: dataset_name='{dataset_name}', name='metadata', split='train'")
+        try:
+            metadata_ds = load_dataset(
+                dataset_name, name="metadata", split="train",
+                features=metadata_features, trust_remote_code=True,
+                token=hf_token
+            )
+            logger.debug("load_dataset for metadata successful.")
+        except Exception as e:
+            logger.error(f"Failed to load metadata dataset using load_dataset: {e}", exc_info=True)
+            logger.error("Check dataset name ('{dataset_name}'), 'metadata' configuration, split 'train', and HF token/permissions.")
+            return None # Exit early if metadata fails
+
         metadata_df = metadata_ds.to_pandas()
+        logger.debug("Converted metadata dataset to Pandas DataFrame.")
         if optimize_meta_weather:
             metadata_df = _optimize_pandas_dtypes(metadata_df)
         logger.success("Metadata loaded and processed as Pandas DataFrame.")
@@ -108,6 +118,9 @@ def load_electricity_data(
         # --- Define relative paths within the HF dataset repo ---
         demand_filename = "data/demand.parquet"
         weather_filename = "data/weather.parquet"
+        logger.debug(f"Target demand file within repo: '{demand_filename}'")
+        logger.debug(f"Target weather file within repo: '{weather_filename}'")
+
 
         # --- Load Demand and Weather ---
         if return_format == "dask":
@@ -116,7 +129,8 @@ def load_electricity_data(
             logger.info(f"Loading Demand and Weather as Dask DataFrames ({npartitions} partitions)...")
 
             # --- Download/Cache and get local path for Demand ---
-            logger.info(f"Ensuring '{demand_filename}' is cached locally...")
+            logger.info(f"Ensuring '{demand_filename}' is cached locally via hf_hub_download...")
+            logger.debug(f"Calling hf_hub_download for demand: repo_id='{dataset_name}', filename='{demand_filename}'")
             try:
                 demand_local_path = hf_hub_download(
                     repo_id=dataset_name,
@@ -124,13 +138,15 @@ def load_electricity_data(
                     repo_type='dataset',
                     token=hf_token # Pass token for potential private datasets
                 )
-                logger.info(f"Using cached Demand file: {demand_local_path}")
+                logger.success(f"Demand file is available locally at: {demand_local_path}")
             except Exception as download_err:
-                logger.error(f"Failed to download/cache {demand_filename}: {download_err}", exc_info=True)
+                logger.error(f"Failed to download/cache '{demand_filename}' using hf_hub_download: {download_err}", exc_info=True)
+                logger.error(f"Check repository '{dataset_name}', filename '{demand_filename}', connection, and permissions.")
                 return None
 
             # --- Download/Cache and get local path for Weather ---
-            logger.info(f"Ensuring '{weather_filename}' is cached locally...")
+            logger.info(f"Ensuring '{weather_filename}' is cached locally via hf_hub_download...")
+            logger.debug(f"Calling hf_hub_download for weather: repo_id='{dataset_name}', filename='{weather_filename}'")
             try:
                 weather_local_path = hf_hub_download(
                     repo_id=dataset_name,
@@ -138,31 +154,42 @@ def load_electricity_data(
                     repo_type='dataset',
                     token=hf_token
                 )
-                logger.info(f"Using cached Weather file: {weather_local_path}")
+                logger.success(f"Weather file is available locally at: {weather_local_path}")
             except Exception as download_err:
-                logger.error(f"Failed to download/cache {weather_filename}: {download_err}", exc_info=True)
+                logger.error(f"Failed to download/cache '{weather_filename}' using hf_hub_download: {download_err}", exc_info=True)
+                logger.error(f"Check repository '{dataset_name}', filename '{weather_filename}', connection, and permissions.")
                 return None
 
             # --- Read Parquet files from local cache using Dask ---
             demand_dtypes = {'unique_id': 'category', 'y': 'float32'}
             logger.info(f"Reading Demand Dask DataFrame from local path: {demand_local_path}")
-            demand_ddf = dd.read_parquet(
-                demand_local_path,
-                engine='pyarrow',
-                dtype=demand_dtypes
-                # No storage_options needed for local files
-            )
-            logger.success(f"Demand Dask DataFrame created (Initial partitions: {demand_ddf.npartitions}).")
+            try:
+                demand_ddf = dd.read_parquet(
+                    demand_local_path,
+                    engine='pyarrow',
+                    dtype=demand_dtypes
+                    # No storage_options needed for local files
+                )
+                logger.success(f"Demand Dask DataFrame created (Initial partitions: {demand_ddf.npartitions}).")
+            except Exception as read_err:
+                logger.error(f"Failed to read demand parquet file '{demand_local_path}' with Dask: {read_err}", exc_info=True)
+                logger.error("Check if the file is corrupted or if Dask/PyArrow have issues.")
+                return None
 
 
             logger.info(f"Reading Weather Dask DataFrame from local path: {weather_local_path}")
-            weather_ddf = dd.read_parquet(
-                weather_local_path,
-                engine='pyarrow'
-                # Let Dask infer types initially for local read
-            )
-            logger.info(f"Weather Dask DataFrame read with inferred types (Partitions: {weather_ddf.npartitions}).")
-            logger.info(f"Inferred weather dtypes:\n{weather_ddf.dtypes}")
+            try:
+                weather_ddf = dd.read_parquet(
+                    weather_local_path,
+                    engine='pyarrow'
+                    # Let Dask infer types initially for local read
+                )
+                logger.info(f"Weather Dask DataFrame read with inferred types (Partitions: {weather_ddf.npartitions}).")
+                logger.info(f"Inferred weather dtypes:\n{weather_ddf.dtypes}")
+            except Exception as read_err:
+                 logger.error(f"Failed to read weather parquet file '{weather_local_path}' with Dask: {read_err}", exc_info=True)
+                 logger.error("Check if the file is corrupted or if Dask/PyArrow have issues.")
+                 return None
 
             # Apply type conversions *after* loading
             logger.info("Applying dtype conversions to Weather Dask DataFrame...")
@@ -173,32 +200,56 @@ def load_electricity_data(
                 if col == 'location_id': continue
                 if 'float' in str(dtype): weather_dtypes_apply[col] = 'float32'
                 elif 'int' in str(dtype): weather_dtypes_apply[col] = 'int32'
+                # Keep timestamp columns as they are for now
+                elif 'datetime' in str(dtype): continue
+                # Potentially handle other types if needed
             if weather_dtypes_apply:
+                 logger.debug(f"Applying dtypes to weather: {weather_dtypes_apply}")
                  weather_ddf = weather_ddf.astype(weather_dtypes_apply)
                  logger.info("Applied specified dtypes to weather Dask DataFrame.")
+                 logger.debug(f"Weather dtypes after conversion:\n{weather_ddf.dtypes}")
             else:
-                 logger.info("No further specific dtype conversions applied to weather Dask DataFrame.")
+                 logger.info("No specific dtype conversions identified or applied to weather Dask DataFrame.")
             logger.success("Weather Dask DataFrame processing finished.")
+
 
             return demand_ddf, metadata_df, weather_ddf
 
         elif return_format == "pandas":
             # For Pandas, we can still use load_dataset which handles caching internally
             logger.info("Loading demand data via datasets library (handles caching)...")
-            demand_ds = load_dataset(
-                dataset_name, name="demand", split="train",
-                trust_remote_code=True, token=hf_token
-            )
+            logger.debug(f"Calling load_dataset for demand: dataset_name='{dataset_name}', name='demand', split='train'")
+            try:
+                demand_ds = load_dataset(
+                    dataset_name, name="demand", split="train",
+                    trust_remote_code=True, token=hf_token
+                )
+                logger.debug("load_dataset for demand successful.")
+            except Exception as e:
+                logger.error(f"Failed to load demand dataset using load_dataset: {e}", exc_info=True)
+                logger.error("Check dataset name ('{dataset_name}'), 'demand' configuration, split 'train', and HF token/permissions.")
+                return None # Exit early if demand fails
+
             demand_df = demand_ds.to_pandas()
+            logger.debug("Converted demand dataset to Pandas DataFrame.")
             del demand_ds
             logger.success("Demand data loaded as Pandas.")
 
             logger.info("Loading weather data via datasets library (handles caching)...")
-            weather_ds = load_dataset(
-                dataset_name, name="weather", split="train",
-                trust_remote_code=True, token=hf_token
-            )
+            logger.debug(f"Calling load_dataset for weather: dataset_name='{dataset_name}', name='weather', split='train'")
+            try:
+                weather_ds = load_dataset(
+                    dataset_name, name="weather", split="train",
+                    trust_remote_code=True, token=hf_token
+                )
+                logger.debug("load_dataset for weather successful.")
+            except Exception as e:
+                logger.error(f"Failed to load weather dataset using load_dataset: {e}", exc_info=True)
+                logger.error("Check dataset name ('{dataset_name}'), 'weather' configuration, split 'train', and HF token/permissions.")
+                return None # Exit early if weather fails
+
             weather_df = weather_ds.to_pandas()
+            logger.debug("Converted weather dataset to Pandas DataFrame.")
             del weather_ds
             logger.success("Weather data loaded as Pandas.")
 
@@ -208,10 +259,17 @@ def load_electricity_data(
 
             logger.warning("Optimizing large Demand DataFrame dtypes in Pandas format can be memory intensive.")
             try:
+                # Optimize demand dtypes after loading
+                logger.debug("Optimizing Demand DataFrame dtypes (Pandas)...")
                 demand_df['y'] = pd.to_numeric(demand_df['y'], downcast='float')
                 demand_df['unique_id'] = demand_df['unique_id'].astype('category')
+                # Convert timestamp if it's not already datetime
+                if not pd.api.types.is_datetime64_any_dtype(demand_df['timestamp']):
+                    logger.debug("Converting demand 'timestamp' column to datetime...")
+                    demand_df['timestamp'] = pd.to_datetime(demand_df['timestamp'])
+                logger.debug("Demand DataFrame dtypes optimized.")
             except Exception as opt_err:
-                logger.error(f"Could not optimize demand_df dtypes in Pandas mode: {opt_err}")
+                logger.error(f"Could not optimize demand_df dtypes in Pandas mode: {opt_err}", exc_info=True)
 
             return demand_df, metadata_df, weather_df
 
@@ -221,10 +279,10 @@ def load_electricity_data(
 
     except ImportError as ie:
          # Ensure huggingface_hub is mentioned here
-         logger.error(f"Import error: {ie}. Ensure 'datasets', 'pandas', 'pyarrow', 'dask', 'fsspec', 'huggingface_hub' are installed.")
+         logger.error(f"Import error: {ie}. Ensure 'datasets', 'pandas', 'pyarrow', 'dask', 'fsspec', 'huggingface_hub' are installed.", exc_info=True)
          return None
     except Exception as e:
-        # Handle potential huggingface_hub download errors if needed, though caught above now
+        # Generic catch-all, should be hit less often now
         logger.error(f"An unexpected error occurred during data loading: {e}", exc_info=True)
         logger.error("Check internet connection, dataset name, permissions, and memory.")
         return None
