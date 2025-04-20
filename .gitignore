@@ -181,3 +181,7 @@ cython_debug/
 # 忽略所有 data/ 目录下的文件
 data/
 *.parquet
+
+# 忽略所有 logs/ 目录下的文件
+logs/
+*.log
