@@ -980,11 +980,11 @@ def main():
 
     # Demand 'y' 分析
     logger.info("--- 开始 Demand 'y' 分析 ---")
-    # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
-    # if y_sample_pd is not None:
-    #      plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
+    y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
+    if y_sample_pd is not None:
+         plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
     # analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 减少样本量加快速度
-    logger.info("--- 完成 Demand 'y' 分析 (或已注释) ---")
+    logger.info("--- 完成 Demand 'y' 分布分析 ---")
 
 
     # Metadata 分析
@@ -1018,13 +1018,13 @@ def main():
     # logger.info("--- 完成 Demand vs location 分析 (或已注释) ---")
 
     # Demand vs Weather (可能跳过)
-    logger.info("--- 开始 Demand vs Weather 分析 ---")
+    # logger.info("--- 开始 Demand vs Weather 分析 ---")
     # try:
     #     analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=plots_dir, n_sample_ids=50)
     # except Exception as e:
     #      # analyze_demand_vs_weather 内部已记录详细错误，这里只记录简要信息
     #      logger.error(f"Demand vs Weather 分析执行期间遇到问题: {e}")
-    logger.info("--- 完成 Demand vs Weather 分析 (或已跳过) ---")
+    # logger.info("--- 完成 Demand vs Weather 分析 (或已跳过) ---")
 
 
     logger.info("=========================================")
