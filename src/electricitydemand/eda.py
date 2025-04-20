@@ -49,7 +49,7 @@ logger.info(f"图表目录: {plots_dir}")
 # --- 数据文件路径 ---
 data_dir = os.path.join(project_root, "data")
 demand_path = os.path.join(data_dir, "demand.parquet")
-# metadata_path = os.path.join(data_dir, "metadata.parquet") # 暂时不需要
+metadata_path = os.path.join(data_dir, "metadata.parquet") # 取消注释
 # weather_path = os.path.join(data_dir, "weather.parquet") # 暂时不需要
 logger.info(f"数据目录: {data_dir}")
 
@@ -69,6 +69,24 @@ def load_demand_data():
         sys.exit(1)
     except Exception as e:
         logger.exception(f"加载 Demand 数据集时发生错误: {e}")
+        sys.exit(1)
+
+def load_metadata():
+    """加载 Metadata 数据集 (Pandas)."""
+    logger.info("开始加载 Metadata 数据集...")
+    try:
+        pdf_metadata = pd.read_parquet(metadata_path)
+        logger.info(f"成功加载 Metadata 数据: {metadata_path}")
+        logger.info(f"Metadata Pandas DataFrame shape: {pdf_metadata.shape}, columns: {pdf_metadata.columns.tolist()}")
+        # 检查下基本信息
+        logger.info(f"Metadata head:\n{pdf_metadata.head().to_string()}")
+        logger.info(f"Metadata dtypes:\n{pdf_metadata.dtypes.to_string()}")
+        return pdf_metadata
+    except FileNotFoundError as e:
+        logger.error(f"Metadata 数据文件未找到: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.exception(f"加载 Metadata 数据集时发生错误: {e}")
         sys.exit(1)
 
 def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42):
@@ -291,24 +309,130 @@ def analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=None, ra
         # client.cancel(ddf_sample) # 假设已有 dask client
         pass
 
+def analyze_metadata_categorical(pdf_metadata, columns_to_analyze=None):
+    """分析 Metadata DataFrame 中指定分类列的分布并记录。"""
+    if pdf_metadata is None or pdf_metadata.empty:
+        logger.warning("输入的 Metadata DataFrame 为空，跳过分类特征分析。")
+        return
+
+    if columns_to_analyze is None:
+        columns_to_analyze = ['building_class', 'location', 'freq', 'timezone', 'dataset']
+
+    logger.info(f"--- 开始分析 Metadata 分类特征分布 ({', '.join(columns_to_analyze)}) ---")
+
+    total_rows = len(pdf_metadata)
+
+    for col in columns_to_analyze:
+        if col not in pdf_metadata.columns:
+            logger.warning(f"列 '{col}' 不在 Metadata DataFrame 中，跳过。")
+            continue
+
+        logger.info(f"--- 分析列: {col} ---")
+        counts = pdf_metadata[col].value_counts(dropna=False) # dropna=False 以包含 NaN
+        percentage = (counts / total_rows * 100).round(2)
+        dist_df = pd.DataFrame({'Count': counts, 'Percentage (%)': percentage})
+
+        logger.info(f"值分布 (包含 NaN):\n{dist_df.to_string()}")
+        num_unique = pdf_metadata[col].nunique(dropna=False) # 包含 NaN 的唯一值计数
+        logger.info(f"列 '{col}' 唯一值数量 (含 NaN): {num_unique}")
+        if pdf_metadata[col].isnull().any():
+            logger.warning(f"列 '{col}' 存在缺失值 (NaN)。")
+
+def plot_metadata_categorical(pdf_metadata, columns_to_plot=None, top_n=10, plots_dir=None):
+    """可视化 Metadata DataFrame 中指定分类列的分布并保存。"""
+    if pdf_metadata is None or pdf_metadata.empty:
+        logger.warning("输入的 Metadata DataFrame 为空，跳过分类特征绘图。")
+        return
+    if plots_dir is None:
+        logger.error("未提供 plots_dir，无法保存 Metadata 分类特征图。")
+        return
+
+    if columns_to_plot is None:
+        columns_to_plot = ['building_class', 'location', 'freq', 'timezone', 'dataset']
+
+    logger.info(f"--- 开始绘制 Metadata 分类特征分布图 ({', '.join(columns_to_plot)}) ---")
+    plt.style.use('seaborn-v0_8-whitegrid')
+
+    for col in columns_to_plot:
+        if col not in pdf_metadata.columns:
+            logger.warning(f"列 '{col}' 不在 Metadata DataFrame 中，跳过绘图。")
+            continue
+
+        logger.info(f"绘制列: {col}")
+        fig, ax = plt.subplots(figsize=(12, 6)) # 调整图像大小
+
+        # 获取值计数，同样包含 NaN
+        value_counts = pdf_metadata[col].value_counts(dropna=False)
+
+        # 如果唯一值过多，只显示 Top N + Others
+        num_unique = len(value_counts)
+        if num_unique > top_n:
+            logger.info(f"列 '{col}' 唯一值数量 ({num_unique}) 超过 {top_n}，将仅显示 Top {top_n} 和 'Others'。")
+            top_values = value_counts.head(top_n)
+            other_count = value_counts.iloc[top_n:].sum()
+            if other_count > 0:
+                # 检查 'Others' 是否已存在 (不太可能，但以防万一)
+                if 'Others' in top_values.index:
+                   top_values['Others'] += other_count
+                else:
+                   # 使用 pd.concat 替代直接赋值，避免 SettingWithCopyWarning
+                   others_series = pd.Series([other_count], index=['Others'])
+                   top_values = pd.concat([top_values, others_series])
+
+            data_to_plot = top_values
+            title = f'Distribution of Top {top_n} {col} (Sampled Metadata)'
+        else:
+            data_to_plot = value_counts
+            title = f'Distribution of {col} (Sampled Metadata)'
+
+        # 处理 NaN 标签以便绘图
+        plot_index = data_to_plot.index.astype(str) # 将索引转为字符串，以便绘图处理 NaN
+
+        sns.barplot(x=plot_index, y=data_to_plot.values, ax=ax, palette="viridis")
+        ax.set_title(title)
+        ax.set_xlabel(col)
+        ax.set_ylabel('Count')
+        plt.xticks(rotation=45, ha='right') # 旋转标签以便阅读
+        plt.tight_layout()
+
+        plot_filename = os.path.join(plots_dir, f'metadata_distribution_{col}.png')
+        try:
+            plt.savefig(plot_filename)
+            logger.info(f"图表已保存到: {plot_filename}")
+            plt.close(fig)
+        except Exception as e:
+            logger.exception(f"保存列 '{col}' 的分布图时出错: {e}")
+
+    logger.info("Metadata 分类特征绘图完成。")
+
 def main():
     """主执行函数，编排 EDA 步骤。"""
-    # 步骤 1: 加载数据
-    ddf_demand = load_demand_data()
-
-    # 步骤 2: 分析 Demand 'y' 列的分布 (获取抽样数据)
+    # --- Demand Analysis (Commented out for now) ---
+    # logger.info("--- 开始 Demand 数据分析 ---")
+    # ddf_demand = load_demand_data()
     # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
-
-    # # 步骤 3: 可视化 'y' 列的分布
     # if y_sample_pd is not None and not y_sample_pd.empty:
-    #     plot_demand_y_distribution(y_sample_pd, plots_dir) # 调用绘图函数
+    #     plot_demand_y_distribution(y_sample_pd, plots_dir)
     # else:
-    #     logger.warning("由于抽样数据为空或分析出错，跳过 'y' 分布的绘图步骤。")
+    #     logger.warning("跳过 'y' 分布的绘图步骤。")
+    # analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=plots_dir)
+    # logger.info("--- 完成 Demand 数据分析 ---")
 
-    # 步骤 4: 分析时间序列样本
-    analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=plots_dir) # 分析 5 个样本
 
-    logger.info("EDA 脚本 - 时间序列样本分析执行完毕。")
+    # --- Metadata Analysis ---
+    logger.info("--- 开始 Metadata 数据分析 ---")
+    pdf_metadata = load_metadata()
+
+    # 分析分类特征
+    analyze_metadata_categorical(pdf_metadata)
+
+    # 绘制分类特征分布图
+    plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=15) # location 显示 top 15
+
+    logger.info("--- 完成 Metadata 数据分析 ---")
+
+
+    logger.info("EDA 脚本执行完毕。")
 
 
 if __name__ == "__main__":

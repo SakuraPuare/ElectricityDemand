@@ -23,7 +23,7 @@
 
 1.  **创建 EDA 脚本 (`src/electricitydemand/eda.py`)**
     *   [x] 设置脚本结构，导入必要库和日志配置。
-    *   [x] 添加函数以加载数据集 (`load_demand_data`)。
+    *   [x] 添加函数以加载数据集 (`load_demand_data`, `load_metadata`)。
 
 2.  **Demand ('y') 分析**
     *   [x] **分布分析:**
@@ -36,7 +36,8 @@
         *   [x] 分析不同 `unique_id` 的时间戳频率是否一致 (与 metadata 中的 `freq` 对比)。
 
 3.  **Metadata 分析**
-    *   [ ] 分析分类特征的分布 (`building_class`, `location`, `freq`, `timezone`, `dataset`)。使用计数图 (count plot) 或条形图。
+    *   [x] 分析分类特征的分布 (`building_class`, `location`, `freq`, `timezone`, `dataset`)。
+    *   [x] 可视化分类特征的分布 (`building_class`, `location`, `freq`, `timezone`, `dataset`)。
     *   [ ] 分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布（如果适用）。
     *   [ ] 检查 `location_id`, `latitude`, `longitude`, `location` 缺失值的具体情况（哪些 `unique_id` 缺失）。
 
@@ -87,24 +88,23 @@
 ## 进行中 ⏳
 
 *   **探索性数据分析 (EDA) - Metadata 分析**:
-    *   加载 `metadata.parquet` 数据。
-    *   分析分类特征 (`building_class`, `location`, `freq`, `timezone`, `dataset`) 的分布。
+    *   分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布。
+    *   检查地理位置相关列 (`location_id`, `latitude`, `longitude`, `location`) 的缺失值情况。
 
 ## 下一步 ➡️
 
 *   **探索性数据分析 (EDA)**:
-    *   **Metadata 分析**: 可视化分类特征的分布 (计数图/条形图)。
-    *   **Metadata 分析**: 分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布。
-    *   **Metadata 分析**: 检查地理位置相关列的缺失值情况。
-    *   **关系分析**: 开始探索 Demand 与 Metadata 之间的关系。
+    *   **Weather 分析**: 开始加载和分析 `weather.parquet` 数据。
+    *   **关系分析**: 开始探索 Demand 与 Metadata 之间的关系 (例如，不同 `building_class` 的需求分布)。
 
 ## 已完成 ✅
 *   环境设置与数据下载
 *   数据加载与基本信息查看
 *   数据质量检查 (缺失值, 重复值初步检查, 时间范围)
 *   `load_data.py` 重构和错误处理
-*   `eda.py` 脚本创建和数据加载
+*   `eda.py` 脚本创建和数据加载 (Demand, Metadata)
 *   Demand ('y') 分布的描述性统计计算 (基于抽样)
 *   Demand ('y') 非正值检查 (基于抽样)
 *   Demand ('y') 分布的可视化 (直方图/箱线图，原始/对数尺度，基于抽样)
 *   Demand ('y') 时间序列特性分析 (基于 N=5 抽样)
+*   Metadata 分类特征分析与可视化。
