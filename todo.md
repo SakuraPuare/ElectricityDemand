@@ -38,11 +38,12 @@
 3.  **Metadata 分析**
     *   [x] 分析分类特征的分布 (`building_class`, `location`, `freq`, `timezone`, `dataset`)。
     *   [x] 可视化分类特征的分布 (`building_class`, `location`, `freq`, `timezone`, `dataset`)。
-    *   [ ] 分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布（如果适用）。
-    *   [ ] 检查 `location_id`, `latitude`, `longitude`, `location` 缺失值的具体情况（哪些 `unique_id` 缺失）。
+    *   [x] 分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布。
+    *   [x] 检查 `location_id`, `latitude`, `longitude`, `location` 缺失值的具体情况（与 Building Data Genome 2 数据集关联）。
 
 4.  **Weather 分析**
-    *   [ ] 分析关键数值天气特征的分布 (e.g., `temperature_2m`, `relative_humidity_2m`, `precipitation`, `wind_speed_10m`)。使用直方图、箱线图。
+    *   [ ] 加载 `weather.parquet` 数据 (使用 Dask)。
+    *   [ ] 分析关键数值天气特征的分布 (e.g., `temperature_2m`, `relative_humidity_2m`, `precipitation`, `wind_speed_10m`)。计算统计信息并绘制分布图 (考虑抽样)。
     *   [ ] 检查数值特征是否存在异常值或不合理的值（如负降水量）。
     *   [ ] 分析 `weather_code` 的分布。
     *   [ ] 分析天气数据的时间戳频率。
@@ -87,15 +88,15 @@
 
 ## 进行中 ⏳
 
-*   **探索性数据分析 (EDA) - Metadata 分析**:
-    *   分析数值特征 (`latitude`, `longitude`, `cluster_size`) 的分布。
-    *   检查地理位置相关列 (`location_id`, `latitude`, `longitude`, `location`) 的缺失值情况。
+*   **探索性数据分析 (EDA) - Weather 分析**:
+    *   加载 `weather.parquet` 数据。
+    *   分析关键数值天气特征（如温度、湿度、降水等）的分布。
 
 ## 下一步 ➡️
 
 *   **探索性数据分析 (EDA)**:
-    *   **Weather 分析**: 开始加载和分析 `weather.parquet` 数据。
-    *   **关系分析**: 开始探索 Demand 与 Metadata 之间的关系 (例如，不同 `building_class` 的需求分布)。
+    *   **Weather 分析**: 检查天气数值特征的异常值，分析 `weather_code` 和时间戳频率。
+    *   **关系分析**: 开始探索 Demand 与 Metadata/Weather 之间的关系。
 
 ## 已完成 ✅
 *   环境设置与数据下载
@@ -108,3 +109,5 @@
 *   Demand ('y') 分布的可视化 (直方图/箱线图，原始/对数尺度，基于抽样)
 *   Demand ('y') 时间序列特性分析 (基于 N=5 抽样)
 *   Metadata 分类特征分析与可视化。
+*   Metadata 数值特征分析与可视化。
+*   Metadata 缺失位置信息分析。

@@ -405,6 +405,105 @@ def plot_metadata_categorical(pdf_metadata, columns_to_plot=None, top_n=10, plot
 
     logger.info("Metadata 分类特征绘图完成。")
 
+def analyze_metadata_numerical(pdf_metadata, columns_to_analyze=None, plots_dir=None):
+    """分析 Metadata DataFrame 中指定数值列的分布并记录/绘图。"""
+    if pdf_metadata is None or pdf_metadata.empty:
+        logger.warning("输入的 Metadata DataFrame 为空，跳过数值特征分析。")
+        return
+    if plots_dir is None:
+        logger.error("未提供 plots_dir，无法保存 Metadata 数值特征图。")
+        # 仅记录统计信息，不绘图
+        plot = False
+    else:
+        plot = True
+
+
+    if columns_to_analyze is None:
+        columns_to_analyze = ['latitude', 'longitude', 'cluster_size']
+
+    logger.info(f"--- 开始分析 Metadata 数值特征分布 ({', '.join(columns_to_analyze)}) ---")
+
+    for col in columns_to_analyze:
+        if col not in pdf_metadata.columns:
+            logger.warning(f"列 '{col}' 不在 Metadata DataFrame 中，跳过。")
+            continue
+        if not pd.api.types.is_numeric_dtype(pdf_metadata[col]):
+            logger.warning(f"列 '{col}' 不是数值类型，跳过数值分析。")
+            continue
+
+        logger.info(f"--- 分析列: {col} ---")
+        # 计算描述性统计
+        desc_stats = pdf_metadata[col].describe()
+        logger.info(f"描述性统计:\n{desc_stats.to_string()}")
+
+        # 检查缺失值
+        missing_count = pdf_metadata[col].isnull().sum()
+        if missing_count > 0:
+            missing_perc = (missing_count / len(pdf_metadata) * 100).round(2)
+            logger.warning(f"列 '{col}' 存在 {missing_count} ({missing_perc}%) 个缺失值。")
+
+        if plot:
+            # 绘制直方图和箱线图
+            fig, axes = plt.subplots(1, 2, figsize=(15, 5)) # 并排显示
+
+            # 直方图
+            sns.histplot(pdf_metadata[col].dropna(), kde=True, ax=axes[0]) # dropna 以防绘图错误
+            axes[0].set_title(f'Distribution of {col}')
+            axes[0].set_xlabel(col)
+            axes[0].set_ylabel('Frequency')
+
+            # 箱线图
+            sns.boxplot(x=pdf_metadata[col].dropna(), ax=axes[1])
+            axes[1].set_title(f'Boxplot of {col}')
+            axes[1].set_xlabel(col)
+
+            plt.tight_layout()
+            plot_filename = os.path.join(plots_dir, f'metadata_distribution_{col}.png')
+            try:
+                plt.savefig(plot_filename)
+                logger.info(f"图表已保存到: {plot_filename}")
+                plt.close(fig)
+            except Exception as e:
+                logger.exception(f"保存列 '{col}' 的分布图时出错: {e}")
+
+    logger.info("Metadata 数值特征分析完成。")
+
+def analyze_missing_locations(pdf_metadata):
+    """分析 Metadata 中位置信息缺失的行。"""
+    if pdf_metadata is None or pdf_metadata.empty:
+        logger.warning("输入的 Metadata DataFrame 为空，跳过缺失位置分析。")
+        return
+
+    logger.info("--- 开始分析 Metadata 中缺失的位置信息 ---")
+    location_cols = ['location_id', 'latitude', 'longitude', 'location']
+    # 检查这些列是否都存在
+    existing_location_cols = [col for col in location_cols if col in pdf_metadata.columns]
+    if not existing_location_cols:
+        logger.warning("Metadata 中不包含任何位置信息列，跳过分析。")
+        return
+
+    # 找出在所有存在的位置列中都为 NaN 的行
+    missing_mask = pdf_metadata[existing_location_cols].isnull().all(axis=1)
+    missing_rows_count = missing_mask.sum()
+
+    logger.info(f"发现 {missing_rows_count} 行的所有位置信息 ({', '.join(existing_location_cols)}) 均为缺失。")
+
+    if missing_rows_count > 0:
+        missing_df = pdf_metadata[missing_mask]
+        logger.info(f"缺失位置信息的行 (前 5 行):\n{missing_df.head().to_string()}")
+
+        # 分析这些缺失行的其他特征分布
+        logger.info("分析缺失位置信息行的特征分布:")
+        if 'dataset' in missing_df.columns:
+            logger.info(f"'dataset' 分布:\n{missing_df['dataset'].value_counts().to_string()}")
+        if 'building_class' in missing_df.columns:
+             logger.info(f"'building_class' 分布:\n{missing_df['building_class'].value_counts().to_string()}")
+        if 'freq' in missing_df.columns:
+            logger.info(f"'freq' 分布:\n{missing_df['freq'].value_counts().to_string()}")
+        # ... 可以添加更多感兴趣的列
+
+    logger.info("缺失位置信息分析完成。")
+
 def main():
     """主执行函数，编排 EDA 步骤。"""
     # --- Demand Analysis (Commented out for now) ---
@@ -423,11 +522,15 @@ def main():
     logger.info("--- 开始 Metadata 数据分析 ---")
     pdf_metadata = load_metadata()
 
-    # 分析分类特征
-    analyze_metadata_categorical(pdf_metadata)
+    # # 分析分类特征 (已完成，注释掉)
+    # analyze_metadata_categorical(pdf_metadata)
+    # plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=15)
 
-    # 绘制分类特征分布图
-    plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=15) # location 显示 top 15
+    # 分析数值特征
+    analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir)
+
+    # 分析缺失的位置信息
+    analyze_missing_locations(pdf_metadata)
 
     logger.info("--- 完成 Metadata 数据分析 ---")
 
