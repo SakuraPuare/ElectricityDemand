@@ -49,8 +49,8 @@
     *   [x] 分析天气数据的时间戳频率 (主要为 1H，存在少量不规则)。
 
 5.  **关系分析 (抽样)**
-    *   [ ] **Demand vs. Metadata:**
-        *   [ ] 按 `building_class` 分组，比较 `y` 的分布 (箱线图)。
+    *   [x] **Demand vs. Metadata:**
+        *   [x] 按 `building_class` 分组，比较 `y` 的分布 (箱线图)。
         *   [ ] 按 `location` 或 `timezone` 分组，比较 `y` 的分布。
     *   [ ] **Demand vs. Weather:**
         *   [ ] 将 Demand 数据与对应的 Weather 数据合并 (需要基于 `unique_id` -> `location_id` 和 `timestamp` 进行匹配，注意处理时间戳对齐)。
@@ -89,13 +89,13 @@
 ## 进行中 ⏳
 
 *   **探索性数据分析 (EDA) - 关系分析**:
-    *   **Demand vs. Metadata**: 按 `building_class` 分组比较 `y` 的分布。
+    *   **Demand vs. Metadata**: 按 `location` 分组比较 `y` 的分布。
 
 ## 下一步 ➡️
 
 *   **探索性数据分析 (EDA)**:
     *   **关系分析**:
-        *   **Demand vs. Metadata**: 按 `location` 或 `timezone` 分组比较 `y` 的分布。
+        *   **Demand vs. Metadata**: 按 `timezone` 分组比较 `y` 的分布。
         *   **Demand vs. Weather**: 合并数据并分析相关性/绘制散点图。
 
 ## 已完成 ✅
@@ -115,3 +115,4 @@
 *   Weather 降水相关特征负值检查。
 *   Weather `weather_code` 分布分析与可视化。
 *   Weather 时间戳频率分析 (主要为 1H)。
+*   Demand vs Metadata (`building_class`) 关系分析与可视化。

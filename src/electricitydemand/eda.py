@@ -729,38 +729,141 @@ def analyze_weather_timestamp_frequency(ddf_weather, sample_frac=0.01, random_st
         pass
 
 
+# --- 关系分析函数 ---
+def analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=None, sample_frac=0.001, random_state=42):
+    """分析 Demand (y) 与 Metadata 特征 (如 building_class) 的关系。"""
+    if ddf_demand is None or pdf_metadata is None:
+        logger.warning("需要 Demand 和 Metadata 数据才能进行关系分析。")
+        return
+    if plots_dir is None:
+        logger.error("未提供 plots_dir，无法保存关系分析图。")
+        return
+
+    logger.info(f"--- 开始分析 Demand vs Metadata 关系 (抽样比例: {sample_frac:.1%}) ---")
+
+    try:
+        # 1. 准备数据：抽样 Demand，选择需要的列
+        logger.info("对 Demand 数据进行抽样并选择列 ('unique_id', 'y')...")
+        # 只选取需要的列进行抽样和合并
+        ddf_demand_sample = ddf_demand[['unique_id', 'y']].dropna(subset=['y']).sample(frac=sample_frac, random_state=random_state).persist()
+        num_samples = len(ddf_demand_sample)
+        logger.info(f"Demand 抽样完成，得到 {num_samples:,} 个非空 'y' 样本。")
+
+        if num_samples == 0:
+             logger.warning("Demand 抽样结果为空，无法进行关系分析。")
+             return
+
+        # 选择 Metadata 中的相关列
+        pdf_metadata_subset = pdf_metadata[['unique_id', 'building_class']].copy() # 只需 building_class
+
+        # 2. 合并数据 (Dask merge with Pandas)
+        logger.info("合并抽样的 Demand 数据与 Metadata 数据...")
+        # Dask merge 可以高效处理 Dask DF 与 Pandas DF 的合并
+        ddf_merged = dd.merge(ddf_demand_sample, pdf_metadata_subset, on='unique_id', how='inner').persist()
+        num_merged = len(ddf_merged)
+        logger.info(f"合并完成，得到 {num_merged:,} 行匹配数据。")
+
+        if num_merged == 0:
+             logger.warning("合并后数据为空，无法进行关系分析。")
+             return
+
+        # 3. 计算合并后的 Pandas DataFrame
+        logger.info("计算合并后的 Pandas DataFrame...")
+        pdf_merged = ddf_merged.compute()
+        logger.info("合并后的 Pandas DataFrame 计算完成。")
+
+        # 4. 绘制 Demand (y) vs building_class 的箱线图
+        target_col = 'building_class'
+        logger.info(f"绘制 Demand (y) vs {target_col} 箱线图...")
+
+        plt.style.use('seaborn-v0_8-whitegrid')
+
+        # --- 原始尺度 ---
+        fig_orig, ax_orig = plt.subplots(figsize=(10, 6))
+        sns.boxplot(data=pdf_merged, x=target_col, y='y', showfliers=False, ax=ax_orig, palette="viridis")
+        ax_orig.set_title(f'Demand (y) Distribution by {target_col} (Original Scale, No Outliers)')
+        ax_orig.set_xlabel(target_col)
+        ax_orig.set_ylabel('Electricity Demand (y) in kWh')
+        plt.tight_layout()
+        plot_filename_orig = os.path.join(plots_dir, f'demand_vs_{target_col}_boxplot_orig.png')
+        try:
+            plt.savefig(plot_filename_orig)
+            logger.info(f"原始尺度箱线图已保存到: {plot_filename_orig}")
+            plt.close(fig_orig)
+        except Exception as e:
+            logger.exception(f"保存 Demand vs {target_col} 原始尺度箱线图时出错: {e}")
+
+        # --- 对数尺度 ---
+        epsilon = 1e-6
+        pdf_merged['y_log1p'] = np.log1p(pdf_merged['y'][pdf_merged['y'] >= 0] + epsilon)
+
+        # 检查是否有有效的对数值
+        if pdf_merged['y_log1p'].isnull().all():
+             logger.warning("没有有效的对数值进行绘图，跳过对数尺度箱线图。")
+        else:
+            fig_log, ax_log = plt.subplots(figsize=(10, 6))
+            sns.boxplot(data=pdf_merged.dropna(subset=['y_log1p']), x=target_col, y='y_log1p', showfliers=True, ax=ax_log, palette="viridis") # dropna 以防万一
+            ax_log.set_title(f'Demand (y) Distribution by {target_col} (Log1p Scale)')
+            ax_log.set_xlabel(target_col)
+            ax_log.set_ylabel('log1p(Electricity Demand (y) + epsilon)')
+            plt.tight_layout()
+            plot_filename_log = os.path.join(plots_dir, f'demand_vs_{target_col}_boxplot_log1p.png')
+            try:
+                plt.savefig(plot_filename_log)
+                logger.info(f"对数尺度箱线图已保存到: {plot_filename_log}")
+                plt.close(fig_log)
+            except Exception as e:
+                logger.exception(f"保存 Demand vs {target_col} 对数尺度箱线图时出错: {e}")
+
+    except Exception as e:
+        logger.exception(f"分析 Demand vs Metadata 关系时发生错误: {e}")
+    finally:
+        # 尝试清理 Dask 中间结果 (更健壮的检查)
+        ddf_to_cancel = [var for var_name, var in locals().items() if isinstance(var, dd.DataFrame) and var_name.startswith('ddf_')]
+        if ddf_to_cancel:
+            try:
+                 from dask.distributed import Client
+                 try:
+                     client = Client.current() # 尝试获取当前客户端
+                     logger.debug("尝试取消 Dask 中间计算...")
+                     client.cancel(ddf_to_cancel)
+                     logger.debug("Dask 中间计算取消尝试完成。")
+                 except RuntimeError: # 没有正在运行的 Dask client
+                     logger.debug("没有活动的 Dask Client，跳过显式内存清理。")
+            except ImportError: # 没有安装 dask.distributed
+                 logger.debug("未安装 dask.distributed，跳过显式内存清理。")
+            except Exception as e: # 其他潜在错误
+                logger.warning(f"清理 Dask 内存时出现异常: {e}", exc_info=False) # 不打印完整堆栈
+
+
 def main():
     """主执行函数，编排 EDA 步骤。"""
-    # --- Demand Analysis (Commented out for now) ---
-    # logger.info("--- 开始 Demand 数据分析 ---")
-    # ddf_demand = load_demand_data()
-    # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
-    # if y_sample_pd is not None and not y_sample_pd.empty:
-    #     plot_demand_y_distribution(y_sample_pd, plots_dir)
-    # else:
-    #     logger.warning("跳过 'y' 分布的绘图步骤。")
-    # analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=plots_dir)
-    # logger.info("--- 完成 Demand 数据分析 ---")
+    # --- 加载所需数据 ---
+    logger.info("--- 加载分析所需数据 ---")
+    # 根据需要取消注释
+    ddf_demand = load_demand_data()
+    pdf_metadata = load_metadata()
+    # ddf_weather = load_weather_data()
 
+    # --- Demand Analysis (Commented out for now) ---
+    # ...
 
     # --- Metadata Analysis (Commented out for now) ---
     # ...
 
-    # --- Weather Analysis ---
-    logger.info("--- 开始 Weather 数据分析 ---")
-    ddf_weather = load_weather_data()
+    # --- Weather Analysis (Commented out for now) ---
+    # ...
 
-    # # 分析数值特征 (已完成，注释掉)
-    # analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.1)
+    # --- 关系分析 ---
+    logger.info("--- 开始关系分析 ---")
 
-    # 分析分类特征 (weather_code)
-    analyze_weather_categorical(ddf_weather, columns_to_analyze=['weather_code'], plots_dir=plots_dir, top_n=30) # 显示更多 code
+    # Demand vs Metadata (building_class)
+    analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001) # 使用 0.1% 样本
 
-    # 分析时间戳频率
-    analyze_weather_timestamp_frequency(ddf_weather, sample_frac=0.05) # 使用 5% 样本分析频率
+    # 后续添加 Demand vs Weather 等分析
+    # ...
 
-    logger.info("--- 完成 Weather 数据分析 ---")
-
+    logger.info("--- 完成关系分析 ---")
 
     logger.info("EDA 脚本执行完毕。")
 
