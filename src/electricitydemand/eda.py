@@ -153,27 +153,65 @@ def _plot_categorical_distribution(data_pd_series, col_name, filename_base, plot
         logger.exception(f"Error plotting distribution for column '{col_name}': {e}")
         plt.close(fig)
 
-def _log_value_counts(data_pd_series, col_name, top_n=10):
-    """记录 Pandas Series 的值计数和百分比。"""
-    if data_pd_series is None or data_pd_series.empty:
+def _log_value_counts(data_pd_series, col_name, top_n=10, is_already_counts=False):
+    """记录 Pandas Series 的值计数和百分比。
+    
+    Args:
+        data_pd_series: Pandas Series containing the data or pre-computed value counts.
+        col_name: Name of the original column for logging.
+        top_n: How many top values to display in the log.
+        is_already_counts: Set to True if data_pd_series is already the result of value_counts().
+    """
+    logger.info(f"--- 分析列: {col_name} 值分布 ---")
+
+    # Input validation
+    if not isinstance(data_pd_series, pd.Series):
+        logger.warning(f"输入给 _log_value_counts 的 '{col_name}' 不是 Pandas Series，跳过。类型: {type(data_pd_series)}")
+        return
+    if data_pd_series.empty:
         logger.warning(f"列 '{col_name}' 的数据为空，跳过值计数记录。")
         return
 
-    logger.info(f"--- 分析列: {col_name} 值分布 ---")
-    total_rows = len(data_pd_series)
-    counts = data_pd_series.value_counts(dropna=False) # 包含 NaN
-    percentage = (counts / total_rows * 100).round(2) if total_rows > 0 else 0
-    dist_df = pd.DataFrame({'计数': counts, '百分比 (%)': percentage})
+    if is_already_counts:
+        counts = data_pd_series
+        total_rows = int(counts.sum()) # Total is the sum of counts
+        logger.debug(f"处理预先计算的计数值，总计: {total_rows}")
+    else:
+        total_rows = len(data_pd_series)
+        logger.debug(f"计算原始数据的计数值，总行数: {total_rows}")
+        counts = data_pd_series.value_counts(dropna=False) # 包含 NaN
+
+    if total_rows > 0:
+        percentage = (counts / total_rows * 100).round(2)
+        dist_df = pd.DataFrame({'计数': counts.astype(int), '百分比 (%)': percentage}) # Cast counts to int for clarity
+    else:
+        dist_df = pd.DataFrame({'计数': counts.astype(int), '百分比 (%)': 0.0})
+        logger.warning(f"列 '{col_name}' 总行数为 0，百分比将为 0。")
+
 
     log_str = f"值分布 (含 NaN):\n{dist_df.head(top_n).to_string()}"
     if len(dist_df) > top_n:
         log_str += "\n..."
     logger.info(log_str)
 
-    num_unique = data_pd_series.nunique(dropna=False)
+    # Unique count calculation needs care if input is counts
+    if is_already_counts:
+        # If counts include NaN, it will be in the index
+        num_unique = len(counts)
+        has_nan = counts.index.isnull().any()
+    else:
+        num_unique = data_pd_series.nunique(dropna=False)
+        has_nan = data_pd_series.isnull().any()
+
     logger.info(f"列 '{col_name}' 唯一值数量 (含 NaN): {num_unique}")
-    if data_pd_series.isnull().any():
-        logger.warning(f"列 '{col_name}' 存在缺失值 (NaN)。")
+    if has_nan:
+        # Find the NaN count properly depending on input type
+        if is_already_counts:
+            nan_count = counts[counts.index.isnull()].sum()
+        else:
+            nan_count = data_pd_series.isnull().sum()
+        nan_perc = (nan_count / total_rows * 100).round(2) if total_rows > 0 else 0
+        logger.warning(f"列 '{col_name}' 存在缺失值 (NaN)。数量: {nan_count}, 百分比: {nan_perc:.2f}%")
 
 
 @contextlib.contextmanager
@@ -195,8 +233,8 @@ def _dask_compute_context(*dask_objects):
                 from dask.distributed import Client, futures_of
                 from distributed.client import Future # 检查 future 类型
                 # 检查是否有活动的客户端
-                with contextlib.suppress(RuntimeError): # 忽略 'no client found' 错误
-                     client = Client.current()
+                with contextlib.suppress(RuntimeError, ImportError): # 忽略 'no client found' 和 Import Error
+                     client = Client.current() # 可能引发 RuntimeError
                      # 收集所有的 Future 对象
                      futures = []
                      for obj in persisted_objects:
@@ -210,18 +248,16 @@ def _dask_compute_context(*dask_objects):
                      if futures:
                          logger.debug(f"找到 {len(futures)} 个 futures，尝试取消...")
                          client.cancel(futures, force=True) # 强制取消
-                         # 可选：等待 futures 结束或被取消
-                         # client.close() 或 await client.close() 如果在 async 上下文
-                         # 注意：直接 close client 可能影响其他并发任务
-                         # 更好的做法是依赖 Dask 的垃圾回收，但 cancel 可以帮助更快释放
                          logger.debug("取消 Futures 尝试完成。")
                      else:
-                         logger.debug("未找到 Dask Futures 进行取消。")
+                         logger.debug("未找到 Dask Futures 进行取消 (可能已完成或无 Client)。")
 
             except ImportError:
+                # This case is now handled by the suppress above, but kept for clarity
                 logger.debug("未安装 dask.distributed，跳过显式内存清理。")
             except Exception as e:
-                logger.warning(f"清理 Dask 内存时出现异常: {e}", exc_info=False)
+                # Log other unexpected exceptions during cleanup
+                logger.warning(f"清理 Dask 内存时出现其他异常: {e}", exc_info=False)
             logger.debug("Dask 上下文退出。")
 
 # --- 数据加载函数 (保持不变) ---
@@ -520,12 +556,24 @@ def analyze_missing_locations(pdf_metadata):
     logger.info(f"发现 {missing_rows_count} 行的所有位置信息 ({', '.join(existing_location_cols)}) 均为缺失。")
 
     if missing_rows_count > 0:
-        missing_df = pdf_metadata[missing_mask]
-        logger.info(f"缺失位置信息的行 (前 5 行):\n{missing_df.head().to_string()}")
-        logger.info("分析缺失位置信息行的其他特征分布:")
-        for col in ['dataset', 'building_class', 'freq']: # 分析示例列
-             if col in missing_df.columns:
-                _log_value_counts(missing_df[col], f"(缺失位置) {col}", top_n=None) # 显示所有
+        missing_df = pdf_metadata[missing_mask].copy() # Use .copy() to avoid SettingWithCopyWarning
+        if not missing_df.empty: # Check if the subset is not empty
+            logger.info(f"缺失位置信息的行 (前 5 行):\n{missing_df.head().to_string()}")
+            logger.info("分析缺失位置信息行的其他特征分布:")
+            analyze_cols = ['dataset', 'building_class', 'freq'] # 分析示例列
+            for col in analyze_cols:
+                 if col in missing_df.columns:
+                     # Check if the column exists and the series is not empty before calling
+                     if not missing_df[col].empty:
+                         _log_value_counts(missing_df[col], f"(缺失位置) {col}", top_n=None) # is_already_counts defaults to False
+                     else:
+                          logger.warning(f"列 '{col}' 在缺失位置信息的子集中为空，跳过计数。")
+
+                 else:
+                     logger.warning(f"列 '{col}' 不在缺失位置信息的 DataFrame 中。")
+        else:
+             logger.warning("创建缺失位置信息的子集 DataFrame 失败或为空。")
+
 
     logger.info("缺失位置信息分析完成。")
 
@@ -628,13 +676,11 @@ def analyze_weather_categorical(ddf_weather, columns_to_analyze=None, top_n=20, 
             with _dask_compute_context(ddf_weather[col].value_counts()) as persisted_counts:
                  counts_pd = persisted_counts[0].compute() # Get Pandas Series
 
-            # Log value counts (using Pandas Series)
-            _log_value_counts(counts_pd, col, top_n=top_n) # Note: Passing Series, % recalculated inside
+            # Log value counts (using Pandas Series, passing is_already_counts=True)
+            _log_value_counts(counts_pd, col, top_n=top_n, is_already_counts=True) # <-- MODIFIED CALL
 
             # Plot (if needed)
             if plot and not counts_pd.empty:
-                 # Pass counts_pd to plotting function (would need adjustment or plot manually here)
-                 # Current _plot_categorical_distribution expects raw Series, so plot manually with counts
                 logger.info(f"Plotting column: {col}")
                 fig, ax = plt.subplots(figsize=(12, 6))
                 data_to_plot = counts_pd.head(top_n)
@@ -643,13 +689,19 @@ def analyze_weather_categorical(ddf_weather, columns_to_analyze=None, top_n=20, 
                 if num_unique > top_n:
                     title += " (Others not shown)"
 
-                # Try converting index to int then str, fallback to just str
+                # Ensure index is treated as string for plotting
+                plot_index = data_to_plot.index.astype(str)
+                order = plot_index # Use count order (default) or try numeric sort if appropriate
+
+                # Optional: Try sorting by numeric value of code if possible
                 try:
-                    plot_index = data_to_plot.index.astype(int).astype(str)
-                    order = plot_index # Sort by WMO code
+                    numeric_index_order = data_to_plot.index.astype(float).sort_values().astype(str)
+                    # Reindex plot_index based on numeric order found
+                    order = [idx for idx in numeric_index_order if idx in plot_index]
+                    logger.debug(f"Using numeric sort order for '{col}' plot.")
                 except (ValueError, TypeError):
-                    plot_index = data_to_plot.index.astype(str)
-                    order = plot_index # Sort by count
+                    logger.debug(f"Cannot sort '{col}' index numerically, using default order.")
+                    order = plot_index # Fallback to default order
 
                 sns.barplot(x=plot_index, y=data_to_plot.values, ax=ax, palette="viridis", order=order)
                 ax.set_title(title)
@@ -983,7 +1035,7 @@ def main():
     # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
     # if y_sample_pd is not None:
     #      plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
-    analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 减少样本量加快速度
+    # analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir) # 减少样本量加快速度
     logger.info("--- 完成 Demand 'y' 分析 (或已注释) ---")
 
 
@@ -998,8 +1050,8 @@ def main():
 
     # Weather 分析
     logger.info("--- 开始 Weather 分析 ---")
-    # analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.05) # 减少抽样比例
-    # analyze_weather_categorical(ddf_weather, plots_dir=plots_dir, top_n=15)
+    analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.05) # 减少抽样比例
+    analyze_weather_categorical(ddf_weather, plots_dir=plots_dir, top_n=15)
     # analyze_weather_timestamp_frequency(ddf_weather, sample_frac=0.005) # 减少抽样比例
     logger.info("--- 完成 Weather 分析 (或已注释) ---")
 

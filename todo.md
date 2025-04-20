@@ -1,51 +1,59 @@
-# EDA 任务清单
+# Electricity Demand EDA 任务列表
 
-## 数据加载与概览
+## 阶段一：数据加载与概览
 
-*   [x] 加载 Demand 数据 (`ddf_demand`)
-*   [x] 加载 Metadata 数据 (`pdf_metadata`)
-*   [x] 加载 Weather 数据 (`ddf_weather`)
-*   [x] 检查数据基本信息 (形状, 列名, 类型)
+-   [x] **加载数据**:
+    -   [x] 加载 Demand 数据 (`load_demand_data`)
+    -   [x] 加载 Metadata 数据 (`load_metadata`)
+    -   [x] 加载 Weather 数据 (`load_weather_data`)
+-   [x] **数据基本信息检查 (在加载时完成)**:
+    -   [x] 打印各数据集形状、列名、数据类型
+    -   [x] 打印 Metadata 头部信息
 
-## 单变量分析
+## 阶段二：单变量分析
 
-*   [x] **Demand (y)**
-    *   [x] 分析 'y' 列分布 (抽样) - *计算统计量*
-    *   [x] 可视化 'y' 列分布 (原始尺度和对数尺度)
-    *   [x] 检查非正值比例
-    *   [x] 分析时间序列特性 (抽样 `unique_id`, 绘制序列图, 分析频率)
-*   [>] **Metadata** - *进行中*
-    *   [>] 分析分类特征分布 (`building_class`, `location`, `freq`, etc.) - *进行中*
-    *   [ ] 可视化分类特征分布 (Top N)
-    *   [ ] 分析数值特征分布 (`latitude`, `longitude`, `cluster_size`) 并可视化
-    *   [ ] 分析位置信息缺失情况
-*   [ ] **Weather**
-    *   [ ] 分析关键数值特征分布 (`temperature_2m`, `relative_humidity_2m`, etc.) 并可视化
-    *   [ ] 检查特定列负值 (`precipitation`, `rain`, `snowfall`)
-    *   [ ] 分析分类特征分布 (`weather_code`) 并可视化
-    *   [ ] 分析时间戳频率 (抽样)
+-   [x] **Demand 数据 ('y' 列)**:
+    -   [x] 分析 'y' 列分布 (抽样) (`analyze_demand_y_distribution`)
+    -   [x] 绘制 'y' 列分布图 (原始尺度和对数尺度) (`plot_demand_y_distribution`)
+    -   [x] 分析时间序列特性 (抽样 unique_id) (`analyze_demand_timeseries_sample`)
+        -   [x] 绘制抽样时间序列图
+        -   [x] 分析抽样数据时间戳频率
 
-## 关系分析 (多变量)
+-   [x] **Metadata 数据**:
+    -   [x] 分析分类特征分布 (`analyze_metadata_categorical`)
+    -   [x] 绘制分类特征分布图 (`plot_metadata_categorical`)
+    -   [x] 分析数值特征分布 (`analyze_metadata_numerical`)
+    -   [x] 绘制数值特征分布图 (`analyze_metadata_numerical` 中包含)
+    -   [x] 分析缺失位置信息 (`analyze_missing_locations`)
 
-*   [x] **Demand vs Metadata**
-    *   [x] 分析 `y` 与 `building_class` 的关系 (箱线图)
-    *   [x] 分析 `y` 与 `location` (Top N) 的关系 (箱线图)
-*   [ ] **Demand vs Weather**
-    *   [ ] ~~分析 `y` 与天气特征的关系 (合并, 相关性, 可视化)~~ - **跳过 (存在 `merge_asof` 排序 BUG)**
+-   [>] **Weather 数据**:
+    -   [>] 分析数值特征分布 (`analyze_weather_numerical`)
+    -   [>] 绘制数值特征分布图 (`analyze_weather_numerical` 中包含)
+    -   [>] 分析分类特征分布 (`analyze_weather_categorical`)
+    -   [>] 绘制分类特征分布图 (`analyze_weather_categorical` 中包含)
+    -   [ ] *(待定)* 分析天气数据时间戳频率 (如果需要单独函数)
 
-## 总结与下一步
+## 阶段三：关系分析 (基于抽样)
 
-*   [ ] 总结 EDA 发现的关键点
-*   [ ] 确定数据预处理和特征工程的方向
-*   [ ] 确定建模策略的初步想法
+-   [x] **Demand vs Metadata**:
+    -   [x] Demand (y) vs building_class (`analyze_demand_vs_metadata`)
+    -   [x] Demand (y) vs location (Top N) (`analyze_demand_vs_location`)
+
+-   [x] **Demand vs Weather**:
+    -   [x] 计算相关性 (`analyze_demand_vs_weather`)
+    -   [x] 绘制相关性热力图 (`analyze_demand_vs_weather`)
+    -   [x] 绘制关键特征散点图 (`analyze_demand_vs_weather`)
+
+## 阶段四：总结与后续步骤
+
+-   [ ] 总结 EDA 发现
+-   [ ] 识别数据清洗和特征工程方向
+-   [ ] 准备建模所需数据
 
 ---
 
-**当前任务:**
+**下一步建议**:
 
-*   分析 **Metadata** 的分类特征分布 (日志输出)。
+当前任务是 **分析 Weather 数据**。请运行 `eda.py` 脚本。这次将分析 Weather 数据中的数值和分类特征。由于 Weather 数据量较大，Dask 的计算可能会花费一些时间。请关注日志输出（特别是数值特征的统计信息、负值检查结果、`weather_code` 的分布）以及保存在 `plots` 目录下的新图表（如 `weather_distribution_*.png`）。
 
-**下一步:**
-
-*   可视化 Metadata 的分类特征分布。
-*   (长期) 回头尝试修复 `analyze_demand_vs_weather` 中的 `merge_asof` bug 或寻找替代合并方法。
+完成后请告诉我，我们将进入关系分析阶段。
