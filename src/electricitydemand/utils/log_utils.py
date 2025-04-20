@@ -18,11 +18,28 @@ class InterceptHandler(logging.Handler):
 
         # 回溯调用栈以找到正确的日志发起位置
         frame, depth = logging.currentframe(), 2
-        while frame.f_code.co_filename == logging.__file__:
+        while frame is not None and frame.f_code.co_filename == logging.__file__:
             frame = frame.f_back
             depth += 1
+        # 如果 frame 变成 None (异常情况)，使用默认深度
+        if frame is None:
+            depth = 2
 
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+# 定义一个函数来处理未捕获的异常
+def _handle_exception(exc_type, exc_value, exc_traceback):
+    """
+    全局异常处理器，使用 Loguru 记录未捕获的异常。
+    忽略 KeyboardInterrupt (Ctrl+C)。
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        # 如果是用户手动中断 (Ctrl+C)，遵循 Python 默认行为退出
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    # 使用 logger.critical 记录其他所有未捕获的异常及其 Traceback
+    # 使用 critical 级别，因为这通常是导致程序终止的严重错误
+    logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
 
 def setup_logger(log_file_prefix: str = "app", logs_dir: str = "logs", level: str = "INFO"):
     """
@@ -76,6 +93,10 @@ def setup_logger(log_file_prefix: str = "app", logs_dir: str = "logs", level: st
     # 配置标准库 logging 使用 InterceptHandler
     # level=0 确保捕获所有级别的标准日志，然后由 loguru 处理器根据其配置的 level 过滤
     logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+
+    # 设置 sys.excepthook 来捕获并记录未处理的异常
+    # 这必须在 logger 配置完成后进行
+    sys.excepthook = _handle_exception
 
     # 使用配置的级别记录初始化信息
     # 由调用方记录初始化信息更合适
