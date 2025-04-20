@@ -606,6 +606,129 @@ def analyze_weather_numerical(ddf_weather, columns_to_analyze=None, plot_sample_
 
     logger.info("Weather 数值特征分析完成。")
 
+def analyze_weather_categorical(ddf_weather, columns_to_analyze=None, top_n=20, plots_dir=None):
+    """分析 Weather Dask DataFrame 中指定分类列的分布并记录/绘图。"""
+    if ddf_weather is None:
+        logger.warning("输入的 Weather Dask DataFrame 为空，跳过分类特征分析。")
+        return
+    plot = plots_dir is not None # 是否绘图
+
+    if columns_to_analyze is None:
+        columns_to_analyze = ['weather_code']
+
+    logger.info(f"--- 开始分析 Weather 分类特征分布 ({', '.join(columns_to_analyze)}) ---")
+
+    for col in columns_to_analyze:
+        if col not in ddf_weather.columns:
+            logger.warning(f"列 '{col}' 不在 Weather DataFrame 中，跳过。")
+            continue
+
+        logger.info(f"--- 分析列: {col} ---")
+        try:
+            # 计算值计数 (对于 Dask，直接计算全部可能较慢，但 weather_code 类别有限)
+            logger.info(f"计算列 '{col}' 的值计数...")
+            # Dask value_counts 返回的是 Dask Series，需要 compute()
+            counts = ddf_weather[col].value_counts().compute()
+            total_rows = len(ddf_weather) # Dask len() 估算
+            percentage = (counts / total_rows * 100).round(2)
+            dist_df = pd.DataFrame({'Count': counts, 'Percentage (%)': percentage})
+
+            logger.info(f"值分布 (Top {top_n}):\n{dist_df.head(top_n).to_string()}")
+            num_unique = len(counts)
+            logger.info(f"列 '{col}' 唯一值数量: {num_unique}")
+
+            # 绘图 (如果需要且唯一值数量合理)
+            if plot:
+                logger.info(f"绘制列: {col}")
+                fig, ax = plt.subplots(figsize=(12, 6))
+
+                data_to_plot = counts.head(top_n)
+                title = f'Distribution of Top {top_n} {col} (Weather Data)'
+                if num_unique > top_n:
+                    title += " (Others not shown)"
+
+                # WMO 代码通常是整数，但可能存储为 float，转为 int 再转 str 用于标签
+                plot_index = data_to_plot.index.astype(int).astype(str)
+
+                sns.barplot(x=plot_index, y=data_to_plot.values, ax=ax, palette="viridis", order=plot_index) # order 保持顺序
+                ax.set_title(title)
+                ax.set_xlabel(f'{col} (WMO Code)')
+                ax.set_ylabel('Count')
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+
+                plot_filename = os.path.join(plots_dir, f'weather_distribution_{col}.png')
+                try:
+                    plt.savefig(plot_filename)
+                    logger.info(f"图表已保存到: {plot_filename}")
+                    plt.close(fig)
+                except Exception as e:
+                    logger.exception(f"保存列 '{col}' 的分布图时出错: {e}")
+
+        except Exception as e:
+            logger.exception(f"分析列 '{col}' 时出错: {e}")
+
+    logger.info("Weather 分类特征分析完成。")
+
+
+def analyze_weather_timestamp_frequency(ddf_weather, sample_frac=0.01, random_state=42):
+    """分析 Weather Dask DataFrame 时间戳频率 (基于抽样)。"""
+    if ddf_weather is None:
+        logger.warning("输入的 Weather Dask DataFrame 为空，跳过时间戳频率分析。")
+        return
+
+    logger.info(f"--- 开始分析 Weather 时间戳频率 (抽样比例: {sample_frac:.1%}) ---")
+
+    try:
+        # 1. 抽取样本数据 (timestamp 和 location_id，用于分组检查)
+        logger.info("抽取样本数据进行频率分析...")
+        # 只选择需要的列进行抽样和计算
+        ddf_sample = ddf_weather[['location_id', 'timestamp']].sample(frac=sample_frac, random_state=random_state).persist()
+
+        logger.info("将样本数据转换为 Pandas DataFrame...")
+        pdf_sample = ddf_sample.compute()
+        logger.info(f"样本 Pandas DataFrame 创建完成，包含 {len(pdf_sample):,} 行数据。")
+
+        if pdf_sample.empty:
+             logger.warning("样本数据为空，无法分析频率。")
+             return
+
+        # 2. 按 location_id 分组计算时间差
+        logger.info("按 location_id 分组计算时间戳间隔...")
+        pdf_sample = pdf_sample.sort_values(['location_id', 'timestamp'])
+        # 使用 transform 在组内计算 diff，结果可以直接附加回原 DataFrame
+        pdf_sample['time_diff'] = pdf_sample.groupby('location_id')['timestamp'].transform(lambda x: x.diff())
+
+        # 3. 统计时间差的频率
+        logger.info("统计时间戳间隔频率...")
+        freq_counts = pdf_sample['time_diff'].value_counts(dropna=False) # 包含 NaN (每个 group 的第一个)
+        total_diffs = len(pdf_sample['time_diff'].dropna()) # 非 NaN 的差值总数
+
+        if total_diffs > 0:
+            percentage = (freq_counts / total_diffs * 100).round(2)
+            dist_df = pd.DataFrame({'Count': freq_counts, 'Percentage (%)': percentage})
+            logger.info(f"时间戳间隔频率统计 (Top 10):\n{dist_df.head(10).to_string()}")
+            if len(freq_counts) > 10:
+                 logger.info("...")
+            # 检查最主要的频率
+            most_common_freq = freq_counts.idxmax()
+            logger.info(f"最常见的时间间隔: {most_common_freq}")
+            if len(freq_counts.drop(index=pd.NaT, errors='ignore')) > 1: # 排除 NaT 后如果还有多于1种
+                logger.warning("在抽样数据中检测到多种时间间隔。")
+        else:
+            logger.warning("样本中未能计算出有效的时间间隔。")
+
+
+        logger.info("Weather 时间戳频率分析完成。")
+
+    except Exception as e:
+        logger.exception(f"分析 Weather 时间戳频率时发生错误: {e}")
+    finally:
+        # 尝试释放 ddf_sample
+        # client.cancel(ddf_sample)
+        pass
+
+
 def main():
     """主执行函数，编排 EDA 步骤。"""
     # --- Demand Analysis (Commented out for now) ---
@@ -627,12 +750,14 @@ def main():
     logger.info("--- 开始 Weather 数据分析 ---")
     ddf_weather = load_weather_data()
 
-    # 分析数值特征
-    analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.1) # 使用 10% 样本绘图
+    # # 分析数值特征 (已完成，注释掉)
+    # analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.1)
 
-    # 后续可以添加 weather_code 和时间戳频率分析
-    # analyze_weather_categorical(ddf_weather, ['weather_code'])
-    # analyze_weather_timestamp_frequency(ddf_weather)
+    # 分析分类特征 (weather_code)
+    analyze_weather_categorical(ddf_weather, columns_to_analyze=['weather_code'], plots_dir=plots_dir, top_n=30) # 显示更多 code
+
+    # 分析时间戳频率
+    analyze_weather_timestamp_frequency(ddf_weather, sample_frac=0.05) # 使用 5% 样本分析频率
 
     logger.info("--- 完成 Weather 数据分析 ---")
 

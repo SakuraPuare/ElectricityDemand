@@ -45,8 +45,8 @@
     *   [x] 加载 `weather.parquet` 数据 (使用 Dask)。
     *   [x] 分析关键数值天气特征的分布 (e.g., `temperature_2m`, `relative_humidity_2m`, `precipitation`, `wind_speed_10m`)。计算统计信息并绘制分布图。
     *   [x] 检查数值特征是否存在异常值或不合理的值（如负降水量）。
-    *   [ ] 分析 `weather_code` 的分布。
-    *   [ ] 分析天气数据的时间戳频率。
+    *   [x] 分析 `weather_code` 的分布。
+    *   [x] 分析天气数据的时间戳频率 (主要为 1H，存在少量不规则)。
 
 5.  **关系分析 (抽样)**
     *   [ ] **Demand vs. Metadata:**
@@ -88,14 +88,15 @@
 
 ## 进行中 ⏳
 
-*   **探索性数据分析 (EDA) - Weather 分析**:
-    *   分析 `weather_code` 的分布。
-    *   分析天气数据的时间戳频率。
+*   **探索性数据分析 (EDA) - 关系分析**:
+    *   **Demand vs. Metadata**: 按 `building_class` 分组比较 `y` 的分布。
 
 ## 下一步 ➡️
 
 *   **探索性数据分析 (EDA)**:
-    *   **关系分析**: 开始探索 Demand 与 Metadata/Weather 之间的关系 (例如，不同 `building_class` 的需求分布；需求与温度的相关性)。
+    *   **关系分析**:
+        *   **Demand vs. Metadata**: 按 `location` 或 `timezone` 分组比较 `y` 的分布。
+        *   **Demand vs. Weather**: 合并数据并分析相关性/绘制散点图。
 
 ## 已完成 ✅
 *   环境设置与数据下载
@@ -112,3 +113,5 @@
 *   Metadata 缺失位置信息分析。
 *   Weather 关键数值特征分析与可视化。
 *   Weather 降水相关特征负值检查。
+*   Weather `weather_code` 分布分析与可视化。
+*   Weather 时间戳频率分析 (主要为 1H)。
