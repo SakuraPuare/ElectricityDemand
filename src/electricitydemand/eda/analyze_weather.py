@@ -42,14 +42,17 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
     if columns_to_analyze is None:
         # 根据数据集 README 扩展列
         columns_to_analyze = [
-            'temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'apparent_temperature',
-            'precipitation', 'rain', 'snowfall', 'snow_depth', 'pressure_msl',
-            'surface_pressure', 'cloud_cover', 'cloud_cover_low', 'cloud_cover_mid',
-            'cloud_cover_high', 'et0_fao_evapotranspiration', 'vapour_pressure_deficit',
-            'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
-            # Typo in original name 'tepmerature' kept if that's the column name
-            'soil_tepmerature_0_to_7cm', 'soil_moisture_0_to_7cm',
-            'direct_radiation', 'diffuse_radiation', 'sunshine_duration'
+            "temperature_2m", "relative_humidity_2m", "dew_point_2m",
+            "apparent_temperature", "precipitation", "rain", "snowfall", "snow_depth",
+            "pressure_msl", "surface_pressure", "cloud_cover", "cloud_cover_low",
+            "cloud_cover_mid", "cloud_cover_high", "et0_fao_evapotranspiration",
+            "vapour_pressure_deficit", "wind_speed_10m", "wind_direction_10m",
+            "wind_gusts_10m",
+            "soil_temperature_0_to_7cm",
+            "soil_temperature_7_to_28cm",
+            "soil_moisture_0_to_7cm", "soil_moisture_7_to_28cm",
+            "sunshine_duration", "shortwave_radiation", "direct_radiation",
+            "diffuse_radiation", "direct_normal_irradiance", "terrestrial_radiation"
         ]
     logger.info(f"--- 开始分析 Weather 数值特征分布 (Spark) ---")
     logger.debug(f"分析的列: {', '.join(columns_to_analyze)}")
@@ -252,14 +255,15 @@ def analyze_weather_correlation(sdf_weather: DataFrame, plots_dir: str):
         # Exclude IDs, categorical codes, and potentially redundant features if needed
         # Also exclude columns that might be all null or constant after filtering
         numerical_cols = [
-            'temperature_2m', 'relative_humidity_2m', 'dew_point_2m',
-            'apparent_temperature', 'precipitation', 'rain', 'snowfall',
-            'snow_depth', 'pressure_msl', 'surface_pressure', 'cloud_cover',
-            'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high',
-            'et0_fao_evapotranspiration', 'vapour_pressure_deficit',
-            'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
-            'soil_tepmerature_0_to_7cm', 'soil_moisture_0_to_7cm',
-            'sunshine_duration', 'direct_radiation', 'diffuse_radiation'
+            "temperature_2m", "relative_humidity_2m", "dew_point_2m",
+            "apparent_temperature", "precipitation", "rain", "snowfall",
+            "snow_depth", "pressure_msl", "surface_pressure", "cloud_cover",
+            "cloud_cover_low", "cloud_cover_mid", "cloud_cover_high",
+            "et0_fao_evapotranspiration", "vapour_pressure_deficit",
+            "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+            "soil_temperature_0_to_7cm", "soil_moisture_0_to_7cm",
+            "sunshine_duration", "shortwave_radiation", "direct_radiation",
+            "diffuse_radiation", "direct_normal_irradiance", "terrestrial_radiation"
         ]
 
         # Filter out columns that are not present in the DataFrame

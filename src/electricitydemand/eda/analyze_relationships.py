@@ -26,6 +26,7 @@ def merge_demand_metadata_sample(
     metadata_cols: List[str],
     sample_frac: float = 0.001,
     random_state: int = 42,
+    spark: SparkSession = None,
 ) -> Optional[pd.DataFrame]:
     """
     Samples the Spark demand data, converts sample to Pandas,
@@ -37,6 +38,7 @@ def merge_demand_metadata_sample(
         metadata_cols: List of metadata columns to merge.
         sample_frac: Fraction of demand data to sample.
         random_state: Random seed for sampling.
+        spark: SparkSession (optional, not used directly in plotting after merge).
 
     Returns:
         A Pandas DataFrame containing the sampled and merged data, or None if an error occurs or data is empty.
@@ -194,12 +196,12 @@ def analyze_demand_vs_metadata(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
             ax_orig.set_ylabel('Electricity Demand (y) in kWh')
             plt.xticks(rotation=30, ha='right')  # Rotate labels slightly
             plt.tight_layout()
-            save_plot(
-                fig_orig, f'demand_vs_{target_col}_boxplot_orig.png', plots_dir)
+            fig = plt.gcf()
+            save_plot(fig, plots_dir, f'demand_vs_{target_col}_boxplot_orig.png')
         except Exception as plot_orig_e:
             logger.exception(
                 f"Error plotting original scale boxplot for {target_col}: {plot_orig_e}")
-            plt.close(fig_orig)
+            plt.close(fig)
 
         # --- Log scale ---
         try:
@@ -238,8 +240,8 @@ def analyze_demand_vs_metadata(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
                 ax_log.set_ylabel('log1p(Electricity Demand (y) + epsilon)')
                 plt.xticks(rotation=30, ha='right')  # Rotate labels slightly
                 plt.tight_layout()
-                save_plot(
-                    fig_log, f'demand_vs_{target_col}_boxplot_log1p.png', plots_dir)
+                fig_log = plt.gcf()
+                save_plot(fig_log, plots_dir, f'demand_vs_{target_col}_boxplot_log1p.png')
         except Exception as plot_log_e:
             logger.exception(
                 f"Error plotting log scale boxplot for {target_col}: {plot_log_e}")
@@ -333,12 +335,12 @@ def analyze_demand_vs_location(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
             ax_orig.set_ylabel('Electricity Demand (y) in kWh')
             plt.xticks(rotation=45, ha='right')
             plt.tight_layout()
-            save_plot(
-                fig_orig, f'demand_vs_top{top_n}_{target_col}_boxplot_orig.png', plots_dir)
+            fig = plt.gcf()
+            save_plot(fig, plots_dir, f'demand_vs_top{top_n}_{target_col}_boxplot_orig.png')
         except Exception as plot_orig_e:
             logger.exception(
                 f"Error plotting original scale boxplot for {target_col}: {plot_orig_e}")
-            plt.close(fig_orig)
+            plt.close(fig)
 
         # --- Log scale ---
         try:
@@ -375,8 +377,8 @@ def analyze_demand_vs_location(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
                 ax_log.set_ylabel('log1p(Electricity Demand (y) + epsilon)')
                 plt.xticks(rotation=45, ha='right')
                 plt.tight_layout()
-                save_plot(
-                    fig_log, f'demand_vs_top{top_n}_{target_col}_boxplot_log1p.png', plots_dir)
+                fig_log = plt.gcf()
+                save_plot(fig_log, plots_dir, f'demand_vs_top{top_n}_{target_col}_boxplot_log1p.png')
         except Exception as plot_log_e:
             logger.exception(
                 f"Error plotting log scale boxplot for {target_col}: {plot_log_e}")
@@ -552,3 +554,99 @@ def analyze_demand_vs_weather(
         end_time = time.time()
         logger.info(
             f"--- Demand vs Weather analysis took {end_time - start_time:.2f} seconds ---")
+
+def analyze_demand_vs_dataset(
+    sdf_demand: DataFrame,
+    pdf_metadata: pd.DataFrame,
+    plots_dir: Path,
+    sample_frac: float = 0.001, # 使用与之前分析一致的抽样比例
+    spark: SparkSession = None # Keep spark=None if not directly needed after merge
+):
+    """
+    Analyzes and visualizes the relationship between electricity demand (y)
+    and the source dataset using Spark sampling and Pandas plotting.
+
+    Args:
+        sdf_demand: Spark DataFrame containing 'unique_id' and 'y'.
+        pdf_metadata: Pandas DataFrame containing 'unique_id' (as index) and 'dataset'.
+        plots_dir: Path to save the plots.
+        sample_frac: Fraction of demand data to sample for analysis.
+        spark: SparkSession (optional, not used directly in plotting after merge).
+    """
+    target_col = 'dataset'
+    logger.info(f"--- Starting analysis of Demand vs {target_col} relationship (sample fraction: {sample_frac*100:.1f}%) ---")
+    start_time = time.time()
+
+    # 1. Merge sample demand with metadata dataset column
+    merged_sample_df = merge_demand_metadata_sample(
+        sdf_demand,
+        pdf_metadata,
+        [target_col], # Only need the dataset column
+        sample_frac=sample_frac,
+        spark=spark # Pass spark if needed by merge function internally
+    )
+
+    if merged_sample_df is None or merged_sample_df.empty:
+        logger.warning(f"No merged data available for Demand vs {target_col} analysis. Skipping.")
+        return
+
+    # Replace potential None values in target_col if necessary (though unlikely for dataset)
+    if merged_sample_df[target_col].isnull().any():
+        logger.warning(f"Found missing values in '{target_col}'. Filling with 'Missing'.")
+        merged_sample_df[target_col] = merged_sample_df[target_col].fillna('Missing')
+
+
+    # 2. Log descriptive statistics per dataset
+    try:
+        stats_per_dataset = merged_sample_df.groupby(target_col)['y'].describe()
+        logger.info(f"'y' descriptive statistics grouped by {target_col} (based on {sample_frac*100:.1f}% sample):")
+        # Use context manager for better formatting
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
+             logger.info(f"\n{stats_per_dataset}")
+
+    except Exception as e:
+        logger.exception(f"Error calculating descriptive stats for y by {target_col}: {e}")
+
+
+    # 3. Plotting (similar to demand vs building class)
+    plot_title_prefix = f"Demand (y) vs {target_col.capitalize()}"
+    plot_filename_prefix = f"demand_vs_{target_col}"
+
+    logger.info(f"Plotting {plot_title_prefix} box plot...")
+    # Use a copy to avoid SettingWithCopyWarning if modifying y_log1p in place later
+    plot_df = merged_sample_df[[target_col, 'y']].copy()
+
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(data=plot_df, x=target_col, y='y', showfliers=False) # Hide outliers for overview
+    plt.title(f"{plot_title_prefix} (Original Scale, Outliers Hidden)")
+    plt.xlabel(target_col.capitalize())
+    plt.ylabel("Demand (y) in kWh")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    fig1 = plt.gcf()
+    save_plot(fig1, plots_dir, f"{plot_filename_prefix}_boxplot_orig_no_outliers.png")
+    plt.close(fig1)
+
+    # Log scale plot
+    plot_df['y_log1p'] = np.log1p(plot_df['y'])
+    # Check for infinite values after log transform if y can be negative (shouldn't be an issue here)
+    if np.isinf(plot_df['y_log1p']).any():
+        original_rows = len(plot_df)
+        plot_df = plot_df[np.isfinite(plot_df['y_log1p'])]
+        logger.warning(f"Removed {original_rows - len(plot_df)} rows with non-finite log1p(y) values for plotting.")
+
+
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(data=plot_df, x=target_col, y='y_log1p', showfliers=True) # Show outliers on log scale
+    plt.title(f"{plot_title_prefix} (Log1p Scale)")
+    plt.xlabel(target_col.capitalize())
+    plt.ylabel("Log1p(Demand + 1)")
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout()
+    fig2 = plt.gcf()
+    save_plot(fig2, plots_dir, f"{plot_filename_prefix}_boxplot_log1p.png")
+    plt.close(fig2)
+
+
+    end_time = time.time()
+    logger.info(f"--- Demand vs {target_col} analysis took {end_time - start_time:.2f} seconds ---")

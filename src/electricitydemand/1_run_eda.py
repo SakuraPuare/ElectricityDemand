@@ -77,6 +77,7 @@ try:
         analyze_demand_vs_location,
         analyze_demand_vs_metadata,
         analyze_demand_vs_weather,
+        analyze_demand_vs_dataset
     )
     from electricitydemand.eda.analyze_time import (
         analyze_datetime_features_spark,
@@ -155,7 +156,6 @@ def run_all_eda():
         # --- 步骤 2: 单变量分析  ---
         logger.info("--- 步骤 2: 单变量分析 ---")
         logger.info("--- 开始 Demand 分析 (Spark) ---")
-        # 假设这些函数已适配 Spark 或能处理 Spark DF
         analyze_demand_y_distribution(sdf_demand, plots_dir=plots_dir, sample_frac=0.005)
         analyze_demand_timeseries_sample(sdf_demand, plots_dir=plots_dir, n_samples=3)
         logger.info("--- 完成 Demand 分析 (Spark) ---")
@@ -181,7 +181,6 @@ def run_all_eda():
             raise ValueError("Failed to convert Metadata to Pandas.") # Raise error if conversion fails
 
         if pdf_metadata is not None:
-            # 这部分分析取消注释
             analyze_metadata_categorical(pdf_metadata) # Log counts
             plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir) # Plot distributions
             analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir) # Analyze/Plot numerical
@@ -214,11 +213,21 @@ def run_all_eda():
             analyze_demand_vs_location(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5)
             logger.info("--- 完成 Demand vs location 分析 ---")
 
+            # --- Demand vs Metadata (Dataset) ---
+            logger.info("--- 开始 Demand vs dataset 分析 (Spark->Pandas) ---")
+            analyze_demand_vs_dataset(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001)
+            logger.info("--- 完成 Demand vs dataset 分析 ---")
+
             # --- Demand vs Weather (保持运行) ---
             logger.info(
                 "--- 开始 Demand vs Weather 分析 (Spark Join -> Pandas Collect) ---")
             analyze_demand_vs_weather(
-                sdf_demand, pdf_metadata, sdf_weather, spark, plots_dir, n_sample_ids=50)
+                sdf_demand,
+                pdf_metadata,
+                sdf_weather,
+                spark,
+                plots_dir=plots_dir,
+                n_sample_ids=50)
             logger.info("--- 完成 Demand vs Weather 分析 ---")
         else:
             logger.error("跳过关系分析，因为 Metadata Pandas DataFrame 不可用。") # Should not happen due to earlier check

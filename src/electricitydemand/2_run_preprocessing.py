@@ -50,7 +50,7 @@ logger.info(f"数据目录：{data_dir}")
 logger.info(f"日志目录：{logs_dir}")
 
 # --- 数据文件路径 ---
-demand_hourly_path = data_dir / "demand_hourly.parquet" # 重采样后的需求数据
+demand_hourly_path = data_dir / "demand_converted.parquet" # 重采样后的需求数据
 metadata_path = data_dir / "metadata.parquet" # 元数据
 weather_path = data_dir / "weather_converted.parquet" # 天气数据
 merged_output_path = data_dir / "merged_data.parquet" # 合并后数据输出路径
