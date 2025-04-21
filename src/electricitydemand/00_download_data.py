@@ -1,4 +1,3 @@
-import os
 import sys
 from datetime import datetime
 
@@ -6,38 +5,19 @@ import dask.dataframe as dd  # Dask 用于验证
 import pyarrow as pa  # PyArrow 用于捕获特定错误类型
 from datasets import load_dataset
 from loguru import logger  # 提前导入 logger
+from pathlib import Path
 
-# --- 项目设置 (路径和日志) ---
-try:
-    # 尝试标准的相对导入 (当作为包运行时)
-    if __package__ and __package__.startswith('src.'):
-        _script_path = os.path.abspath(__file__)
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(_script_path)))
-        from .utils.log_utils import setup_logger  # 相对导入
-    else:
-        raise ImportError(
-            "Not running as a package or package structure mismatch.")
+# --- 项目设置 (使用工具函数) ---
+# project_utils 应该可以被导入，因为它在 src 目录下，而 setup_project_paths 会将 src 加入 sys.path
+from electricitydemand.utils.project_utils import get_project_root, setup_project_paths
+from electricitydemand.utils.log_utils import setup_logger  # 仍然直接导入 setup_logger
 
-except (ImportError, ValueError, AttributeError, NameError):
-    # 直接运行脚本或环境特殊的 fallback 逻辑
-    try:
-        _script_path = os.path.abspath(__file__)
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(_script_path)))
-    except NameError:  # 如果 __file__ 未定义 (例如，交互式环境)
-        project_root = os.getcwd()
-
-    # 如果是直接运行，将项目根目录添加到 sys.path
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-
-    # 现在绝对导入应该可用
-    from src.electricitydemand.utils.log_utils import setup_logger
+project_root = get_project_root()
+src_path, data_dir, logs_dir, plots_dir = setup_project_paths(
+    project_root)  # plots_dir 在这里未使用
 
 # --- 配置日志 ---
-log_prefix = os.path.splitext(os.path.basename(__file__))[0]  # 从文件名自动获取前缀
-logs_dir = os.path.join(project_root, 'logs')
+log_prefix = Path(__file__).stem  # 从文件名自动获取前缀
 setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir)
 logger.info(f"项目根目录：{project_root}")
 logger.info(f"日志目录：{logs_dir}")
@@ -48,8 +28,7 @@ logger.info(f"日志目录：{logs_dir}")
 DATASET_NAME = "EDS-lab/electricity-demand"
 CONFIGS = ["demand", "metadata", "weather"]
 # 使用 project_root 确保数据目录路径正确
-DATA_DIR = os.path.join(project_root, "data")
-logger.info(f"数据目录：{DATA_DIR}")
+logger.info(f"数据目录：{data_dir}")
 
 
 # --- Helper Functions ---
@@ -77,7 +56,7 @@ def validate_parquet_file(filepath: str) -> bool:
         return False
 
 
-def download_and_save_config(config_name: str, dataset_id: str, output_dir: str, overwrite: bool = False):
+def download_and_save_config(config_name: str, dataset_id: str, output_dir: Path, overwrite: bool = False):
     """
     Downloads a specific configuration from Hugging Face Datasets,
     validates existing files, and saves it as a Parquet file.
@@ -88,19 +67,19 @@ def download_and_save_config(config_name: str, dataset_id: str, output_dir: str,
         output_dir: The directory to save the Parquet file.
         overwrite: If True, always download and overwrite existing files.
     """
-    output_filename = os.path.join(output_dir, f"{config_name}.parquet")
+    output_filename = output_dir / f"{config_name}.parquet"
     logger.info(f"--- 处理配置：{config_name} ---")  # Changed comment to Chinese
 
     # 检查文件是否存在，是否需要验证或覆盖
-    if not overwrite and os.path.exists(output_filename):
+    if not overwrite and output_filename.exists():
         logger.info(f"文件 '{output_filename}' 已存在。正在验证...")
-        if validate_parquet_file(output_filename):
+        if validate_parquet_file(str(output_filename)):
             logger.info(f"现有文件 '{output_filename}' 有效。跳过下载。")
             return  # 如果有效则跳过下载
         else:
             # 文件存在但无效，继续下载/覆盖
             pass
-    elif overwrite and os.path.exists(output_filename):
+    elif overwrite and output_filename.exists():
         logger.info(f"设置了覆盖标志。重新下载 '{output_filename}'。")
 
     # 下载逻辑
@@ -124,7 +103,7 @@ def download_and_save_config(config_name: str, dataset_id: str, output_dir: str,
 
         logger.info(f"配置 '{config_name}' 已加载。正在保存到 '{output_filename}'...")
         # 确保目录存在
-        os.makedirs(os.path.dirname(output_filename), exist_ok=True)
+        output_filename.parent.mkdir(parents=True, exist_ok=True)
         actual_data.to_parquet(output_filename)
         logger.info(f"配置 '{config_name}' 保存成功。")
 
@@ -137,18 +116,18 @@ def download_and_save_config(config_name: str, dataset_id: str, output_dir: str,
 def main():
     """主函数，下载所有数据集配置。"""
     logger.info(f"开始数据集下载流程 '{DATASET_NAME}'")
-    logger.info(f"目标目录：{DATA_DIR}")
+    logger.info(f"目标目录：{data_dir}")
 
     try:
         # 确保数据目录存在
-        os.makedirs(DATA_DIR, exist_ok=True)
-        logger.info(f"确保数据目录存在：{DATA_DIR}")
+        data_dir.mkdir(parents=True, exist_ok=True)  # 使用 pathlib
+        logger.info(f"确保数据目录存在：{data_dir}")
 
         # 处理每个配置
         for config in CONFIGS:
             # 如果总是想重新下载，设置 overwrite=True
             download_and_save_config(
-                config, DATASET_NAME, DATA_DIR, overwrite=False)
+                config, DATASET_NAME, data_dir, overwrite=False)
 
         logger.info("--- 数据集下载流程结束 ---")
 

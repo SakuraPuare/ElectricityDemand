@@ -21,6 +21,8 @@ from ..utils.eda_utils import (
     plot_categorical_distribution,
     plot_numerical_distribution,
     save_plot,
+    analyze_timestamp_frequency_pandas,
+    sample_spark_ids_and_collect
 )
 
 # 移除 dask_compute_context
@@ -196,34 +198,41 @@ def analyze_weather_categorical(sdf_weather: DataFrame, plots_dir: str):
             logger.info(f"--- 分析列: {col} ---")
             try:
                 # Get value counts using Spark
-                value_counts_sdf = sdf_weather.groupBy(col).count().orderBy(F.desc('count'))
-                value_counts_pd = value_counts_sdf.toPandas() # Collect results
+                value_counts_sdf = sdf_weather.groupBy(
+                    col).count().orderBy(F.desc('count'))
+                value_counts_pd = value_counts_sdf.toPandas()  # Collect results
 
-                logger.info(f"'{col}' 值分布 (Top 20):\n{value_counts_pd.head(20).to_string(index=False)}")
+                logger.info(
+                    f"'{col}' 值分布 (Top 20):\n{value_counts_pd.head(20).to_string(index=False)}")
                 if value_counts_pd.shape[0] > 20:
                     logger.info(f"... (共 {value_counts_pd.shape[0]} 个唯一值)")
 
                 # Plotting (if feasible number of categories)
                 # For weather_code, there might be many codes, plot top N
                 max_categories_to_plot = 20
-                if value_counts_pd.shape[0] <= max_categories_to_plot or col == 'is_day': # Plot all if few, or always for is_day
-                     plot_data = value_counts_pd
-                     title = f'{col} 分布'
-                else: # Plot Top N + Other for weather_code if too many
-                    top_categories = value_counts_pd.nlargest(max_categories_to_plot, 'count')
-                    other_count = value_counts_pd.iloc[max_categories_to_plot:]['count'].sum()
+                # Plot all if few, or always for is_day
+                if value_counts_pd.shape[0] <= max_categories_to_plot or col == 'is_day':
+                    plot_data = value_counts_pd
+                    title = f'{col} 分布'
+                else:  # Plot Top N + Other for weather_code if too many
+                    top_categories = value_counts_pd.nlargest(
+                        max_categories_to_plot, 'count')
+                    other_count = value_counts_pd.iloc[max_categories_to_plot:]['count'].sum(
+                    )
                     if other_count > 0:
                         # Create a new row for 'Other'
-                        other_row = pd.DataFrame({col: ['Other'], 'count': [other_count]})
+                        other_row = pd.DataFrame(
+                            {col: ['Other'], 'count': [other_count]})
                         # Use pandas.concat
-                        plot_data = pd.concat([top_categories, other_row], ignore_index=True)
+                        plot_data = pd.concat(
+                            [top_categories, other_row], ignore_index=True)
 
                     title = f'{col} 分布 (Top {max_categories_to_plot} & Other)'
 
-
                 plt.figure(figsize=(12, 6))
                 # Ensure the column used for labels is treated as string for plotting
-                sns.barplot(x=plot_data[col].astype(str), y=plot_data['count'], palette='viridis', order=plot_data[col].astype(str).tolist())
+                sns.barplot(x=plot_data[col].astype(
+                    str), y=plot_data['count'], palette='viridis', order=plot_data[col].astype(str).tolist())
                 plt.title(title)
                 plt.xlabel(col)
                 plt.ylabel('数量')
@@ -267,53 +276,63 @@ def analyze_weather_correlation(sdf_weather: DataFrame, plots_dir: str):
         ]
 
         # Filter out columns that are not present in the DataFrame
-        available_numerical_cols = [c for c in numerical_cols if c in sdf_weather.columns]
+        available_numerical_cols = [
+            c for c in numerical_cols if c in sdf_weather.columns]
 
         if len(available_numerical_cols) < 2:
-             logger.warning("数值列不足 (<2)，无法计算相关性矩阵。")
-             return
+            logger.warning("数值列不足 (<2)，无法计算相关性矩阵。")
+            return
 
         logger.info(f"计算以下列的相关性: {', '.join(available_numerical_cols)}")
 
         # Assemble features into a vector column needed for Spark's Correlation
-        assembler = VectorAssembler(inputCols=available_numerical_cols, outputCol="features", handleInvalid="skip") # skip rows with nulls in any column
+        # skip rows with nulls in any column
+        assembler = VectorAssembler(
+            inputCols=available_numerical_cols, outputCol="features", handleInvalid="skip")
         sdf_vector = assembler.transform(sdf_weather).select("features")
 
         # Calculate Pearson correlation matrix using Spark MLlib
-        correlation_matrix_spark = Correlation.corr(sdf_vector, "features").head()
+        correlation_matrix_spark = Correlation.corr(
+            sdf_vector, "features").head()
         if correlation_matrix_spark is None:
-             logger.error("无法计算相关性矩阵 (Spark 返回 None)。可能是因为数据不足或全为无效值。")
-             return
+            logger.error("无法计算相关性矩阵 (Spark 返回 None)。可能是因为数据不足或全为无效值。")
+            return
 
-        corr_matrix_dense = correlation_matrix_spark[0].toArray() # Get the dense matrix
+        # Get the dense matrix
+        corr_matrix_dense = correlation_matrix_spark[0].toArray()
 
         # Convert to Pandas DataFrame for plotting
-        corr_matrix_pd = pd.DataFrame(corr_matrix_dense, index=available_numerical_cols, columns=available_numerical_cols)
+        corr_matrix_pd = pd.DataFrame(
+            corr_matrix_dense, index=available_numerical_cols, columns=available_numerical_cols)
 
         # Plot heatmap
-        plt.figure(figsize=(18, 15)) # Adjust size as needed
-        sns.heatmap(corr_matrix_pd, cmap='coolwarm', annot=False, fmt=".2f", linewidths=.5) # annot=False for cleaner look with many features
-        plt.title('天气数值特征相关性矩阵', fontsize=16)
+        plt.figure(figsize=(18, 15))  # Adjust size as needed
+        # annot=False for cleaner look with many features
+        sns.heatmap(corr_matrix_pd, cmap='coolwarm',
+                    annot=False, fmt=".2f", linewidths=.5)
+        plt.title('Weather Numerical Feature Correlation Matrix', fontsize=16)
         plt.xticks(rotation=45, ha='right')
         plt.yticks(rotation=0)
         plt.tight_layout()
         plot_filename = plots_dir / "weather_correlation_matrix.png"
         plt.savefig(plot_filename)
         plt.close()
-        logger.info(f"天气特征相关性热力图已保存: {plot_filename}")
+        logger.info(
+            f"Weather Feature Correlation Matrix saved: {plot_filename}")
 
         # Log strong correlations (absolute value > threshold)
         threshold = 0.8
-        strong_corrs = corr_matrix_pd.unstack().sort_values(ascending=False).drop_duplicates()
+        strong_corrs = corr_matrix_pd.unstack().sort_values(
+            ascending=False).drop_duplicates()
         strong_corrs = strong_corrs[abs(strong_corrs) > threshold]
-        strong_corrs = strong_corrs[strong_corrs != 1.0] # Remove self-correlation
+        # Remove self-correlation
+        strong_corrs = strong_corrs[strong_corrs != 1.0]
 
         if not strong_corrs.empty:
-             logger.info(f"--- 强相关性 (|corr| > {threshold}) ---")
-             logger.info(strong_corrs.to_string())
+            logger.info(f"--- Strong Correlations (|corr| > {threshold}) ---")
+            logger.info(strong_corrs.to_string())
         else:
             logger.info(f"未发现绝对值大于 {threshold} 的强相关性。")
-
 
     except Exception as e:
         logger.exception(f"分析 Weather 特征相关性时出错: {e}")
@@ -327,120 +346,56 @@ def analyze_weather_timeseries_sample(sdf_weather: DataFrame, n_samples=5, plots
     然后分析时间戳频率。
     """
     logger.info(
-        f"--- Starting Spark analysis of Weather time series frequency (sampling {n_samples} location_id) ---")
-    if plots_dir is None:  # Plots dir might not be needed if only analyzing frequency
-        logger.warning(
-            "plots_dir not provided, frequency analysis results will only be logged.")
+        f"--- Starting analysis of Weather time series frequency (sampling {n_samples} location_id) ---")
+    # plots_dir is optional here, only frequency is analyzed
+    # Only need these for frequency
     required_cols = ['location_id', 'timestamp']
     if not all(col in sdf_weather.columns for col in required_cols):
         logger.error(
             f"Input Weather Spark DataFrame missing required columns ({', '.join(required_cols)}). Cannot analyze frequency.")
         return
 
-    pdf_sample = None
-    try:
-        # 1. Spark 获取并抽样 location_id
-        logger.info("使用 Spark 获取所有 distinct location_ids...")
-        all_location_ids_sdf = sdf_weather.select('location_id').distinct()
-        num_distinct_ids = all_location_ids_sdf.count()
+    # --- Use the new sampling and collection function ---
+    spark = SparkSession.getActiveSession()  # Get active Spark session
+    if not spark:
+        logger.error("Could not get active Spark session.")
+        return
 
-        if num_distinct_ids == 0:
-            logger.warning("Weather 数据中没有发现 location_id。")
-            return
+    pdf_sample = sample_spark_ids_and_collect(
+        sdf=sdf_weather,
+        id_col='location_id',
+        n_samples=n_samples,
+        random_state=random_state,
+        select_cols=required_cols,  # Only select needed columns
+        spark=spark,
+        timestamp_col='timestamp'  # Specify timestamp column
+    )
 
-        if n_samples <= 0:
+    if pdf_sample is None or pdf_sample.empty:
+        logger.error(
+            "Failed to obtain sampled and collected Pandas DataFrame for weather frequency analysis. Aborting.")
+        return
+    # pdf_sample is now sorted and timestamp is datetime
+
+    # --- 在 Pandas 上进行频率分析 ---
+    logger.info(
+        "Starting to analyze weather timestamp frequency for each sample (in Pandas)...")
+    grouped_data = pdf_sample.groupby('location_id')
+
+    sampled_ids = pdf_sample['location_id'].unique()  # Get actual sampled IDs
+
+    for location_id, df_id in tqdm(grouped_data, desc="Analyzing weather frequency (Pandas)"):
+        # for location_id in tqdm(sampled_ids, desc="Analyzing weather frequency (Pandas)"): # Alternative
+        # df_id = pdf_sample[pdf_sample['location_id'] == location_id] # Needed if not using groupby
+        if df_id.empty:
+            # This shouldn't happen if sample_spark_ids_and_collect worked correctly
             logger.warning(
-                f"Requested sample size ({n_samples}) is not positive, skipping weather frequency analysis.")
-            return
+                f"No weather data found for location_id '{location_id}' in the Pandas sample (post-processing), skipping frequency analysis.")
+            continue
 
-        actual_n_samples = min(n_samples, num_distinct_ids)
-        if num_distinct_ids < n_samples:
-            logger.warning(
-                f"Total location_id count ({num_distinct_ids}) is less than requested sample size ({n_samples}), using all {num_distinct_ids} location_ids.")
+        # --- Use the existing frequency analysis function ---
+        analyze_timestamp_frequency_pandas(
+            df_id, location_id, 'location_id', timestamp_col='timestamp')
 
-        logger.info(
-            f"Randomly sampling {actual_n_samples} location_ids from {num_distinct_ids:,} using Spark RDD takeSample...")
-        sampled_ids_rows = all_location_ids_sdf.rdd.takeSample(
-            False, actual_n_samples, seed=random_state)
-        sampled_ids = [row.location_id for row in sampled_ids_rows]
-        if not sampled_ids:
-            logger.error("未能成功抽样 location_ids for weather frequency analysis.")
-            return
-        logger.info(f"Selected location_ids (first 5): {sampled_ids[:5]}")
-
-        # 2. Spark 过滤数据
-        logger.info("使用 Spark 过滤 Weather 数据以获取样本 ID 的时间序列...")
-        sampled_ids_sdf = sdf_weather.sql_ctx.createDataFrame(
-            [(id,) for id in sampled_ids], ['location_id'])
-        sdf_sample_filtered = sdf_weather.join(F.broadcast(
-            sampled_ids_sdf), on='location_id', how='inner')
-
-        # 3. 收集到 Pandas
-        logger.info("将过滤后的 Weather 样本数据收集到 Pandas DataFrame...")
-        try:
-            pdf_sample = sdf_sample_filtered.select(required_cols).toPandas()
-            if pdf_sample is None or pdf_sample.empty:
-                logger.error("收集 Weather 样本数据到 Pandas 失败或结果为空。")
-                return
-            logger.info(
-                f"Weather Pandas DataFrame created from Spark sample, containing {len(pdf_sample):,} rows for {len(sampled_ids)} location_ids.")
-        except Exception as collect_e:
-            logger.exception(f"收集 Spark Weather 样本数据到 Pandas 时出错: {collect_e}")
-            # Add Arrow fallback similar to demand analysis if needed
-            return
-
-        # 4. 确保 Pandas DataFrame 按 ID 和时间排序
-        logger.info(
-            "Sorting Weather Pandas DataFrame by location_id and timestamp...")
-        pdf_sample = pdf_sample.sort_values(['location_id', 'timestamp'])
-        if not pd.api.types.is_datetime64_any_dtype(pdf_sample['timestamp']):
-            logger.info(
-                "Converting timestamp column to datetime objects in Pandas...")
-            pdf_sample['timestamp'] = pd.to_datetime(
-                pdf_sample['timestamp'], errors='coerce')
-            if pdf_sample['timestamp'].isnull().any():
-                logger.warning(
-                    "Some timestamp values failed to convert to datetime in Pandas for weather.")
-                pdf_sample = pdf_sample.dropna(subset=['timestamp'])
-
-        # 5. 在 Pandas 上进行频率分析
-        logger.info(
-            "Starting to analyze weather timestamp frequency for each sample (in Pandas)...")
-        grouped_data = pdf_sample.groupby('location_id')
-
-        for location_id, df_id in tqdm(grouped_data, desc="Analyzing weather frequency (Pandas)"):
-            if df_id.empty:
-                logger.warning(
-                    f"No weather data found for location_id '{location_id}' in the Pandas sample, skipping frequency analysis.")
-                continue
-
-            try:
-                time_diffs = df_id['timestamp'].diff().dropna()
-                if not time_diffs.empty:
-                    freq_counts = time_diffs.astype(str).value_counts()
-                    if not freq_counts.empty:
-                        logger.info(
-                            f"--- location_id: {location_id} Weather Timestamp Interval Frequency (Pandas Sample) ---")
-                        log_str = f"Frequency Stats (Top 5):\n{freq_counts.head().to_string()}"
-                        if len(freq_counts) > 5:
-                            log_str += "\n..."
-                        logger.info(log_str)
-                        if len(freq_counts) > 1:
-                            logger.warning(
-                                f" location_id '{location_id}' has multiple time intervals detected in weather sample.")
-                    else:
-                        logger.info(
-                            f" location_id '{location_id}' has only one unique time interval after diff/dropna in weather sample.")
-                else:
-                    logger.info(
-                        f" location_id '{location_id}' has less than two timestamps in weather sample, cannot calculate intervals.")
-            except Exception as freq_e:
-                logger.exception(
-                    f"Error analyzing weather frequency for location_id '{location_id}' in sample: {freq_e}")
-
-        logger.info(
-            "Weather time series frequency sample analysis (Spark filter -> Pandas analyze) complete.")
-
-    except Exception as e:
-        logger.exception(
-            f"Error analyzing Weather time series frequency samples with Spark: {e}")
+    logger.info(
+        "Weather time series frequency sample analysis complete.")

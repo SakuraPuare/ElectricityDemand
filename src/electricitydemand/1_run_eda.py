@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 from pathlib import Path  # Use pathlib for paths
@@ -12,44 +11,27 @@ from loguru import logger
 # 引入 Spark
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F  # 常用函数别名
+from pyspark.storagelevel import StorageLevel  # Import StorageLevel
 
 # --- 项目设置 ---
-# Determine project root dynamically
+# 使用工具函数
 try:
-    _script_path = os.path.abspath(__file__)
-    project_root = Path(_script_path).parent.parent.parent  # Use Path object
-except NameError:  # If __file__ is not defined (e.g., interactive)
-    project_root = Path.cwd()
-    # Add project root to path if running interactively might be needed
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
+    from electricitydemand.utils.project_utils import get_project_root, setup_project_paths, create_spark_session, stop_spark_session
+    from electricitydemand.utils.log_utils import setup_logger  # 仍然直接导入 setup_logger
+except ImportError as e:
+    print(f"Error importing project utils: {e}", file=sys.stderr)
+    sys.exit(1)
 
-# Add src directory to sys.path to allow absolute imports from src
-src_path = project_root / 'src'
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
+project_root = get_project_root()
+src_path, data_dir, logs_dir, plots_dir = setup_project_paths(project_root)
 
 # --- 配置日志 ---
-# Assuming log_utils is in src/electricitydemand/utils
+log_prefix = Path(__file__).stem  # Use run_eda as prefix
 try:
-    from electricitydemand.utils.log_utils import setup_logger
-except ImportError:
-    print("Error: Could not import setup_logger. Ensure src is in PYTHONPATH or script is run correctly.", file=sys.stderr)
-    # Fallback basic logging if setup fails
+    setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir, level="INFO")
+except NameError:  # If setup_logger wasn't imported successfully
     logger.add(sys.stderr, level="INFO")
     logger.warning("Using basic stderr logging due to import error.")
-
-log_prefix = Path(__file__).stem  # Use run_eda as prefix
-logs_dir = project_root / 'logs'
-plots_dir = project_root / 'plots'  # 图表保存目录 (Path object)
-data_dir = project_root / "data"  # 数据目录 (Path object)
-
-os.makedirs(logs_dir, exist_ok=True)
-os.makedirs(plots_dir, exist_ok=True)  # 确保目录存在
-
-# 设置日志级别为 INFO (only if setup_logger was imported)
-if 'setup_logger' in globals():
-    setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir, level="INFO")
 
 logger.info(f"项目根目录: {project_root}")
 logger.info(f"数据目录: {data_dir}")
@@ -111,26 +93,12 @@ def run_all_eda():
     try:
         # --- Spark Session ---
         logger.info("创建 SparkSession...")
-        # 根据系统可用内存动态设置 Spark 内存配置
-        import psutil
-
-        # 获取系统当前剩余内存
-        total_memory_gb = psutil.virtual_memory().available / (1024 ** 3)
-        # 计算合适的驱动器和执行器内存（剩余内存的40%和40%）
-        driver_memory = max(2, int(total_memory_gb * 0.4 + 0.5))
-        executor_memory = max(2, int(total_memory_gb * 0.4 + 0.5))
-
-        logger.info(
-            f"系统总内存: {total_memory_gb:.2f}GB, 设置驱动器内存: {driver_memory}g, 执行器内存: {executor_memory}g")
-
-        spark = SparkSession.builder \
-            .appName("ElectricityDemandEDA") \
-            .config("spark.driver.memory", f"{driver_memory}g") \
-            .config("spark.executor.memory", f"{executor_memory}g") \
-            .config("spark.sql.execution.arrow.pyspark.enabled", "true") \
-            .config("spark.sql.adaptive.enabled", "true") \
-            .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
-            .getOrCreate()
+        spark = create_spark_session(
+            app_name="ElectricityDemandEDA",
+            driver_mem_ratio=0.4,  # 保持原比例
+            executor_mem_ratio=0.4,
+            default_mem_gb=2  # 保持原默认值
+        )
 
         logger.info("SparkSession 创建成功。")
         logger.info(f"Spark Web UI: {spark.sparkContext.uiWebUrl}")
@@ -142,7 +110,11 @@ def run_all_eda():
         if sdf_demand is None or sdf_metadata is None or sdf_weather is None:
             raise ValueError("一个或多个数据集加载失败，请检查路径和文件。")
         logger.info("数据集加载成功。")
-        # Optional: Log schemas and counts 
+        # Persist loaded dataframes as they are used multiple times
+        sdf_demand.persist(StorageLevel.MEMORY_AND_DISK)
+        sdf_metadata.persist(StorageLevel.MEMORY_AND_DISK)
+        sdf_weather.persist(StorageLevel.MEMORY_AND_DISK)
+        # Optional: Log schemas and counts
         logger.info("Demand Schema:")
         sdf_demand.printSchema()
         logger.info(f"Demand Count: {sdf_demand.count():,}")
@@ -156,8 +128,10 @@ def run_all_eda():
         # --- 步骤 2: 单变量分析  ---
         logger.info("--- 步骤 2: 单变量分析 ---")
         logger.info("--- 开始 Demand 分析 (Spark) ---")
-        analyze_demand_y_distribution(sdf_demand, plots_dir=plots_dir, sample_frac=0.005)
-        analyze_demand_timeseries_sample(sdf_demand, plots_dir=plots_dir, n_samples=3)
+        analyze_demand_y_distribution(
+            sdf_demand, plots_dir=plots_dir, sample_frac=0.005)
+        analyze_demand_timeseries_sample(
+            sdf_demand, plots_dir=plots_dir, n_samples=3)
         logger.info("--- 完成 Demand 分析 (Spark) ---")
 
         # --- Metadata 分析 (仍然需要运行，因为 analyze_demand_vs_weather 需要 pdf_metadata) ---
@@ -178,13 +152,17 @@ def run_all_eda():
             logger.exception("将 Metadata 转换为 Pandas 时出错。无法继续 Metadata 分析。")
             # Skip metadata analysis if conversion fails
             # pdf_metadata = None # Ensure it's None # Redundant
-            raise ValueError("Failed to convert Metadata to Pandas.") # Raise error if conversion fails
+            # Raise error if conversion fails
+            raise ValueError("Failed to convert Metadata to Pandas.")
 
         if pdf_metadata is not None:
-            analyze_metadata_categorical(pdf_metadata) # Log counts
-            plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir) # Plot distributions
-            analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir) # Analyze/Plot numerical
-            analyze_missing_locations(pdf_metadata) # Analyze missing location info
+            analyze_metadata_categorical(pdf_metadata)  # Log counts
+            plot_metadata_categorical(
+                pdf_metadata, plots_dir=plots_dir)  # Plot distributions
+            # Analyze/Plot numerical
+            analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir)
+            # Analyze missing location info
+            analyze_missing_locations(pdf_metadata)
             logger.info("--- 完成 Metadata 分析 ---")
         else:
             # This block should not be reached if the raise above works
@@ -194,9 +172,11 @@ def run_all_eda():
         # --- Weather 分析  ---
         logger.info("--- 开始 Weather 分析 (Spark) ---")
         # 假设这些函数已适配 Spark 或能处理 Spark DF
-        analyze_weather_numerical(sdf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
+        analyze_weather_numerical(
+            sdf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
         analyze_weather_categorical(sdf_weather, plots_dir=plots_dir)
-        analyze_weather_timeseries_sample(sdf_weather, plots_dir=plots_dir, n_samples=3)
+        analyze_weather_timeseries_sample(
+            sdf_weather, plots_dir=plots_dir, n_samples=3)
         analyze_weather_correlation(sdf_weather, plots_dir=plots_dir)
         logger.info("--- 完成 Weather 分析 (Spark) ---")
 
@@ -204,18 +184,22 @@ def run_all_eda():
         logger.info("--- 步骤 3: 关系分析 ---")
         if pdf_metadata is not None:  # Check again, though we raise error if it fails now
             # --- Demand vs Metadata (Building Class)  ---
-            logger.info("--- 开始 Demand vs building_class 分析 (Spark->Pandas) ---")
-            analyze_demand_vs_metadata(sdf_demand, pdf_metadata, target_col='building_class', plots_dir=plots_dir, sample_frac=0.001)
+            logger.info(
+                "--- 开始 Demand vs building_class 分析 (Spark->Pandas) ---")
+            analyze_demand_vs_metadata(
+                sdf_demand, pdf_metadata, target_col='building_class', plots_dir=plots_dir, sample_frac=0.001)
             logger.info("--- 完成 Demand vs building_class 分析 ---")
 
             # --- Demand vs Metadata (Location)  ---
             logger.info("--- 开始 Demand vs location 分析 (Spark->Pandas) ---")
-            analyze_demand_vs_location(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5)
+            analyze_demand_vs_location(
+                sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5)
             logger.info("--- 完成 Demand vs location 分析 ---")
 
             # --- Demand vs Metadata (Dataset) ---
             logger.info("--- 开始 Demand vs dataset 分析 (Spark->Pandas) ---")
-            analyze_demand_vs_dataset(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001)
+            analyze_demand_vs_dataset(
+                sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001)
             logger.info("--- 完成 Demand vs dataset 分析 ---")
 
             # --- Demand vs Weather (保持运行) ---
@@ -230,7 +214,8 @@ def run_all_eda():
                 n_sample_ids=50)
             logger.info("--- 完成 Demand vs Weather 分析 ---")
         else:
-            logger.error("跳过关系分析，因为 Metadata Pandas DataFrame 不可用。") # Should not happen due to earlier check
+            # Should not happen due to earlier check
+            logger.error("跳过关系分析，因为 Metadata Pandas DataFrame 不可用。")
 
         # --- 步骤 4: 时间特征分析 ---
         logger.info("--- 步骤 4: 时间特征分析 (Spark) ---")
@@ -243,31 +228,29 @@ def run_all_eda():
         check_missing_values_spark(sdf_demand, "Demand")
         check_missing_values_spark(sdf_metadata, "Metadata")
         check_missing_values_spark(sdf_weather, "Weather")
-        check_duplicates_spark(sdf_demand, ["unique_id", "timestamp"], "Demand")
+        check_duplicates_spark(
+            sdf_demand, ["unique_id", "timestamp"], "Demand")
         check_duplicates_spark(sdf_metadata, ["unique_id"], "Metadata")
-        check_duplicates_spark(sdf_weather, ["location_id", "timestamp"], "Weather")
+        check_duplicates_spark(
+            sdf_weather, ["location_id", "timestamp"], "Weather")
         logger.info("--- 完成 数据质量检查 ---")
 
         logger.info("=" * 40)
-        logger.info("=== EDA (包含补充分析) 执行成功完成 ===") # Updated message
+        logger.info("=== EDA (包含补充分析) 执行成功完成 ===")  # Updated message
         logger.info("=" * 40)
 
     except Exception as e:
         logger.critical(f"执行过程中发生严重错误: {e}")
         logger.exception("Traceback:")  # Log full traceback
     finally:
-        if spark:  # Check if spark session was initialized
-            try:
-                if not spark.sparkContext._jsc.sc().isStopped():
-                    logger.info("正在停止 SparkSession...")
-                    spark.stop()
-                    logger.info("SparkSession 已停止。")
-                else:
-                    logger.info("SparkSession 已停止。")
-            except Exception as stop_e:
-                logger.error(f"停止 SparkSession 时发生错误: {stop_e}")
-        else:
-            logger.info("SparkSession 未成功初始化或已停止。")
+        # Unpersist dataframes
+        if 'sdf_demand' in locals() and sdf_demand.is_cached:
+            sdf_demand.unpersist()
+        if 'sdf_metadata' in locals() and sdf_metadata.is_cached:
+            sdf_metadata.unpersist()
+        if 'sdf_weather' in locals() and sdf_weather.is_cached:
+            sdf_weather.unpersist()
+        stop_spark_session(spark)  # Use utility function to stop Spark
 
         end_run_time = time.time()
         logger.info(
@@ -275,4 +258,4 @@ def run_all_eda():
 
 
 if __name__ == "__main__":
-    run_all_eda() # 取消注释以运行
+    run_all_eda()  # 取消注释以运行

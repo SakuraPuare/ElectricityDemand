@@ -11,6 +11,7 @@ from ..utils.eda_utils import (
     log_value_counts,
     plot_categorical_distribution,
     plot_numerical_distribution,
+    save_plot  # Import save_plot
 )
 
 
@@ -59,14 +60,15 @@ def plot_metadata_categorical(pdf_metadata: pd.DataFrame, plots_dir: str):
     for col in categorical_cols:
         if col in pdf_metadata.columns:
             try:
-                n_unique = pdf_metadata[col].nunique(dropna=False) # Include NaN in count
+                n_unique = pdf_metadata[col].nunique(
+                    dropna=False)  # Include NaN in count
                 logger.info(f"绘制 '{col}' 的分布图 (共 {n_unique} 个唯一值)...")
 
                 plt.figure(figsize=(10, 6))
                 # Handle NaNs explicitly if they exist
                 if pdf_metadata[col].isnull().any():
-                     # Use value_counts with dropna=False and fillna for plotting
-                     plot_data = pdf_metadata[col].fillna('NaN').value_counts()
+                    # Use value_counts with dropna=False and fillna for plotting
+                    plot_data = pdf_metadata[col].fillna('NaN').value_counts()
                 else:
                     plot_data = pdf_metadata[col].value_counts()
 
@@ -76,14 +78,16 @@ def plot_metadata_categorical(pdf_metadata: pd.DataFrame, plots_dir: str):
                     # Create an 'Other' category for the rest
                     other_count = plot_data.iloc[max_categories_to_plot:].sum()
                     if other_count > 0:
-                         top_categories['Other'] = other_count # Add 'Other' category using .loc
+                        # Add 'Other' category using .loc
+                        top_categories['Other'] = other_count
                     plot_data_final = top_categories
                     title = f'{col} 分布 (Top {max_categories_to_plot} & Other)'
                 else:
                     plot_data_final = plot_data
                     title = f'{col} 分布'
 
-                sns.barplot(x=plot_data_final.index, y=plot_data_final.values, palette='viridis', order=plot_data_final.index)
+                sns.barplot(x=plot_data_final.index, y=plot_data_final.values,
+                            palette='viridis', order=plot_data_final.index)
                 plt.title(title)
                 plt.xlabel(col)
                 plt.ylabel('数量')
@@ -125,25 +129,26 @@ def analyze_metadata_numerical(pdf_metadata: pd.DataFrame, plots_dir: str):
 
         # Plot histograms
         for col in valid_cols:
-             # Check if column is numeric and not all NaN before plotting
-             if pd.api.types.is_numeric_dtype(pdf_metadata[col]) and not pdf_metadata[col].isnull().all():
-                 plt.figure(figsize=(10, 5))
-                 # Handle potential infinite values if necessary before plotting histogram
-                 data_to_plot = pdf_metadata[col].replace([np.inf, -np.inf], np.nan).dropna()
-                 if not data_to_plot.empty:
-                     sns.histplot(data_to_plot, kde=True, bins=30)
-                     plt.title(f'{col} 分布')
-                     plt.xlabel(col)
-                     plt.ylabel('频数')
-                     plt.tight_layout()
-                     plot_filename = plots_dir / f"metadata_hist_{col}.png"
-                     plt.savefig(plot_filename)
-                     plt.close()
-                     logger.info(f"'{col}' 直方图已保存: {plot_filename}")
-                 else:
-                     logger.warning(f"列 '{col}' 移除 NaN/inf 后为空，跳过绘制直方图。")
-             else:
-                  logger.warning(f"列 '{col}' 不是数值类型或全为 NaN，跳过绘制直方图。")
+            # Check if column is numeric and not all NaN before plotting
+            if pd.api.types.is_numeric_dtype(pdf_metadata[col]) and not pdf_metadata[col].isnull().all():
+                plt.figure(figsize=(10, 5))
+                # Handle potential infinite values if necessary before plotting histogram
+                data_to_plot = pdf_metadata[col].replace(
+                    [np.inf, -np.inf], np.nan).dropna()
+                if not data_to_plot.empty:
+                    sns.histplot(data_to_plot, kde=True, bins=30)
+                    plt.title(f'{col} 分布')
+                    plt.xlabel(col)
+                    plt.ylabel('频数')
+                    plt.tight_layout()
+                    plot_filename = plots_dir / f"metadata_hist_{col}.png"
+                    plt.savefig(plot_filename)
+                    plt.close()
+                    logger.info(f"'{col}' 直方图已保存: {plot_filename}")
+                else:
+                    logger.warning(f"列 '{col}' 移除 NaN/inf 后为空，跳过绘制直方图。")
+            else:
+                logger.warning(f"列 '{col}' 不是数值类型或全为 NaN，跳过绘制直方图。")
 
         # Scatter plot for latitude vs longitude (if both exist)
         if 'latitude' in valid_cols and 'longitude' in valid_cols:
@@ -151,22 +156,23 @@ def analyze_metadata_numerical(pdf_metadata: pd.DataFrame, plots_dir: str):
             # Drop rows with NaN lat/lon for scatter plot
             scatter_data = pdf_metadata[['latitude', 'longitude']].dropna()
             if not scatter_data.empty:
-                sns.scatterplot(data=scatter_data, x='longitude', y='latitude', alpha=0.5, s=10) # Smaller points
-                plt.title('地理位置分布 (Latitude vs Longitude)')
-                plt.xlabel('经度 (Longitude)')
-                plt.ylabel('纬度 (Latitude)')
+                sns.scatterplot(data=scatter_data, x='longitude',
+                                y='latitude', alpha=0.5, s=10)  # Smaller points
+                plt.title('Geographical Distribution (Latitude vs Longitude)')
+                plt.xlabel('Longitude')
+                plt.ylabel('Latitude')
                 plt.grid(True)
                 plt.tight_layout()
-                plot_filename = plots_dir / "metadata_location_scatter.png"
-                plt.savefig(plot_filename)
-                plt.close()
-                logger.info(f"地理位置散点图已保存: {plot_filename}")
+                fig = plt.gcf()  # Get current figure
+                save_plot(fig, "metadata_location_scatter.png",
+                          plots_dir)  # Use save_plot
             else:
-                 logger.warning("无有效的经纬度数据，跳过绘制地理位置散点图。")
-
+                logger.warning("无有效的经纬度数据，跳过绘制地理位置散点图。")
 
     except Exception as e:
         logger.exception(f"分析 Metadata 数值特征时出错: {e}")
+        if 'fig' in locals() and plt.fignum_exists(fig.number):
+            plt.close(fig)
 
     logger.info("--- 完成 Metadata 数值特征分析 ---")
 

@@ -13,10 +13,12 @@ from loguru import logger
 from typing import List, Optional
 import random
 from pathlib import Path
-from pyspark.sql.types import DoubleType, FloatType, IntegerType, LongType
+# Add StringType
+from pyspark.sql.types import DoubleType, FloatType, IntegerType, LongType, StringType
 
 # 使用相对导入
-from ..utils.eda_utils import save_plot  # 移除 dask_compute_context
+# 移除 dask_compute_context
+from ..utils.eda_utils import save_plot, plot_comparison_boxplot
 
 
 # Helper function modified for Spark demand input
@@ -31,6 +33,7 @@ def merge_demand_metadata_sample(
     """
     Samples the Spark demand data, converts sample to Pandas,
     merges it with selected metadata columns, and returns a Pandas DataFrame.
+    Logs remain Chinese.
 
     Args:
         sdf_demand: Spark DataFrame for demand data.
@@ -59,7 +62,7 @@ def merge_demand_metadata_sample(
         if pdf_metadata.index.name != 'unique_id':
             if 'unique_id' in pdf_metadata.columns:
                 logger.debug("Setting 'unique_id' as index for pdf_metadata.")
-                pdf_metadata = pdf_metadata.set_index('unique_id')
+                pdf_metadata = pdf_metadata.set_index('unique_id').copy()
             else:
                 logger.error(
                     "'unique_id' column or index not found in pdf_metadata.")
@@ -145,10 +148,10 @@ def merge_demand_metadata_sample(
 
 
 def analyze_demand_vs_metadata(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame, target_col: str, plots_dir=None, sample_frac=0.001, random_state=42):
-    """分析 Demand (y) 与 Metadata 特定分类特征的关系 (Spark Demand -> Pandas Sample -> Pandas Merge)。"""
+    """分析 Demand (y) 与 Metadata 特定分类特征的关系 (英文绘图标签)。"""
     if sdf_demand is None or pdf_metadata is None:
         logger.warning(
-            "Need Spark Demand DataFrame and Pandas Metadata DataFrame for relationship analysis.")
+            "需要 Spark Demand DataFrame 和 Pandas Metadata DataFrame 进行关系分析。")
         return
     if plots_dir is None:
         logger.error("未提供 plots_dir，无法保存关系分析图。")
@@ -158,11 +161,11 @@ def analyze_demand_vs_metadata(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
 
     if target_col not in pdf_metadata.columns:
         logger.error(
-            f"Metadata (Pandas) is missing the target column '{target_col}'. Cannot analyze relationship.")
+            f"Metadata (Pandas) 中缺少目标列或索引 '{target_col}'。无法分析关系。")
         return
 
     logger.info(
-        f"--- Starting analysis of Demand vs {target_col} relationship (sample fraction: {sample_frac:.1%}) ---")
+        f"--- 开始分析 Demand vs {target_col} 关系 (抽样比例: {sample_frac:.1%}) ---")
 
     try:
         # Use the updated helper function
@@ -171,109 +174,63 @@ def analyze_demand_vs_metadata(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
 
         if pdf_merged is None or pdf_merged.empty:
             logger.warning(
-                f"Failed to get merged data or data is empty, cannot analyze Demand vs {target_col}.")
+                f"未能获取合并数据或数据为空，无法分析 Demand vs {target_col}。")
             return
         if 'y' not in pdf_merged.columns or target_col not in pdf_merged.columns:
             logger.warning(
-                f"Merged data is missing 'y' or '{target_col}' column.")
+                f"合并后的数据缺少 'y' 或 '{target_col}' 列。")
             return
 
         # Fill NA in target column for plotting if it's categorical
         if pd.api.types.is_categorical_dtype(pdf_merged[target_col]) or pd.api.types.is_object_dtype(pdf_merged[target_col]):
-            pdf_merged[target_col] = pdf_merged[target_col].fillna('Missing')
+            # Use fillna on a copy to avoid SettingWithCopyWarning if pdf_merged is used later
+            pdf_merged_plot = pdf_merged.copy()
+            pdf_merged_plot[target_col] = pdf_merged_plot[target_col].fillna(
+                '__MISSING__')
+        else:
+            pdf_merged_plot = pdf_merged  # Use original if no filling needed
 
-        logger.info(f"Plotting Demand (y) vs {target_col} box plot...")
-        plt.style.use('seaborn-v0_8-whitegrid')
+        logger.info(f"绘制 Demand (y) vs {target_col} 对比箱线图...")
 
-        # --- Original scale ---
-        try:
-            fig_orig, ax_orig = plt.subplots(figsize=(12, 7))  # Adjusted size
-            sns.boxplot(data=pdf_merged, x=target_col, y='y',
-                        showfliers=False, ax=ax_orig, palette="viridis")
-            ax_orig.set_title(
-                f'Demand (y) Distribution by {target_col} (Original Scale, No Outliers)')
-            ax_orig.set_xlabel(target_col)
-            ax_orig.set_ylabel('Electricity Demand (y) in kWh')
-            plt.xticks(rotation=30, ha='right')  # Rotate labels slightly
-            plt.tight_layout()
-            fig = plt.gcf()
-            save_plot(fig, plots_dir, f'demand_vs_{target_col}_boxplot_orig.png')
-        except Exception as plot_orig_e:
-            logger.exception(
-                f"Error plotting original scale boxplot for {target_col}: {plot_orig_e}")
-            plt.close(fig)
+        # --- Use the new plotting function ---
+        plot_comparison_boxplot(
+            pdf=pdf_merged_plot,
+            x_col=target_col,
+            y_col='y',
+            plots_dir=plots_dir,
+            filename_prefix=f'demand_vs_{target_col}',
+            title_prefix=f'Demand (y) vs {target_col.capitalize()}',
+            y_label_orig='Electricity Demand (y) in kWh',
+            y_label_log='log1p(Demand + epsilon)'
+            # order=None (default)
+        )
 
-        # --- Log scale ---
-        try:
-            epsilon = 1e-6
-            # Create log column safely, handle potential negative values and NaNs
-            pdf_merged['y_log1p'] = np.nan  # Initialize with NaN
-            valid_mask = (pdf_merged['y'] >= 0) & (pdf_merged['y'].notna())
-            # Ensure 'y' is numeric before transformation
-            pdf_merged['y_numeric'] = pd.to_numeric(
-                pdf_merged['y'], errors='coerce')
-            valid_mask = (pdf_merged['y_numeric'] >= 0) & (
-                pdf_merged['y_numeric'].notna()) & pdf_merged[target_col].notna()
-
-            if not valid_mask.any():
-                logger.warning(
-                    f"No valid non-negative numeric 'y' values found for log plot with {target_col}.")
-                return
-
-            pdf_merged.loc[valid_mask, 'y_log1p'] = np.log1p(
-                pdf_merged.loc[valid_mask, 'y_numeric'] + epsilon)
-
-            # Drop NaN in y_log1p and target column
-            pdf_plot_log = pdf_merged.dropna(subset=['y_log1p', target_col])
-
-            if pdf_plot_log.empty:
-                logger.warning(
-                    f"No valid log values or target values to plot for {target_col}, skipping log scale box plot.")
-            else:
-                fig_log, ax_log = plt.subplots(
-                    figsize=(12, 7))  # Adjusted size
-                sns.boxplot(data=pdf_plot_log, x=target_col, y='y_log1p',
-                            showfliers=True, ax=ax_log, palette="viridis")
-                ax_log.set_title(
-                    f'Demand (y) Distribution by {target_col} (Log1p Scale)')
-                ax_log.set_xlabel(target_col)
-                ax_log.set_ylabel('log1p(Electricity Demand (y) + epsilon)')
-                plt.xticks(rotation=30, ha='right')  # Rotate labels slightly
-                plt.tight_layout()
-                fig_log = plt.gcf()
-                save_plot(fig_log, plots_dir, f'demand_vs_{target_col}_boxplot_log1p.png')
-        except Exception as plot_log_e:
-            logger.exception(
-                f"Error plotting log scale boxplot for {target_col}: {plot_log_e}")
-            if 'fig_log' in locals():  # Check if figure exists before trying to close
-                plt.close(fig_log)
-
-        logger.info(f"Demand vs {target_col} analysis complete.")
+        logger.info(f"Demand vs {target_col} 分析完成。")
 
     except Exception as e:
         logger.exception(
-            f"Error analyzing Demand vs {target_col} relationship: {e}")
+            f"分析 Demand vs {target_col} 关系时出错: {e}")
 
 
 # analyze_demand_vs_location uses the same merge helper, plotting logic is similar
 def analyze_demand_vs_location(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame, plots_dir=None, sample_frac=0.001, top_n=10, random_state=42):
-    """分析 Demand (y) 与 Top N location 的关系 (Spark Demand -> Pandas Sample -> Pandas Merge)。"""
+    """分析 Demand (y) 与 Top N location 的关系 (英文绘图标签)。"""
     target_col = 'location'
     if pdf_metadata is None:
         logger.warning(
-            "Need Pandas Metadata DataFrame for relationship analysis.")
+            "需要 Pandas Metadata DataFrame 进行关系分析。")
         return
     if target_col not in pdf_metadata.columns:
         logger.warning(
-            f"Metadata (Pandas) is missing the target column '{target_col}'. Trying 'location_id' instead...")
+            f"Metadata (Pandas) 中缺少目标列 '{target_col}'。尝试使用 'location_id'。")
         target_col = 'location_id'  # Fallback to location_id if location is missing
         if target_col not in pdf_metadata.columns:
             logger.error(
-                f"Metadata (Pandas) is also missing '{target_col}'. Cannot analyze relationship.")
+                f"Metadata (Pandas) 中也缺少 '{target_col}'。无法分析关系。")
             return
 
     logger.info(
-        f"--- Starting analysis of Demand vs {target_col} relationship (Top {top_n}, sample fraction: {sample_frac:.1%}) ---")
+        f"--- 开始分析 Demand vs {target_col} 关系 (Top {top_n}, 抽样比例: {sample_frac:.1%}) ---")
 
     try:
         # Preprocess target column in metadata before merging (using a copy)
@@ -319,71 +276,20 @@ def analyze_demand_vs_location(sdf_demand: DataFrame, pdf_metadata: pd.DataFrame
                 f"Could not find data for Top {top_n} locations in the sample, cannot plot.")
             return
 
-        logger.info(
-            f"Plotting Demand (y) vs Top {top_n} {target_col} box plot...")
-        plt.style.use('seaborn-v0_8-whitegrid')
-        plots_dir = Path(plots_dir)  # Ensure Path object
+        logger.info(f"绘制 Demand (y) vs Top {top_n} {target_col} 对比箱线图...")
 
-        # --- Original scale ---
-        try:
-            fig_orig, ax_orig = plt.subplots(figsize=(15, 7))
-            sns.boxplot(data=pdf_merged_top_n, x=target_col, y='y',
-                        showfliers=False, ax=ax_orig, palette="viridis", order=top_locations)
-            ax_orig.set_title(
-                f'Demand (y) Distribution by Top {top_n} {target_col} (Original Scale, No Outliers)')
-            ax_orig.set_xlabel(target_col)
-            ax_orig.set_ylabel('Electricity Demand (y) in kWh')
-            plt.xticks(rotation=45, ha='right')
-            plt.tight_layout()
-            fig = plt.gcf()
-            save_plot(fig, plots_dir, f'demand_vs_top{top_n}_{target_col}_boxplot_orig.png')
-        except Exception as plot_orig_e:
-            logger.exception(
-                f"Error plotting original scale boxplot for {target_col}: {plot_orig_e}")
-            plt.close(fig)
-
-        # --- Log scale ---
-        try:
-            epsilon = 1e-6
-            # Create log column safely
-            pdf_merged_top_n['y_log1p'] = np.nan  # Initialize with NaN
-            pdf_merged_top_n['y_numeric'] = pd.to_numeric(
-                pdf_merged_top_n['y'], errors='coerce')
-            valid_mask = (pdf_merged_top_n['y_numeric'] >= 0) & (
-                pdf_merged_top_n['y_numeric'].notna()) & pdf_merged_top_n[target_col].notna()
-
-            if not valid_mask.any():
-                logger.warning(
-                    f"No valid non-negative numeric 'y' values found for log plot with Top {top_n} {target_col}.")
-                return
-
-            pdf_merged_top_n.loc[valid_mask, 'y_log1p'] = np.log1p(
-                pdf_merged_top_n.loc[valid_mask, 'y_numeric'] + epsilon)
-
-            # Drop NaN in y_log1p and target column
-            pdf_plot_log = pdf_merged_top_n.dropna(
-                subset=['y_log1p', target_col])
-
-            if pdf_plot_log.empty:
-                logger.warning(
-                    f"No valid log values or target values to plot for Top {top_n} {target_col}, skipping log scale box plot.")
-            else:
-                fig_log, ax_log = plt.subplots(figsize=(15, 7))
-                sns.boxplot(data=pdf_plot_log, x=target_col, y='y_log1p',
-                            showfliers=True, ax=ax_log, palette="viridis", order=top_locations)
-                ax_log.set_title(
-                    f'Demand (y) Distribution by Top {top_n} {target_col} (Log1p Scale)')
-                ax_log.set_xlabel(target_col)
-                ax_log.set_ylabel('log1p(Electricity Demand (y) + epsilon)')
-                plt.xticks(rotation=45, ha='right')
-                plt.tight_layout()
-                fig_log = plt.gcf()
-                save_plot(fig_log, plots_dir, f'demand_vs_top{top_n}_{target_col}_boxplot_log1p.png')
-        except Exception as plot_log_e:
-            logger.exception(
-                f"Error plotting log scale boxplot for {target_col}: {plot_log_e}")
-            if 'fig_log' in locals():
-                plt.close(fig_log)
+        # --- Use the new plotting function ---
+        plot_comparison_boxplot(
+            pdf=pdf_merged_top_n,
+            x_col=target_col,
+            y_col='y',
+            plots_dir=plots_dir,
+            filename_prefix=f'demand_vs_top{top_n}_{target_col}',
+            title_prefix=f'Demand (y) vs Top {top_n} {target_col.capitalize()}',
+            y_label_orig='Electricity Demand (y) in kWh',
+            y_label_log='log1p(Demand + epsilon)',
+            order=top_locations  # Pass the order
+        )
 
         logger.info(f"Demand vs {target_col} analysis complete.")
 
@@ -555,12 +461,13 @@ def analyze_demand_vs_weather(
         logger.info(
             f"--- Demand vs Weather analysis took {end_time - start_time:.2f} seconds ---")
 
+
 def analyze_demand_vs_dataset(
     sdf_demand: DataFrame,
     pdf_metadata: pd.DataFrame,
     plots_dir: Path,
-    sample_frac: float = 0.001, # 使用与之前分析一致的抽样比例
-    spark: SparkSession = None # Keep spark=None if not directly needed after merge
+    sample_frac: float = 0.001,  # 使用与之前分析一致的抽样比例
+    spark: SparkSession = None  # Keep spark=None if not directly needed after merge
 ):
     """
     Analyzes and visualizes the relationship between electricity demand (y)
@@ -574,79 +481,63 @@ def analyze_demand_vs_dataset(
         spark: SparkSession (optional, not used directly in plotting after merge).
     """
     target_col = 'dataset'
-    logger.info(f"--- Starting analysis of Demand vs {target_col} relationship (sample fraction: {sample_frac*100:.1f}%) ---")
+    logger.info(
+        f"--- Starting analysis of Demand vs {target_col} relationship (sample fraction: {sample_frac*100:.1f}%) ---")
     start_time = time.time()
 
     # 1. Merge sample demand with metadata dataset column
     merged_sample_df = merge_demand_metadata_sample(
         sdf_demand,
         pdf_metadata,
-        [target_col], # Only need the dataset column
+        [target_col],  # Only need the dataset column
         sample_frac=sample_frac,
-        spark=spark # Pass spark if needed by merge function internally
+        spark=spark  # Pass spark if needed by merge function internally
     )
 
     if merged_sample_df is None or merged_sample_df.empty:
-        logger.warning(f"No merged data available for Demand vs {target_col} analysis. Skipping.")
+        logger.warning(
+            f"No merged data available for Demand vs {target_col} analysis. Skipping.")
         return
 
-    # Replace potential None values in target_col if necessary (though unlikely for dataset)
-    if merged_sample_df[target_col].isnull().any():
-        logger.warning(f"Found missing values in '{target_col}'. Filling with 'Missing'.")
-        merged_sample_df[target_col] = merged_sample_df[target_col].fillna('Missing')
+    # Use a copy for potential modifications
+    plot_df = merged_sample_df.copy()
 
+    # Replace potential None values in target_col if necessary (though unlikely for dataset)
+    if plot_df[target_col].isnull().any():
+        logger.warning(
+            f"Found missing values in '{target_col}'. Filling with 'Missing'.")
+        plot_df[target_col] = plot_df[target_col].fillna('Missing')
 
     # 2. Log descriptive statistics per dataset
     try:
-        stats_per_dataset = merged_sample_df.groupby(target_col)['y'].describe()
-        logger.info(f"'y' descriptive statistics grouped by {target_col} (based on {sample_frac*100:.1f}% sample):")
+        # Calculate stats on the potentially modified plot_df
+        stats_per_dataset = plot_df.groupby(target_col)['y'].describe()
+        logger.info(
+            f"'y' descriptive statistics grouped by {target_col} (based on {sample_frac*100:.1f}% sample):")
         # Use context manager for better formatting
         with pd.option_context('display.max_rows', None, 'display.max_columns', None, 'display.width', 1000):
-             logger.info(f"\n{stats_per_dataset}")
+            logger.info(f"\n{stats_per_dataset}")
 
     except Exception as e:
-        logger.exception(f"Error calculating descriptive stats for y by {target_col}: {e}")
+        logger.exception(
+            f"Error calculating descriptive stats for y by {target_col}: {e}")
 
+    # 3. Plotting using the new function
+    logger.info(f"Plotting Demand (y) vs {target_col} comparison box plot...")
 
-    # 3. Plotting (similar to demand vs building class)
-    plot_title_prefix = f"Demand (y) vs {target_col.capitalize()}"
-    plot_filename_prefix = f"demand_vs_{target_col}"
-
-    logger.info(f"Plotting {plot_title_prefix} box plot...")
-    # Use a copy to avoid SettingWithCopyWarning if modifying y_log1p in place later
-    plot_df = merged_sample_df[[target_col, 'y']].copy()
-
-    plt.figure(figsize=(12, 6))
-    sns.boxplot(data=plot_df, x=target_col, y='y', showfliers=False) # Hide outliers for overview
-    plt.title(f"{plot_title_prefix} (Original Scale, Outliers Hidden)")
-    plt.xlabel(target_col.capitalize())
-    plt.ylabel("Demand (y) in kWh")
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    fig1 = plt.gcf()
-    save_plot(fig1, plots_dir, f"{plot_filename_prefix}_boxplot_orig_no_outliers.png")
-    plt.close(fig1)
-
-    # Log scale plot
-    plot_df['y_log1p'] = np.log1p(plot_df['y'])
-    # Check for infinite values after log transform if y can be negative (shouldn't be an issue here)
-    if np.isinf(plot_df['y_log1p']).any():
-        original_rows = len(plot_df)
-        plot_df = plot_df[np.isfinite(plot_df['y_log1p'])]
-        logger.warning(f"Removed {original_rows - len(plot_df)} rows with non-finite log1p(y) values for plotting.")
-
-
-    plt.figure(figsize=(12, 6))
-    sns.boxplot(data=plot_df, x=target_col, y='y_log1p', showfliers=True) # Show outliers on log scale
-    plt.title(f"{plot_title_prefix} (Log1p Scale)")
-    plt.xlabel(target_col.capitalize())
-    plt.ylabel("Log1p(Demand + 1)")
-    plt.xticks(rotation=45, ha='right')
-    plt.tight_layout()
-    fig2 = plt.gcf()
-    save_plot(fig2, plots_dir, f"{plot_filename_prefix}_boxplot_log1p.png")
-    plt.close(fig2)
-
+    plot_comparison_boxplot(
+        pdf=plot_df,  # Use the (potentially modified) plot_df
+        x_col=target_col,
+        y_col='y',
+        plots_dir=plots_dir,
+        filename_prefix=f"demand_vs_{target_col}",
+        title_prefix=f"Demand (y) vs {target_col.capitalize()}",
+        y_label_orig="Demand (y) in kWh",
+        y_label_log="Log1p(Demand + epsilon)",
+        # Order might be useful if many datasets, otherwise default alphabetical/numerical
+        # order=plot_df[target_col].unique().tolist() # Example: plot in observed order
+    )
 
     end_time = time.time()
-    logger.info(f"--- Demand vs {target_col} analysis took {end_time - start_time:.2f} seconds ---")
+    logger.info(
+        f"--- Demand vs {target_col} analysis took {end_time - start_time:.2f} seconds ---")

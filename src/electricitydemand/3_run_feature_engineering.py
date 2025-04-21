@@ -1,46 +1,34 @@
-import os
 import sys
 import time
 from pathlib import Path
 
 from loguru import logger
-from pyspark import StorageLevel
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import NumericType, StringType, TimestampType  # 用于检查列类型
 from pyspark.sql.window import Window
 from pyspark.sql.dataframe import DataFrame
-# --- 项目设置 ---
-try:
-    _script_path = os.path.abspath(__file__)
-    project_root = Path(_script_path).parent.parent.parent
-except NameError:
-    project_root = Path.cwd()
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
+from pyspark.storagelevel import StorageLevel  # 显式导入
 
-src_path = project_root / 'src'
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
+# --- 项目设置 ---
+# 使用工具函数
+try:
+    from electricitydemand.utils.project_utils import get_project_root, setup_project_paths, create_spark_session, stop_spark_session
+    from electricitydemand.utils.log_utils import setup_logger  # 仍然直接导入 setup_logger
+except ImportError as e:
+    print(f"Error importing project utils: {e}", file=sys.stderr)
+    sys.exit(1)
+
+project_root = get_project_root()
+src_path, data_dir, logs_dir, plots_dir = setup_project_paths(project_root)
 
 # --- 配置日志 ---
+log_prefix = Path(__file__).stem  # 使用 3_run_feature_engineering 作为前缀
 try:
-    from electricitydemand.utils.log_utils import setup_logger
-except ImportError:
-    print("Error: Could not import setup_logger. Ensure src is in PYTHONPATH or script is run correctly.", file=sys.stderr)
+    setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir, level="INFO")
+except NameError:  # If setup_logger wasn't imported successfully
     logger.add(sys.stderr, level="INFO")
     logger.warning("Using basic stderr logging due to import error.")
-
-log_prefix = Path(__file__).stem # 使用 3_run_feature_engineering 作为前缀
-logs_dir = project_root / 'logs'
-plots_dir = project_root / 'plots' # 特征工程可能也需要绘图
-data_dir = project_root / "data"
-
-os.makedirs(logs_dir, exist_ok=True)
-os.makedirs(plots_dir, exist_ok=True) # 创建绘图目录
-
-if 'setup_logger' in globals():
-    setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir, level="INFO")
 
 logger.info(f"项目根目录：{project_root}")
 logger.info(f"数据目录：{data_dir}")
@@ -48,8 +36,8 @@ logger.info(f"日志目录：{logs_dir}")
 logger.info(f"绘图目录：{plots_dir}")
 
 # --- 数据文件路径 ---
-merged_data_path = data_dir / "merged_data.parquet" # 输入：合并后的数据
-features_output_path = data_dir / "features.parquet" # 输出：特征工程后的数据
+merged_data_path = data_dir / "merged_data.parquet"  # 输入：合并后的数据
+features_output_path = data_dir / "features.parquet"  # 输出：特征工程后的数据
 
 logger.info(f"输入合并数据路径: {merged_data_path}")
 logger.info(f"输出特征数据路径: {features_output_path}")
@@ -65,14 +53,17 @@ def add_time_features_spark(sdf):
 
     # 确保 timestamp 列是 TimestampType
     if not isinstance(sdf.schema["timestamp"].dataType, TimestampType):
-         logger.warning("Input 'timestamp' is not TimestampType. Attempting conversion.")
-         sdf = sdf.withColumn("timestamp_temp", F.to_timestamp("timestamp")) \
-                  .drop("timestamp") \
-                  .withColumnRenamed("timestamp_temp", "timestamp")
-         if not isinstance(sdf.schema["timestamp"].dataType, TimestampType):
-              logger.error("Failed to convert 'timestamp' column to TimestampType.")
-              raise TypeError("Column 'timestamp' must be TimestampType for time feature extraction.")
-         logger.info("'timestamp' 已转换为 TimestampType.")
+        logger.warning(
+            "Input 'timestamp' is not TimestampType. Attempting conversion.")
+        sdf = sdf.withColumn("timestamp_temp", F.to_timestamp("timestamp")) \
+                 .drop("timestamp") \
+                 .withColumnRenamed("timestamp_temp", "timestamp")
+        if not isinstance(sdf.schema["timestamp"].dataType, TimestampType):
+            logger.error(
+                "Failed to convert 'timestamp' column to TimestampType.")
+            raise TypeError(
+                "Column 'timestamp' must be TimestampType for time feature extraction.")
+        logger.info("'timestamp' 已转换为 TimestampType.")
 
     sdf_with_features = sdf.withColumn("year", F.year("timestamp")) \
                            .withColumn("month", F.month("timestamp")) \
@@ -80,20 +71,23 @@ def add_time_features_spark(sdf):
                            .withColumn("dayofweek", F.dayofweek("timestamp")) \
                            .withColumn("dayofyear", F.dayofyear("timestamp")) \
                            .withColumn("hour", F.hour("timestamp"))
-                           # 可以添加更多特征，如 weekofyear 等
-                           # .withColumn("weekofyear", F.weekofyear("timestamp"))
+    # 可以添加更多特征，如 weekofyear 等
+    # .withColumn("weekofyear", F.weekofyear("timestamp"))
 
     logger.success("成功添加时间特征: year, month, day, dayofweek, dayofyear, hour")
-    sdf_with_features.printSchema() # 显示添加特征后的 schema
+    sdf_with_features.printSchema()  # 显示添加特征后的 schema
     return sdf_with_features
+
 
 def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 168], stats=["mean", "stddev", "min", "max"]):
     """Adds rolling window statistics for a target column using Spark Window functions."""
     if not window_sizes or not stats:
-        logger.info("No window sizes or statistics specified. Skipping rolling feature creation.")
+        logger.info(
+            "No window sizes or statistics specified. Skipping rolling feature creation.")
         return sdf
     if target_col not in sdf.columns:
-        logger.error(f"Target column '{target_col}' not found in DataFrame. Skipping rolling features.")
+        logger.error(
+            f"Target column '{target_col}' not found in DataFrame. Skipping rolling features.")
         return sdf
 
     logger.info(f"开始添加 '{target_col}' 的滚动统计特征...")
@@ -102,15 +96,17 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
 
     # 基础窗口定义：按 unique_id 分区，按 timestamp 升序排序
     if not isinstance(sdf.schema["timestamp"].dataType, TimestampType):
-         logger.error("Cannot create rolling features: 'timestamp' column is not TimestampType.")
-         raise TypeError("Column 'timestamp' must be TimestampType for rolling feature calculation.")
+        logger.error(
+            "Cannot create rolling features: 'timestamp' column is not TimestampType.")
+        raise TypeError(
+            "Column 'timestamp' must be TimestampType for rolling feature calculation.")
 
     base_window_spec = Window.partitionBy("unique_id").orderBy("timestamp")
 
     sdf_with_rolling = sdf
     stat_functions = {
         "mean": F.mean,
-        "stddev": F.stddev_samp, # Use sample standard deviation
+        "stddev": F.stddev_samp,  # Use sample standard deviation
         "min": F.min,
         "max": F.max
         # Could add sum, count, etc. if needed
@@ -118,12 +114,12 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
 
     valid_stats = [s for s in stats if s in stat_functions]
     if not valid_stats:
-        logger.warning("No valid statistics requested. Skipping rolling features.")
+        logger.warning(
+            "No valid statistics requested. Skipping rolling features.")
         return sdf
     if len(valid_stats) < len(stats):
         ignored_stats = set(stats) - set(valid_stats)
         logger.warning(f"Ignoring unsupported statistics: {ignored_stats}")
-
 
     for window_size in window_sizes:
         # 定义滚动窗口框架: 包括当前行在内的前 window_size 行
@@ -131,7 +127,8 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
         # 如果要严格预测 t 时刻，仅使用 t-1 及之前的数据，则用 rowsBetween(-window_size, -1)
         # 这里我们包含当前行：rowsBetween(-(window_size - 1), 0)
         # 注意: 这假设了每个 unique_id 的时间序列是连续的（每小时都有记录）
-        rolling_window_spec = base_window_spec.rowsBetween(-(window_size - 1), 0)
+        rolling_window_spec = base_window_spec.rowsBetween(
+            -(window_size - 1), 0)
 
         for stat_name in valid_stats:
             stat_func = stat_functions[stat_name]
@@ -143,8 +140,9 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
             )
 
     logger.success(f"成功添加滚动统计特征 (指标: {valid_stats}, 窗口: {window_sizes}h)")
-    sdf_with_rolling.printSchema() # 显示添加特征后的 schema
+    sdf_with_rolling.printSchema()  # 显示添加特征后的 schema
     return sdf_with_rolling
+
 
 @logger.catch(reraise=True)
 def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
@@ -174,8 +172,9 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
     sdf_no_y_null = sdf.filter(F.col("y").isNotNull())
     count_after_y_drop = sdf_no_y_null.count()
     rows_dropped_y = initial_count - count_after_y_drop
-    logger.info(f"删除 'y' 为 null 的行后，剩余行数: {count_after_y_drop:,} (删除了 {rows_dropped_y:,} 行)")
-    sdf = sdf_no_y_null # Update sdf
+    logger.info(
+        f"删除 'y' 为 null 的行后，剩余行数: {count_after_y_drop:,} (删除了 {rows_dropped_y:,} 行)")
+    sdf = sdf_no_y_null  # Update sdf
 
     # 2. 删除每个时间序列的初始窗口期数据
     # 使用滚动均值列来识别（如果滚动特征计算正确，应该有 null）
@@ -188,17 +187,20 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
         logger.info(f"检查列 '{rolling_col_for_init_drop}' 的缺失值以删除初始窗口期...")
         # 确保在删除前缓存，避免重复计算 filter
         sdf.persist(StorageLevel.MEMORY_AND_DISK)
-        sdf_no_initial_window = sdf.filter(F.col(rolling_col_for_init_drop).isNotNull())
+        sdf_no_initial_window = sdf.filter(
+            F.col(rolling_col_for_init_drop).isNotNull())
         count_after_init_drop = sdf_no_initial_window.count()
-        rows_dropped_init = count_after_y_drop - count_after_init_drop # Compare with count after y drop
-        logger.info(f"删除每个 unique_id 前 {window_hours} 小时的记录（基于 '{rolling_col_for_init_drop}' 为 null）后，剩余行数: {count_after_init_drop:,} (又删除了 {rows_dropped_init:,} 行)")
-        sdf = sdf_no_initial_window # Update sdf
+        rows_dropped_init = count_after_y_drop - \
+            count_after_init_drop  # Compare with count after y drop
+        logger.info(
+            f"删除每个 unique_id 前 {window_hours} 小时的记录（基于 '{rolling_col_for_init_drop}' 为 null）后，剩余行数: {count_after_init_drop:,} (又删除了 {rows_dropped_init:,} 行)")
+        sdf = sdf_no_initial_window  # Update sdf
         # Check if the initial drop removed significant rows, if not, warn.
         if rows_dropped_init == 0 and initial_count > 0:
-             logger.warning(f"基于 '{rolling_col_for_init_drop}' 的初始窗口删除未移除任何行。请检查滚动特征计算或窗口期是否足够长。")
+            logger.warning(
+                f"基于 '{rolling_col_for_init_drop}' 的初始窗口删除未移除任何行。请检查滚动特征计算或窗口期是否足够长。")
         # Unpersist the intermediate sdf if needed, but let's keep it for the next step
         # sdf.unpersist() # Unpersist previous sdf version
-
 
     # 3. 处理 location_id 为 Null 的情况 (删除这些行)
     logger.info("检查并删除 'location_id' 为 null 的行...")
@@ -206,10 +208,11 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
     sdf_valid_location = sdf.filter(F.col("location_id").isNotNull())
     final_count_after_loc_drop = sdf_valid_location.count()
     rows_dropped_loc = count_before_loc_drop - final_count_after_loc_drop
-    logger.info(f"删除 'location_id' 为 null 的行后，剩余行数: {final_count_after_loc_drop:,} (删除了 {rows_dropped_loc:,} 行)")
-    sdf = sdf_valid_location # Update sdf
+    logger.info(
+        f"删除 'location_id' 为 null 的行后，剩余行数: {final_count_after_loc_drop:,} (删除了 {rows_dropped_loc:,} 行)")
+    sdf = sdf_valid_location  # Update sdf
     if rows_dropped_loc > 0:
-         logger.success(f"成功删除 {rows_dropped_loc:,} 行因 location_id 为 null 的记录。")
+        logger.success(f"成功删除 {rows_dropped_loc:,} 行因 location_id 为 null 的记录。")
 
     # 4. 处理滚动标准差 (stddev) 特征的 Null 值 (填充为 0.0)
     stddev_cols = [c for c in sdf.columns if "y_rolling_stddev" in c]
@@ -217,12 +220,13 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
         logger.info("检查并填充滚动标准差列的 Null 值为 0.0...")
         null_counts_stddev_before = {}
         for col_name in stddev_cols:
-             # 检查是否存在 Null (耗时操作，可选)
-             # null_count = sdf.where(F.col(col_name).isNull()).count()
-             # if null_count > 0:
-             #     null_counts_stddev_before[col_name] = null_count
-             #     logger.warning(f"  - 列 '{col_name}' 将填充 {null_count} 个 null 值。")
-             sdf = sdf.withColumn(col_name, F.when(F.col(col_name).isNull(), 0.0).otherwise(F.col(col_name)))
+            # 检查是否存在 Null (耗时操作，可选)
+            # null_count = sdf.where(F.col(col_name).isNull()).count()
+            # if null_count > 0:
+            #     null_counts_stddev_before[col_name] = null_count
+            #     logger.warning(f"  - 列 '{col_name}' 将填充 {null_count} 个 null 值。")
+            sdf = sdf.withColumn(col_name, F.when(
+                F.col(col_name).isNull(), 0.0).otherwise(F.col(col_name)))
         logger.success(f"已将以下滚动标准差列中的 Null 值填充为 0.0: {stddev_cols}")
         # 可选：再次检查填充后是否还有 Null
         # for col_name in stddev_cols:
@@ -232,7 +236,6 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
 
     else:
         logger.info("未找到滚动标准差特征列，跳过填充步骤。")
-
 
     # 5. 最终检查并报告剩余的 Null 值
     logger.info("最终检查剩余列中的缺失值...")
@@ -244,30 +247,36 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
         # For now, use count for simplicity
         null_count = sdf.where(F.col(col_name).isNull()).count()
         if null_count > 0:
-            percentage = (null_count / final_count) * 100 if final_count > 0 else 0
+            percentage = (null_count / final_count) * \
+                100 if final_count > 0 else 0
             col_type = sdf.schema[col_name].dataType
             null_check_results[col_name] = (null_count, percentage, col_type)
             remaining_null_cols.append(col_name)
-            logger.warning(f"  - 列 '{col_name}' (类型: {col_type}) 仍存在 {null_count:,} 个 null 值 ({percentage:.4f}%).")
-
+            logger.warning(
+                f"  - 列 '{col_name}' (类型: {col_type}) 仍存在 {null_count:,} 个 null 值 ({percentage:.4f}%).")
 
     if not remaining_null_cols:
-        logger.success("============================== 缺失值报告 ==============================")
+        logger.success(
+            "============================== 缺失值报告 ==============================")
         logger.success("所有预期的缺失值已处理完毕，未发现其他列存在 Null。")
-        logger.success("======================================================================")
+        logger.success(
+            "======================================================================")
     else:
-        logger.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 缺失值警告 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        logger.error(
+            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 缺失值警告 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         logger.error("在执行完所有处理步骤后，以下列仍包含 Null 值:")
         for col_name in remaining_null_cols:
-             n_count, perc, c_type = null_check_results[col_name]
-             logger.error(f"  - 列 '{col_name}' ({c_type}): {n_count:,} 个 null ({perc:.4f}%)")
+            n_count, perc, c_type = null_check_results[col_name]
+            logger.error(
+                f"  - 列 '{col_name}' ({c_type}): {n_count:,} 个 null ({perc:.4f}%)")
         logger.error("请检查数据源或处理逻辑，这些 Null 值可能影响后续模型训练！")
-        logger.error("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        logger.error(
+            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         # 根据需要，可以选择在这里抛出异常停止执行
         # raise ValueError("发现未处理的 Null 值，请检查日志。")
 
-
-    logger.info(f"处理后最终行数: {final_count:,} (总共删除了 {initial_count - final_count:,} 行)")
+    logger.info(
+        f"处理后最终行数: {final_count:,} (总共删除了 {initial_count - final_count:,} 行)")
 
     # Unpersist the final sdf before returning if it was persisted
     if sdf.is_cached:
@@ -282,6 +291,8 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
 # ======================================================================
 # ==                   Main Execution Function                      ==
 # ======================================================================
+
+
 def run_feature_engineering_spark():
     """Loads merged data, performs feature engineering using Spark, and saves the results."""
     logger.info("=====================================================")
@@ -298,25 +309,19 @@ def run_feature_engineering_spark():
     try:
         # --- 创建 SparkSession ---
         logger.info("创建 SparkSession...")
-        import psutil
-        total_memory_gb = psutil.virtual_memory().available / (1024 ** 3)
-        driver_memory = max(4, int(total_memory_gb * 0.6 + 0.5)) # 稍微增加 Driver 内存比例
-        executor_memory = max(4, int(total_memory_gb * 0.6 + 0.5)) # 稍微增加 Executor 内存比例
-        logger.info(
-            f"系统可用内存: {total_memory_gb:.2f}GB, 设置驱动器内存: {driver_memory}g, 执行器内存: {executor_memory}g")
-
-        spark = SparkSession.builder \
-            .appName("ElectricityDemandFeatureEngineering") \
-            .config("spark.driver.memory", f"{driver_memory}g") \
-            .config("spark.executor.memory", f"{executor_memory}g") \
-            .config("spark.sql.execution.arrow.pyspark.enabled", "true") \
-            .config("spark.sql.adaptive.enabled", "true") \
-            .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
-            .config("spark.sql.execution.pyarrow.fallback.enabled", "true") \
-            .config("spark.sql.shuffle.partitions", "200") \
-            .config("spark.default.parallelism", "200") \
-            .getOrCreate()
-
+        # 特征工程可能需要较多内存和 shuffle，使用更高比例和默认值
+        feature_eng_configs = {
+            "spark.sql.execution.pyarrow.fallback.enabled": "true",  # 确保 PyArrow 回退
+            "spark.sql.shuffle.partitions": "200",  # 保持 shuffle 分区数
+            "spark.default.parallelism": "200"  # 保持并行度
+        }
+        spark = create_spark_session(
+            app_name="ElectricityDemandFeatureEngineering",
+            driver_mem_ratio=0.6,  # 增加内存比例
+            executor_mem_ratio=0.6,
+            default_mem_gb=4,  # 增加默认值
+            additional_configs=feature_eng_configs
+        )
 
         logger.info("SparkSession 创建成功。")
         logger.info(f"Spark Web UI: {spark.sparkContext.uiWebUrl}")
@@ -335,16 +340,19 @@ def run_feature_engineering_spark():
 
         # 重新启用抽样逻辑
         if sample_fraction is not None and 0 < sample_fraction < 1:
-            logger.warning(f"--- 注意: 已启用数据抽样，仅使用 {sample_fraction:.2%} 的数据 ---")
-            initial_row_count = sdf.count() # 在抽样前计算一次总行数（可选，但有助于了解比例）
-            sdf_processed = sdf.sample(withReplacement=False, fraction=sample_fraction, seed=42)
+            logger.warning(
+                f"--- 注意: 已启用数据抽样，仅使用 {sample_fraction:.2%} 的数据 ---")
+            initial_row_count = sdf.count()  # 在抽样前计算一次总行数（可选，但有助于了解比例）
+            sdf_processed = sdf.sample(
+                withReplacement=False, fraction=sample_fraction, seed=42)
             # 缓存抽样后的数据，后续操作基于此缓存
             sdf_processed.persist(StorageLevel.MEMORY_AND_DISK)
-            sampled_row_count = sdf_processed.count() # 计算抽样后的实际行数
+            sampled_row_count = sdf_processed.count()  # 计算抽样后的实际行数
             logger.info(f"抽样前行数: {initial_row_count:,}")
             logger.info(f"抽样后行数: {sampled_row_count:,}")
             # 定义抽样数据的输出路径
-            features_output_path_final = features_output_path.parent / f"{features_output_path.stem}_sampled_{str(sample_fraction).replace('.', 'p')}{features_output_path.suffix}"
+            features_output_path_final = features_output_path.parent / \
+                f"{features_output_path.stem}_sampled_{str(sample_fraction).replace('.', 'p')}{features_output_path.suffix}"
             logger.info(f"抽样特征数据将保存到: {features_output_path_final}")
         else:
             logger.info("--- 注意: 将在完整数据集上运行特征工程 ---")
@@ -354,7 +362,6 @@ def run_feature_engineering_spark():
             # 如果是全量数据，也建议缓存一下
             sdf_processed.persist(StorageLevel.MEMORY_AND_DISK)
 
-
         # --- 步骤 2: 执行特征工程 ---
         logger.info("--- 步骤 2: 执行特征工程 ---")
         try:
@@ -363,7 +370,7 @@ def run_feature_engineering_spark():
 
             # --- 步骤 2.2: 添加滚动统计特征 ---
             logger.info("--- 步骤 2.2: 添加滚动统计特征 ---")
-            window_hours_list = [3, 6, 12, 24, 48, 168] # 包含最大窗口 168h
+            window_hours_list = [3, 6, 12, 24, 48, 168]  # 包含最大窗口 168h
             stats_list = ['mean', 'stddev', 'min', 'max']
             sdf_processed = add_rolling_features_spark(
                 sdf_processed,
@@ -376,8 +383,8 @@ def run_feature_engineering_spark():
             logger.info("--- 步骤 2.3: 处理缺失值 ---")
             max_window = max(window_hours_list) if window_hours_list else 0
             logger.info(f"将基于最大历史窗口 {max_window}h 来删除初始行并处理缺失值。")
-            sdf_processed = handle_missing_values_spark(sdf_processed, window_hours=max_window)
-
+            sdf_processed = handle_missing_values_spark(
+                sdf_processed, window_hours=max_window)
 
             # --- 步骤 2.4: (待添加) 分类特征编码 ---
             logger.warning("--- 步骤 2.4: (待添加) 分类特征编码 ---")
@@ -405,12 +412,12 @@ def run_feature_engineering_spark():
             logger.info("开始写入 Parquet 文件...")
             # Consider repartitioning or sorting before write if needed
             # sdf_processed.repartition(200).write.mode("overwrite").parquet(str(features_output_path_final))
-            sdf_processed.write.mode("overwrite").parquet(str(features_output_path_final))
+            sdf_processed.write.mode("overwrite").parquet(
+                str(features_output_path_final))
             logger.success(f"成功保存特征工程后的数据到：{features_output_path_final}")
         except Exception as save_e:
             logger.exception(f"保存特征工程数据时出错：{save_e}")
             raise
-
 
         logger.info("=====================================================")
         logger.info("===      特征工程脚本 (Spark) 执行完毕       ===")
@@ -436,6 +443,7 @@ def run_feature_engineering_spark():
         end_run_time = time.time()
         logger.info(
             f"--- Spark 特征工程脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+
 
 if __name__ == "__main__":
     try:
