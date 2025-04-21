@@ -15,7 +15,7 @@ try:
         _script_path = os.path.abspath(__file__)
         project_root = os.path.dirname(
             os.path.dirname(os.path.dirname(_script_path)))
-        from .utils.log_utils import setup_logger  # 相对导入
+        from .log_utils import setup_logger  # 相对导入
     else:
         raise ImportError(
             "Not running as a package or package structure mismatch.")

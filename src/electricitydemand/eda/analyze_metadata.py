@@ -1,146 +1,174 @@
-import pandas as pd
-from loguru import logger
 from pathlib import Path  # Use pathlib
 
+import matplotlib.pyplot as plt
+import numpy as np  # Import numpy
+import pandas as pd
+import seaborn as sns
+from loguru import logger
+
 # 使用相对导入
-from ..utils.eda_utils import log_value_counts, plot_categorical_distribution, plot_numerical_distribution
+from ..utils.eda_utils import (
+    log_value_counts,
+    plot_categorical_distribution,
+    plot_numerical_distribution,
+)
 
 
-def analyze_metadata_categorical(pdf_metadata: pd.DataFrame, columns_to_analyze=None):
-    """分析 Metadata DataFrame 中指定分类列的分布并记录。"""
-    if pdf_metadata is None or pdf_metadata.empty:
-        logger.warning("输入的 Metadata DataFrame 为空，跳过分类特征分析。")
-        return
-    if not isinstance(pdf_metadata, pd.DataFrame):
-        logger.error("输入必须是 Pandas DataFrame。")
-        return
+def analyze_metadata_categorical(pdf_metadata: pd.DataFrame):
+    """
+    Analyzes categorical features in the metadata Pandas DataFrame.
 
-    if columns_to_analyze is None:
-        columns_to_analyze = ['building_class',
-                              'location', 'freq', 'timezone', 'dataset']
-    logger.info(
-        f"--- 开始分析 Metadata 分类特征分布 ({', '.join(columns_to_analyze)}) ---")
-
-    for col in columns_to_analyze:
-        if col not in pdf_metadata.columns:
-            logger.warning(f"列 '{col}' 不在 Metadata DataFrame 中，跳过。")
-            continue
-        # Check if column contains only nulls
-        if pdf_metadata[col].isnull().all():
-            logger.warning(f"列 '{col}' 只包含 null 值，跳过分析。")
-            continue
-        # Use helper function, limit log output
-        log_value_counts(pdf_metadata[col], col, top_n=20)
-
-    logger.info("Metadata 分类特征分析完成。")
+    Args:
+        pdf_metadata: Pandas DataFrame containing metadata.
+    """
+    logger.info("--- 分析 Metadata 分类特征 ---")
+    # Include the new columns in the analysis
+    categorical_cols = [
+        'dataset', 'location', 'timezone', 'freq', 'building_class'
+    ]
+    for col in categorical_cols:
+        if col in pdf_metadata.columns:
+            logger.info(f"--- 分析列: {col} ---")
+            # logger.info(f"唯一值数量: {pdf_metadata[col].nunique()}") # Already logged in plot function
+            # Value counts, handling potential NaN values
+            counts = pdf_metadata[col].value_counts(dropna=False)
+            logger.info(f"值分布 (Top 10):\n{counts.head(10).to_string()}")
+            if len(counts) > 10:
+                logger.info(f"... (共 {len(counts)} 个唯一值)")
+        else:
+            logger.warning(f"在 Metadata 中未找到分类列: {col}")
+    logger.info("--- 完成 Metadata 分类特征分析 ---")
 
 
-def plot_metadata_categorical(pdf_metadata: pd.DataFrame, columns_to_plot=None, top_n=10, plots_dir=None):
-    """可视化 Metadata DataFrame 中指定分类列的分布并保存。"""
-    if pdf_metadata is None or pdf_metadata.empty:
-        logger.warning("输入的 Metadata DataFrame 为空，跳过分类特征绘图。")
-        return
-    if not isinstance(pdf_metadata, pd.DataFrame):
-        logger.error("输入必须是 Pandas DataFrame。")
-        return
-    if plots_dir is None:
-        logger.error("未提供 plots_dir，无法保存 Metadata 分类特征图。")
-        return
-    plots_dir = Path(plots_dir)  # Convert to Path
-    plots_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+def plot_metadata_categorical(pdf_metadata: pd.DataFrame, plots_dir: str):
+    """
+    Plots distributions for categorical features in the metadata Pandas DataFrame.
 
-    if columns_to_plot is None:
-        columns_to_plot = ['building_class',
-                           'location', 'freq', 'timezone', 'dataset']
-    logger.info(
-        f"--- Starting plotting Metadata categorical feature distributions ({', '.join(columns_to_plot)}) ---")
+    Args:
+        pdf_metadata: Pandas DataFrame containing metadata.
+        plots_dir: Directory to save the plots.
+    """
+    logger.info("--- 绘制 Metadata 分类特征分布图 ---")
+    # Include the new columns in the plotting
+    categorical_cols = [
+        'dataset', 'location', 'timezone', 'freq', 'building_class'
+    ]
+    # Limit the number of categories to plot for clarity (e.g., for 'location')
+    max_categories_to_plot = 15
 
-    for col in columns_to_plot:
-        if col not in pdf_metadata.columns:
-            logger.warning(f"列 '{col}' 不在 Metadata DataFrame 中，跳过绘图。")
-            continue
-        # Check if column contains only nulls
-        if pdf_metadata[col].isnull().all():
-            logger.warning(f"列 '{col}' 只包含 null 值，跳过绘图。")
-            continue
+    for col in categorical_cols:
+        if col in pdf_metadata.columns:
+            try:
+                n_unique = pdf_metadata[col].nunique(dropna=False) # Include NaN in count
+                logger.info(f"绘制 '{col}' 的分布图 (共 {n_unique} 个唯一值)...")
 
-        plot_categorical_distribution(pdf_metadata[col], col,
-                                      f'metadata_distribution_{col}', plots_dir,
-                                      top_n=top_n, title_prefix="Metadata ")  # Use helper
-
-    logger.info("Metadata categorical feature plotting complete.")
-
-
-def analyze_metadata_numerical(pdf_metadata: pd.DataFrame, columns_to_analyze=None, plots_dir=None):
-    """分析 Metadata DataFrame 中指定数值列的分布并记录/绘图。"""
-    if pdf_metadata is None or pdf_metadata.empty:
-        logger.warning("输入的 Metadata DataFrame 为空，跳过数值特征分析。")
-        return
-    if not isinstance(pdf_metadata, pd.DataFrame):
-        logger.error("输入必须是 Pandas DataFrame。")
-        return
-
-    plot = plots_dir is not None  # Whether to plot
-    if plot:
-        plots_dir = Path(plots_dir)  # Convert to Path
-        plots_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
-    else:
-        logger.warning("未提供 plots_dir，将仅记录统计信息，不绘制 Metadata 数值特征图。")
-
-    if columns_to_analyze is None:
-        columns_to_analyze = ['latitude', 'longitude', 'cluster_size']
-    logger.info(
-        f"--- Starting analysis of Metadata numerical feature distributions ({', '.join(columns_to_analyze)}) ---")
-
-    for col in columns_to_analyze:
-        if col not in pdf_metadata.columns:
-            logger.warning(f"列 '{col}' 不在 Metadata DataFrame 中，跳过。")
-            continue
-        # Check if column contains only nulls
-        if pdf_metadata[col].isnull().all():
-            logger.warning(f"列 '{col}' 只包含 null 值，跳过数值分析。")
-            continue
-        # Try converting to numeric, coerce errors
-        pdf_metadata_col_numeric = pd.to_numeric(
-            pdf_metadata[col], errors='coerce')
-        if pdf_metadata_col_numeric.isnull().all():
-            logger.warning(f"列 '{col}' 转换为数值后全为 null，跳过数值分析。")
-            continue
-
-        logger.info(f"--- Analyzing column: {col} ---")
-        try:
-            desc_stats = pdf_metadata_col_numeric.describe()
-            logger.info(f"Descriptive Statistics:\n{desc_stats.to_string()}")
-
-            missing_count = pdf_metadata_col_numeric.isnull().sum()
-            original_missing = pdf_metadata[col].isnull().sum()
-            if original_missing != missing_count:
-                logger.warning(
-                    f"列 '{col}' 包含 {original_missing - missing_count} 个非数值类型的值被转换为 NaN。")
-
-            if missing_count > 0:
-                missing_perc = (
-                    missing_count / len(pdf_metadata) * 100).round(2)
-                logger.warning(
-                    f"列 '{col}' 存在 {missing_count} ({missing_perc}%) 个缺失或无法转换的值。")
-
-            if plot:
-                # Drop NaN before plotting
-                data_to_plot = pdf_metadata_col_numeric.dropna()
-                if data_to_plot.empty:
-                    logger.warning(f"列 '{col}' 除去 NaN 后为空，跳过绘图。")
+                plt.figure(figsize=(10, 6))
+                # Handle NaNs explicitly if they exist
+                if pdf_metadata[col].isnull().any():
+                     # Use value_counts with dropna=False and fillna for plotting
+                     plot_data = pdf_metadata[col].fillna('NaN').value_counts()
                 else:
-                    # Use helper function to plot
-                    plot_numerical_distribution(data_to_plot, col,
-                                                f'metadata_distribution_{col}', plots_dir,
-                                                title_prefix="Metadata ", kde=True,  # Default kde=True
-                                                # Maybe hide outliers for cluster_size
-                                                showfliers=(col != 'cluster_size'))
-        except Exception as e:
-            logger.exception(
-                f"Error analyzing or plotting numerical column '{col}': {e}")
+                    plot_data = pdf_metadata[col].value_counts()
 
-    logger.info("Metadata numerical feature analysis complete.")
+                # Limit categories plotted if too many
+                if n_unique > max_categories_to_plot:
+                    top_categories = plot_data.nlargest(max_categories_to_plot)
+                    # Create an 'Other' category for the rest
+                    other_count = plot_data.iloc[max_categories_to_plot:].sum()
+                    if other_count > 0:
+                         top_categories['Other'] = other_count # Add 'Other' category using .loc
+                    plot_data_final = top_categories
+                    title = f'{col} 分布 (Top {max_categories_to_plot} & Other)'
+                else:
+                    plot_data_final = plot_data
+                    title = f'{col} 分布'
+
+                sns.barplot(x=plot_data_final.index, y=plot_data_final.values, palette='viridis', order=plot_data_final.index)
+                plt.title(title)
+                plt.xlabel(col)
+                plt.ylabel('数量')
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                plot_filename = plots_dir / f"metadata_dist_{col}.png"
+                plt.savefig(plot_filename)
+                plt.close()
+                logger.info(f"图表已保存: {plot_filename}")
+            except Exception as e:
+                logger.error(f"绘制列 '{col}' 时出错: {e}")
+        else:
+            logger.warning(f"在 Metadata 中未找到用于绘图的分类列: {col}")
+    logger.info("--- 完成 Metadata 分类特征分布图绘制 ---")
+
+
+def analyze_metadata_numerical(pdf_metadata: pd.DataFrame, plots_dir: str):
+    """
+    Analyzes numerical features (latitude, longitude, cluster_size) in the metadata.
+
+    Args:
+        pdf_metadata: Pandas DataFrame containing metadata.
+        plots_dir: Directory to save the plots.
+    """
+    logger.info("--- 分析 Metadata 数值特征 ---")
+    # Include 'cluster_size'
+    numerical_cols = ['latitude', 'longitude', 'cluster_size']
+
+    valid_cols = [col for col in numerical_cols if col in pdf_metadata.columns]
+
+    if not valid_cols:
+        logger.warning("Metadata 中未找到任何指定的数值列进行分析。")
+        return
+
+    try:
+        # Basic statistics
+        desc = pdf_metadata[valid_cols].describe()
+        logger.info(f"数值特征描述性统计:\n{desc.to_string()}")
+
+        # Plot histograms
+        for col in valid_cols:
+             # Check if column is numeric and not all NaN before plotting
+             if pd.api.types.is_numeric_dtype(pdf_metadata[col]) and not pdf_metadata[col].isnull().all():
+                 plt.figure(figsize=(10, 5))
+                 # Handle potential infinite values if necessary before plotting histogram
+                 data_to_plot = pdf_metadata[col].replace([np.inf, -np.inf], np.nan).dropna()
+                 if not data_to_plot.empty:
+                     sns.histplot(data_to_plot, kde=True, bins=30)
+                     plt.title(f'{col} 分布')
+                     plt.xlabel(col)
+                     plt.ylabel('频数')
+                     plt.tight_layout()
+                     plot_filename = plots_dir / f"metadata_hist_{col}.png"
+                     plt.savefig(plot_filename)
+                     plt.close()
+                     logger.info(f"'{col}' 直方图已保存: {plot_filename}")
+                 else:
+                     logger.warning(f"列 '{col}' 移除 NaN/inf 后为空，跳过绘制直方图。")
+             else:
+                  logger.warning(f"列 '{col}' 不是数值类型或全为 NaN，跳过绘制直方图。")
+
+        # Scatter plot for latitude vs longitude (if both exist)
+        if 'latitude' in valid_cols and 'longitude' in valid_cols:
+            plt.figure(figsize=(8, 8))
+            # Drop rows with NaN lat/lon for scatter plot
+            scatter_data = pdf_metadata[['latitude', 'longitude']].dropna()
+            if not scatter_data.empty:
+                sns.scatterplot(data=scatter_data, x='longitude', y='latitude', alpha=0.5, s=10) # Smaller points
+                plt.title('地理位置分布 (Latitude vs Longitude)')
+                plt.xlabel('经度 (Longitude)')
+                plt.ylabel('纬度 (Latitude)')
+                plt.grid(True)
+                plt.tight_layout()
+                plot_filename = plots_dir / "metadata_location_scatter.png"
+                plt.savefig(plot_filename)
+                plt.close()
+                logger.info(f"地理位置散点图已保存: {plot_filename}")
+            else:
+                 logger.warning("无有效的经纬度数据，跳过绘制地理位置散点图。")
+
+
+    except Exception as e:
+        logger.exception(f"分析 Metadata 数值特征时出错: {e}")
+
+    logger.info("--- 完成 Metadata 数值特征分析 ---")
 
 
 def analyze_missing_locations(pdf_metadata: pd.DataFrame):

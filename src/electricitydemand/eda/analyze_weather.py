@@ -1,17 +1,28 @@
-import pandas as pd
-# 移除 Dask 导入
-# import dask.dataframe as dd
-from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql import functions as F
-from pyspark.sql.types import NumericType, TimestampType, DateType
+import math
+from pathlib import Path  # Use pathlib for paths
+
 import matplotlib.pyplot as plt
+import pandas as pd
 import seaborn as sns
 from loguru import logger
-from pathlib import Path  # Use pathlib for paths
+from pyspark.ml.feature import VectorAssembler  # For Spark correlation
+from pyspark.ml.stat import Correlation  # For Spark correlation
+
+# 移除 Dask 导入
+# import dask.dataframe as dd
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as F
+from pyspark.sql.types import DateType, NumericType, TimestampType
 from tqdm import tqdm  # For timeseries sample progress
 
 # 使用相对导入
-from ..utils.eda_utils import plot_numerical_distribution, log_value_counts, save_plot, plot_categorical_distribution
+from ..utils.eda_utils import (
+    log_value_counts,
+    plot_categorical_distribution,
+    plot_numerical_distribution,
+    save_plot,
+)
+
 # 移除 dask_compute_context
 
 
@@ -165,81 +176,144 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
     logger.info("Weather 数值特征分析完成。")
 
 
-def analyze_weather_categorical(sdf_weather: DataFrame, columns_to_analyze=None, top_n=20, plots_dir=None):
-    """分析 Weather Spark DataFrame 中指定分类列的分布并记录/绘图。"""
-    if sdf_weather is None:
-        logger.warning("输入的 Weather Spark DataFrame 为空，跳过分类特征分析。")
-        return
-    plot = plots_dir is not None
-    if plot:
-        plots_dir = Path(plots_dir)  # Convert to Path object
-        plots_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
-    else:
-        logger.warning("未提供 plots_dir，将仅记录统计信息，不绘制 Weather 分类特征图。")
+def analyze_weather_categorical(sdf_weather: DataFrame, plots_dir: str):
+    """
+    Analyzes categorical features (like is_day, weather_code) in the weather Spark DataFrame.
 
-    if columns_to_analyze is None:
-        columns_to_analyze = ['weather_code', 'is_day']  # is_day 也是分类的
-    logger.info(
-        f"--- 开始分析 Weather 分类特征分布 (Spark) ({', '.join(columns_to_analyze)}) ---")
+    Args:
+        sdf_weather: Spark DataFrame containing weather data.
+        plots_dir: Directory to save plots.
+    """
+    logger.info("--- 分析 Weather 分类特征 (Spark) ---")
+    # Add 'weather_code' to the list
+    categorical_cols = ['is_day', 'weather_code']
 
-    # 过滤出实际存在的列 (不一定是分类类型，但可以尝试计数)
-    relevant_cols = [
-        col for col in columns_to_analyze if col in sdf_weather.columns]
+    for col in categorical_cols:
+        if col in sdf_weather.columns:
+            logger.info(f"--- 分析列: {col} ---")
+            try:
+                # Get value counts using Spark
+                value_counts_sdf = sdf_weather.groupBy(col).count().orderBy(F.desc('count'))
+                value_counts_pd = value_counts_sdf.toPandas() # Collect results
 
-    for col in relevant_cols:
-        logger.info(f"--- 分析列: {col} ---")
-        try:
-            logger.info(f"使用 Spark 计算列 '{col}' 的值分布...")
-            # Spark 实现 value_counts: groupBy + count + orderBy
-            # .limit(top_n + 5) # 限制返回数量，避免收集过多不同值
-            counts_sdf = sdf_weather.groupBy(
-                col).count().orderBy(F.desc("count"))
+                logger.info(f"'{col}' 值分布 (Top 20):\n{value_counts_pd.head(20).to_string(index=False)}")
+                if value_counts_pd.shape[0] > 20:
+                    logger.info(f"... (共 {value_counts_pd.shape[0]} 个唯一值)")
 
-            # 收集到 Pandas DataFrame (只收集 Top N + buffer)
-            logger.debug(f"将列 '{col}' 的 Top {top_n} 值分布结果收集到 Pandas...")
-            # Use take instead of toPandas if counts_sdf might be huge
-            # Take more than top_n to see if there's a long tail
-            counts_list = counts_sdf.take(top_n + 5)
-            if not counts_list:
-                logger.warning(f"未能计算或计算结果为空，跳过记录/绘制列 '{col}' 的值分布。")
-                continue
+                # Plotting (if feasible number of categories)
+                # For weather_code, there might be many codes, plot top N
+                max_categories_to_plot = 20
+                if value_counts_pd.shape[0] <= max_categories_to_plot or col == 'is_day': # Plot all if few, or always for is_day
+                     plot_data = value_counts_pd
+                     title = f'{col} 分布'
+                else: # Plot Top N + Other for weather_code if too many
+                    top_categories = value_counts_pd.nlargest(max_categories_to_plot, 'count')
+                    other_count = value_counts_pd.iloc[max_categories_to_plot:]['count'].sum()
+                    if other_count > 0:
+                        # Create a new row for 'Other'
+                        other_row = pd.DataFrame({col: ['Other'], 'count': [other_count]})
+                        # Use pandas.concat
+                        plot_data = pd.concat([top_categories, other_row], ignore_index=True)
 
-            # Convert list of Rows to Pandas DataFrame
-            counts_pd = pd.DataFrame(counts_list, columns=[col, 'count'])
+                    title = f'{col} 分布 (Top {max_categories_to_plot} & Other)'
 
-            # 记录日志 (log_value_counts 接收 Pandas DF)
-            # 需要确保列名是 'value' 和 'count' 或传递正确的列名
-            # 重命名 Pandas DF 列以匹配 log_value_counts 预期 (或修改 log_value_counts)
-            counts_pd_renamed = counts_pd.rename(
-                columns={col: "value", "count": "计数"})
-            # top_n controls logging limit
-            log_value_counts(counts_pd_renamed, col,
-                             top_n=top_n, is_already_counts=True)
 
-            # 绘图 (plot_categorical_distribution 接收 Pandas Series 或 DF)
-            if plot:
-                logger.info(f"绘制列: {col}")
-                # 将 Pandas DF 转换为 Series (value 作为 index, count 作为 values) 以便绘图
-                # Only plot the actual top N
-                counts_series_top_n = counts_pd.set_index(
-                    col)['count'].head(top_n)
-                if counts_series_top_n.empty:
-                    logger.warning(f"列 '{col}' 的 Top {top_n} 计数为空，跳过绘图。")
-                    continue
+                plt.figure(figsize=(12, 6))
+                # Ensure the column used for labels is treated as string for plotting
+                sns.barplot(x=plot_data[col].astype(str), y=plot_data['count'], palette='viridis', order=plot_data[col].astype(str).tolist())
+                plt.title(title)
+                plt.xlabel(col)
+                plt.ylabel('数量')
+                plt.xticks(rotation=45, ha='right')
+                plt.tight_layout()
+                plot_filename = plots_dir / f"weather_dist_{col}.png"
+                plt.savefig(plot_filename)
+                plt.close()
+                logger.info(f"'{col}' 分布图已保存: {plot_filename}")
 
-                plot_categorical_distribution(
-                    counts_series_top_n,  # 传递 Top N Series
-                    col,
-                    f"weather_distribution_{col}",
-                    plots_dir,
-                    top_n=top_n,  # top_n controls plot limit
-                    title_prefix="Weather "
-                )
+            except Exception as e:
+                logger.exception(f"分析或绘制 Weather 分类列 '{col}' 时出错: {e}")
+        else:
+            logger.warning(f"在 Weather 数据中未找到分类列: {col}")
+    logger.info("--- 完成 Weather 分类特征分析 ---")
 
-        except Exception as e:
-            logger.exception(f"分析列 '{col}' 时出错: {e}")
 
-    logger.info("Weather 分类特征分析完成。")
+def analyze_weather_correlation(sdf_weather: DataFrame, plots_dir: str):
+    """
+    Calculates and plots the correlation matrix for numerical weather features using Spark.
+
+    Args:
+        sdf_weather: Spark DataFrame containing weather data.
+        plots_dir: Directory to save the plot.
+    """
+    logger.info("--- 分析 Weather 数值特征相关性 (Spark) ---")
+    try:
+        # Select only numerical columns suitable for correlation
+        # Exclude IDs, categorical codes, and potentially redundant features if needed
+        # Also exclude columns that might be all null or constant after filtering
+        numerical_cols = [
+            'temperature_2m', 'relative_humidity_2m', 'dew_point_2m',
+            'apparent_temperature', 'precipitation', 'rain', 'snowfall',
+            'snow_depth', 'pressure_msl', 'surface_pressure', 'cloud_cover',
+            'cloud_cover_low', 'cloud_cover_mid', 'cloud_cover_high',
+            'et0_fao_evapotranspiration', 'vapour_pressure_deficit',
+            'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
+            'soil_tepmerature_0_to_7cm', 'soil_moisture_0_to_7cm',
+            'sunshine_duration', 'direct_radiation', 'diffuse_radiation'
+        ]
+
+        # Filter out columns that are not present in the DataFrame
+        available_numerical_cols = [c for c in numerical_cols if c in sdf_weather.columns]
+
+        if len(available_numerical_cols) < 2:
+             logger.warning("数值列不足 (<2)，无法计算相关性矩阵。")
+             return
+
+        logger.info(f"计算以下列的相关性: {', '.join(available_numerical_cols)}")
+
+        # Assemble features into a vector column needed for Spark's Correlation
+        assembler = VectorAssembler(inputCols=available_numerical_cols, outputCol="features", handleInvalid="skip") # skip rows with nulls in any column
+        sdf_vector = assembler.transform(sdf_weather).select("features")
+
+        # Calculate Pearson correlation matrix using Spark MLlib
+        correlation_matrix_spark = Correlation.corr(sdf_vector, "features").head()
+        if correlation_matrix_spark is None:
+             logger.error("无法计算相关性矩阵 (Spark 返回 None)。可能是因为数据不足或全为无效值。")
+             return
+
+        corr_matrix_dense = correlation_matrix_spark[0].toArray() # Get the dense matrix
+
+        # Convert to Pandas DataFrame for plotting
+        corr_matrix_pd = pd.DataFrame(corr_matrix_dense, index=available_numerical_cols, columns=available_numerical_cols)
+
+        # Plot heatmap
+        plt.figure(figsize=(18, 15)) # Adjust size as needed
+        sns.heatmap(corr_matrix_pd, cmap='coolwarm', annot=False, fmt=".2f", linewidths=.5) # annot=False for cleaner look with many features
+        plt.title('天气数值特征相关性矩阵', fontsize=16)
+        plt.xticks(rotation=45, ha='right')
+        plt.yticks(rotation=0)
+        plt.tight_layout()
+        plot_filename = plots_dir / "weather_correlation_matrix.png"
+        plt.savefig(plot_filename)
+        plt.close()
+        logger.info(f"天气特征相关性热力图已保存: {plot_filename}")
+
+        # Log strong correlations (absolute value > threshold)
+        threshold = 0.8
+        strong_corrs = corr_matrix_pd.unstack().sort_values(ascending=False).drop_duplicates()
+        strong_corrs = strong_corrs[abs(strong_corrs) > threshold]
+        strong_corrs = strong_corrs[strong_corrs != 1.0] # Remove self-correlation
+
+        if not strong_corrs.empty:
+             logger.info(f"--- 强相关性 (|corr| > {threshold}) ---")
+             logger.info(strong_corrs.to_string())
+        else:
+            logger.info(f"未发现绝对值大于 {threshold} 的强相关性。")
+
+
+    except Exception as e:
+        logger.exception(f"分析 Weather 特征相关性时出错: {e}")
+    logger.info("--- 完成 Weather 数值特征相关性分析 ---")
 
 
 # --- 新增: analyze_weather_timeseries_sample ---

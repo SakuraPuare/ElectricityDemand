@@ -60,24 +60,13 @@ logger.info(f"图表目录: {plots_dir}")
 try:
     # 假设 load_datasets 已更新为返回 Spark DataFrames
     # Use the correct path if it moved
-    # from electricitydemand.eda.analyze_demand import (
-    #     analyze_demand_y_distribution,
-    #     # plot_demand_y_distribution is called internally by analyze_demand_y_distribution
-    #     analyze_demand_timeseries_sample,
-    # )
-    # # Metadata functions still work on Pandas DF
-    # from electricitydemand.eda.analyze_metadata import (
-    #     analyze_metadata_categorical,
-    #     plot_metadata_categorical,
-    #     analyze_metadata_numerical,
-    #     analyze_missing_locations,
-    # )
-    # from electricitydemand.eda.analyze_weather import (
-    #     analyze_weather_numerical,
-    #     analyze_weather_categorical,
-    #     analyze_weather_timeseries_sample, # Import the new function
-    # )
+    from electricitydemand.eda.analyze_demand import (  # plot_demand_y_distribution is called internally by analyze_demand_y_distribution
+        analyze_demand_timeseries_sample,
+        analyze_demand_y_distribution,
+    )
+
     # 需要导入 relationship analysis 和 metadata 相关函数，因为 weather analysis 依赖它们
+    # Metadata functions still work on Pandas DF
     from electricitydemand.eda.analyze_metadata import (
         analyze_metadata_categorical,
         analyze_metadata_numerical,
@@ -85,20 +74,25 @@ try:
         plot_metadata_categorical,
     )
     from electricitydemand.eda.analyze_relationships import (
-        # analyze_demand_vs_metadata,; analyze_demand_vs_location,; 保留这个
+        analyze_demand_vs_location,
+        analyze_demand_vs_metadata,
         analyze_demand_vs_weather,
     )
+    from electricitydemand.eda.analyze_time import (
+        analyze_datetime_features_spark,
+        analyze_timestamp_consistency,
+    )
+    from electricitydemand.eda.analyze_weather import (
+        analyze_weather_categorical,
+        analyze_weather_correlation,
+        analyze_weather_numerical,
+        analyze_weather_timeseries_sample,
+    )
+    from electricitydemand.eda.data_quality import (
+        check_duplicates_spark,
+        check_missing_values_spark,
+    )
     from electricitydemand.eda.load_data import load_datasets
-
-    # Comment out functions not yet migrated to Spark or removed
-    # from electricitydemand.eda.analyze_time import (
-    #     analyze_timestamp_consistency,
-    #     analyze_datetime_features_spark, # Assume this would be the Spark version
-    # )
-    # from electricitydemand.eda.data_quality import (
-    #     check_missing_values_spark, # Assume this would be the Spark version
-    #     check_duplicates_spark,      # Assume this would be the Spark version
-    # )
 except ImportError as e:
     logger.exception(f"Failed to import necessary EDA/ETL modules: {e}")
     sys.exit(1)
@@ -147,23 +141,24 @@ def run_all_eda():
         if sdf_demand is None or sdf_metadata is None or sdf_weather is None:
             raise ValueError("一个或多个数据集加载失败，请检查路径和文件。")
         logger.info("数据集加载成功。")
-        # Optional: Log schemas and counts
-        # logger.info("Demand Schema:")
-        # sdf_demand.printSchema()
-        # logger.info(f"Demand Count: {sdf_demand.count():,}")
-        # logger.info("Metadata Schema:")
-        # sdf_metadata.printSchema()
-        # logger.info(f"Metadata Count: {sdf_metadata.count():,}")
-        # logger.info("Weather Schema:")
-        # sdf_weather.printSchema()
-        # logger.info(f"Weather Count: {sdf_weather.count():,}")
+        # Optional: Log schemas and counts 
+        logger.info("Demand Schema:")
+        sdf_demand.printSchema()
+        logger.info(f"Demand Count: {sdf_demand.count():,}")
+        logger.info("Metadata Schema:")
+        sdf_metadata.printSchema()
+        logger.info(f"Metadata Count: {sdf_metadata.count():,}")
+        logger.info("Weather Schema:")
+        sdf_weather.printSchema()
+        logger.info(f"Weather Count: {sdf_weather.count():,}")
 
-        # --- 步骤 2: 单变量分析 (注释掉) ---
-        # logger.info("--- 步骤 2: 单变量分析 ---")
-        # logger.info("--- 开始 Demand 分析 (Spark) ---")
-        # analyze_demand_y_distribution(sdf_demand, plots_dir=plots_dir, sample_frac=0.005)
-        # analyze_demand_timeseries_sample(sdf_demand, plots_dir=plots_dir, n_samples=3)
-        # logger.info("--- 完成 Demand 分析 (Spark) ---")
+        # --- 步骤 2: 单变量分析  ---
+        logger.info("--- 步骤 2: 单变量分析 ---")
+        logger.info("--- 开始 Demand 分析 (Spark) ---")
+        # 假设这些函数已适配 Spark 或能处理 Spark DF
+        analyze_demand_y_distribution(sdf_demand, plots_dir=plots_dir, sample_frac=0.005)
+        analyze_demand_timeseries_sample(sdf_demand, plots_dir=plots_dir, n_samples=3)
+        logger.info("--- 完成 Demand 分析 (Spark) ---")
 
         # --- Metadata 分析 (仍然需要运行，因为 analyze_demand_vs_weather 需要 pdf_metadata) ---
         logger.info("--- 开始 Metadata 分析 (Spark DF -> Pandas DF) ---")
@@ -183,58 +178,69 @@ def run_all_eda():
             logger.exception("将 Metadata 转换为 Pandas 时出错。无法继续 Metadata 分析。")
             # Skip metadata analysis if conversion fails
             # pdf_metadata = None # Ensure it's None # Redundant
+            raise ValueError("Failed to convert Metadata to Pandas.") # Raise error if conversion fails
 
         if pdf_metadata is not None:
-            # 这部分分析可以注释掉，但转换必须进行
-            # analyze_metadata_categorical(pdf_metadata) # Log counts
-            # plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir) # Plot distributions
-            # analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir) # Analyze/Plot numerical
-            # analyze_missing_locations(pdf_metadata) # Analyze missing location info
-            logger.info("--- 完成 Metadata 转换 ---")
+            # 这部分分析取消注释
+            analyze_metadata_categorical(pdf_metadata) # Log counts
+            plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir) # Plot distributions
+            analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir) # Analyze/Plot numerical
+            analyze_missing_locations(pdf_metadata) # Analyze missing location info
+            logger.info("--- 完成 Metadata 分析 ---")
         else:
+            # This block should not be reached if the raise above works
             logger.error("Metadata 转换为 Pandas DataFrame 失败，无法进行后续分析。")
-            # Stop execution if metadata is needed
             raise ValueError("Failed to convert Metadata to Pandas.")
 
-        # --- Weather 分析 (注释掉) ---
-        # logger.info("--- 开始 Weather 分析 (Spark) ---")
-        # analyze_weather_numerical(sdf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
-        # analyze_weather_categorical(sdf_weather, plots_dir=plots_dir)
-        # analyze_weather_timeseries_sample(sdf_weather, n_samples=3)
-        # logger.info("--- 完成 Weather 分析 (Spark) ---")
+        # --- Weather 分析  ---
+        logger.info("--- 开始 Weather 分析 (Spark) ---")
+        # 假设这些函数已适配 Spark 或能处理 Spark DF
+        analyze_weather_numerical(sdf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
+        analyze_weather_categorical(sdf_weather, plots_dir=plots_dir)
+        analyze_weather_timeseries_sample(sdf_weather, plots_dir=plots_dir, n_samples=3)
+        analyze_weather_correlation(sdf_weather, plots_dir=plots_dir)
+        logger.info("--- 完成 Weather 分析 (Spark) ---")
 
-        # --- 步骤 3: 关系分析 (只运行 Demand vs Weather) ---
+        # --- 步骤 3: 关系分析 (全部运行) ---
         logger.info("--- 步骤 3: 关系分析 ---")
         if pdf_metadata is not None:  # Check again, though we raise error if it fails now
-            # --- Demand vs Metadata (Building Class) (注释掉) ---
-            # logger.info("--- 开始 Demand vs building_class 分析 (Spark->Pandas) ---")
-            # analyze_demand_vs_metadata(sdf_demand, pdf_metadata, target_col='building_class', plots_dir=plots_dir, sample_frac=0.001) # 0.1% sample
-            # logger.info("--- 完成 Demand vs building_class 分析 ---")
+            # --- Demand vs Metadata (Building Class)  ---
+            logger.info("--- 开始 Demand vs building_class 分析 (Spark->Pandas) ---")
+            analyze_demand_vs_metadata(sdf_demand, pdf_metadata, target_col='building_class', plots_dir=plots_dir, sample_frac=0.001)
+            logger.info("--- 完成 Demand vs building_class 分析 ---")
 
-            # --- Demand vs Metadata (Location) (注释掉) ---
-            # logger.info("--- 开始 Demand vs location 分析 (Spark->Pandas) ---")
-            # analyze_demand_vs_location(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5) # Top 5 locations, 0.1% sample
-            # logger.info("--- 完成 Demand vs location 分析 ---")
+            # --- Demand vs Metadata (Location)  ---
+            logger.info("--- 开始 Demand vs location 分析 (Spark->Pandas) ---")
+            analyze_demand_vs_location(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5)
+            logger.info("--- 完成 Demand vs location 分析 ---")
 
-            # --- Demand vs Weather (运行这个) ---
+            # --- Demand vs Weather (保持运行) ---
             logger.info(
                 "--- 开始 Demand vs Weather 分析 (Spark Join -> Pandas Collect) ---")
             analyze_demand_vs_weather(
                 sdf_demand, pdf_metadata, sdf_weather, spark, plots_dir, n_sample_ids=50)
             logger.info("--- 完成 Demand vs Weather 分析 ---")
         else:
-            logger.error("跳过关系分析，因为 Metadata Pandas DataFrame 不可用。")
+            logger.error("跳过关系分析，因为 Metadata Pandas DataFrame 不可用。") # Should not happen due to earlier check
 
-        # --- 步骤 4: 时间特征分析 (注释掉) ---
-        # logger.info("--- 步骤 4: 时间特征分析 (待实现 Spark 版本) ---")
-        # ... (所有内容注释掉) ...
+        # --- 步骤 4: 时间特征分析 ---
+        logger.info("--- 步骤 4: 时间特征分析 (Spark) ---")
+        analyze_timestamp_consistency(sdf_demand, sdf_weather)
+        analyze_datetime_features_spark(sdf_demand, plots_dir=plots_dir)
+        logger.info("--- 完成 时间特征分析 ---")
 
-        # --- 步骤 5: 数据质量检查总结 (注释掉) ---
-        # logger.info("--- 步骤 5: 数据质量检查总结 (待实现 Spark 版本) ---")
-        # ... (所有内容注释掉) ...
+        # --- 步骤 5: 数据质量检查总结 ---
+        logger.info("--- 步骤 5: 数据质量检查总结 (Spark) ---")
+        check_missing_values_spark(sdf_demand, "Demand")
+        check_missing_values_spark(sdf_metadata, "Metadata")
+        check_missing_values_spark(sdf_weather, "Weather")
+        check_duplicates_spark(sdf_demand, ["unique_id", "timestamp"], "Demand")
+        check_duplicates_spark(sdf_metadata, ["unique_id"], "Metadata")
+        check_duplicates_spark(sdf_weather, ["location_id", "timestamp"], "Weather")
+        logger.info("--- 完成 数据质量检查 ---")
 
         logger.info("=" * 40)
-        logger.info("=== EDA (仅 Demand vs Weather) 执行成功完成 ===")
+        logger.info("=== EDA (包含补充分析) 执行成功完成 ===") # Updated message
         logger.info("=" * 40)
 
     except Exception as e:
@@ -260,4 +266,4 @@ def run_all_eda():
 
 
 if __name__ == "__main__":
-    run_all_eda()
+    run_all_eda() # 取消注释以运行
