@@ -3,7 +3,6 @@ import os
 from loguru import logger # 提前导入 logger
 
 # --- 项目设置 (路径和日志) ---
-project_root = None
 try:
     # 尝试标准的相对导入 (当作为包运行时)
     if __package__ and __package__.startswith('src.'):
@@ -18,7 +17,7 @@ except (ImportError, ValueError, AttributeError, NameError):
     try:
         _script_path = os.path.abspath(__file__)
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(_script_path)))
-    except NameError: # 如果 __file__ 未定义 (例如, 交互式环境)
+    except NameError: # 如果 __file__ 未定义 (例如，交互式环境)
         project_root = os.getcwd()
 
     # 如果是直接运行，将项目根目录添加到 sys.path
@@ -32,8 +31,8 @@ except (ImportError, ValueError, AttributeError, NameError):
 log_prefix = os.path.splitext(os.path.basename(__file__))[0] # 从文件名自动获取前缀
 logs_dir = os.path.join(project_root, 'logs')
 setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir)
-logger.info(f"项目根目录: {project_root}")
-logger.info(f"日志目录: {logs_dir}")
+logger.info(f"项目根目录：{project_root}")
+logger.info(f"日志目录：{logs_dir}")
 
 # --- 标准模块导入 ---
 from datasets import load_dataset
@@ -46,7 +45,7 @@ DATASET_NAME = "EDS-lab/electricity-demand"
 CONFIGS = ["demand", "metadata", "weather"]
 # 使用 project_root 确保数据目录路径正确
 DATA_DIR = os.path.join(project_root, "data")
-logger.info(f"数据目录: {DATA_DIR}")
+logger.info(f"数据目录：{DATA_DIR}")
 
 
 # --- Helper Functions ---
@@ -84,7 +83,7 @@ def download_and_save_config(config_name: str, dataset_id: str, output_dir: str,
         overwrite: If True, always download and overwrite existing files.
     """
     output_filename = os.path.join(output_dir, f"{config_name}.parquet")
-    logger.info(f"--- 处理配置: {config_name} ---") # Changed comment to Chinese
+    logger.info(f"--- 处理配置：{config_name} ---") # Changed comment to Chinese
 
     # 检查文件是否存在，是否需要验证或覆盖
     if not overwrite and os.path.exists(output_filename):
@@ -131,12 +130,12 @@ def download_and_save_config(config_name: str, dataset_id: str, output_dir: str,
 def main():
     """主函数，下载所有数据集配置。"""
     logger.info(f"开始数据集下载流程 '{DATASET_NAME}'")
-    logger.info(f"目标目录: {DATA_DIR}")
+    logger.info(f"目标目录：{DATA_DIR}")
 
     try:
         # 确保数据目录存在
         os.makedirs(DATA_DIR, exist_ok=True)
-        logger.info(f"确保数据目录存在: {DATA_DIR}")
+        logger.info(f"确保数据目录存在：{DATA_DIR}")
 
         # 处理每个配置
         for config in CONFIGS:
