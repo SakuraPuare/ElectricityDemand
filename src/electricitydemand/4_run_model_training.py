@@ -1,16 +1,20 @@
 import sys
 import time
 from pathlib import Path
-import joblib  # 用于保存模型
+# import joblib  # 不再需要，使用 Spark MLlib 保存
 
 from loguru import logger
-import pandas as pd
-from sklearn.model_selection import train_test_split # 临时占位，后面会用时间分割
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, mean_absolute_error
-import lightgbm as lgb
+# import pandas as pd # 不再需要 Pandas DataFrame
+# from sklearn.model_selection import train_test_split # 使用 Spark 时间分割
+# from sklearn.linear_model import LinearRegression as SklearnLR # 重命名以区分
+# from sklearn.metrics import mean_squared_error, mean_absolute_error # 使用 MLlib 评估器
+# import lightgbm as lgb # 不再需要
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml.regression import LinearRegression, GBTRegressor
+from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.sql.types import NumericType # 用于识别数值列
 
 # --- 项目设置 ---
 try:
@@ -57,58 +61,69 @@ else:
 # ==                      Helper Functions                          ==
 # ======================================================================
 
-def time_based_split(df: pd.DataFrame, test_ratio: float = 0.2):
-    """按时间戳分割 Pandas DataFrame"""
-    logger.info(f"开始基于时间戳分割数据，测试集比例: {test_ratio:.1%}")
-    if 'timestamp' not in df.columns:
-        raise ValueError("DataFrame 中缺少 'timestamp' 列，无法进行时间分割。")
-    if not pd.api.types.is_datetime64_any_dtype(df['timestamp']):
-        logger.warning("Timestamp 列不是 datetime 类型，尝试转换...")
-        try:
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-        except Exception as e:
-            logger.error(f"转换 timestamp 列为 datetime 失败: {e}")
-            raise
+# 不再需要 Pandas 的时间分割函数
+# def time_based_split(df: pd.DataFrame, test_ratio: float = 0.2): ...
 
-    df_sorted = df.sort_values('timestamp').reset_index(drop=True)
-    split_index = int(len(df_sorted) * (1 - test_ratio))
+# 使用 MLlib 的评估器，不再需要这个函数
+# def evaluate_model(y_true, y_pred, model_name="Model"): ...
 
-    train_df = df_sorted.iloc[:split_index]
-    test_df = df_sorted.iloc[split_index:]
 
-    logger.info(f"训练集时间范围: {train_df['timestamp'].min()} -> {train_df['timestamp'].max()}")
-    logger.info(f"测试集时间范围: {test_df['timestamp'].min()} -> {test_df['timestamp'].max()}")
-    logger.info(f"训练集大小: {len(train_df):,} 行")
-    logger.info(f"测试集大小: {len(test_df):,} 行")
+def spark_time_based_split(sdf: SparkSession.DataFrame, timestamp_col: str = "timestamp", test_ratio: float = 0.2):
+    """按时间戳分割 Spark DataFrame"""
+    logger.info(f"开始基于时间戳 '{timestamp_col}' 分割 Spark DataFrame，测试集比例: {test_ratio:.1%}")
+    if timestamp_col not in sdf.columns:
+        raise ValueError(f"DataFrame 中缺少 '{timestamp_col}' 列，无法进行时间分割。")
 
-    return train_df, test_df
+    # 确保时间戳列是正确类型 (或者 Spark 能理解的排序类型)
+    # 如果已经是 TimestampType 则无需转换
 
-def evaluate_model(y_true, y_pred, model_name="Model"):
-    """计算并记录模型的评估指标"""
-    rmse = mean_squared_error(y_true, y_pred, squared=False)
-    mae = mean_absolute_error(y_true, y_pred)
-    logger.success(f"--- {model_name} 评估结果 ---")
-    logger.success(f"  均方根误差 (RMSE): {rmse:.4f}")
-    logger.success(f"  平均绝对误差 (MAE): {mae:.4f}")
-    logger.success("---------------------------")
-    return rmse, mae
+    # 找到分割点时间戳
+    # 注意：这里假设数据量可以接受计算分位数，如果极大，可能需要抽样估算
+    try:
+        split_timestamp = sdf.approxQuantile(timestamp_col, [1.0 - test_ratio], 0.01)[0] # 0.01 是相对误差
+        logger.info(f"计算得到的时间分割点: {split_timestamp}")
+    except Exception as e:
+        logger.error(f"计算时间分割点时出错: {e}. 尝试获取最大最小值进行估算。")
+        # 备选方案：按时间范围比例分割 (可能不太精确)
+        min_max_time = sdf.agg(F.min(timestamp_col).alias("min_t"), F.max(timestamp_col).alias("max_t")).first()
+        if not min_max_time or min_max_time["min_t"] is None or min_max_time["max_t"] is None:
+             raise ValueError("无法获取时间戳范围用于分割。")
+        total_duration = (min_max_time["max_t"] - min_max_time["min_t"]).total_seconds()
+        split_timestamp = min_max_time["min_t"] + F.expr(f"INTERVAL {int(total_duration * (1 - test_ratio))} SECONDS")
+        logger.info(f"备选方案 - 估算的时间分割点: {split_timestamp}")
+
+
+    train_sdf = sdf.filter(F.col(timestamp_col) < split_timestamp)
+    test_sdf = sdf.filter(F.col(timestamp_col) >= split_timestamp)
+
+    # 记录分割后的大小 (可能需要触发计算)
+    # train_count = train_sdf.count()
+    # test_count = test_sdf.count()
+    # logger.info(f"分割后 - 训练集行数: {train_count:,}")
+    # logger.info(f"分割后 - 测试集行数: {test_count:,}")
+    # 为避免不必要的 count()，暂时注释掉，可以在需要时取消注释
+
+    logger.info("Spark DataFrame 时间分割完成。")
+    return train_sdf, test_sdf
+
 
 # ======================================================================
 # ==                   Main Execution Function                      ==
 # ======================================================================
 
-def run_model_training():
-    """加载特征数据，训练模型，评估并保存模型"""
+def run_model_training_spark():
+    """使用 Spark MLlib 加载特征数据，训练模型，评估并保存模型"""
     logger.info("=====================================================")
-    logger.info("=== 开始执行 模型训练脚本 ===")
+    logger.info("=== 开始执行 Spark MLlib 模型训练脚本 ===")
     logger.info("=====================================================")
     start_run_time = time.time()
     spark = None
 
     try:
-        # --- 创建 SparkSession (仅用于加载数据) ---
-        logger.info("创建 SparkSession (用于加载数据)...")
-        spark = create_spark_session(app_name="ElectricityDemandModelTrainingLoader")
+        # --- 创建 SparkSession ---
+        logger.info("创建 SparkSession...")
+        # 可能需要根据集群调整配置
+        spark = create_spark_session(app_name="ElectricityDemandSparkMLTraining")
         logger.info("SparkSession 创建成功。")
 
         # --- 步骤 1: 加载特征数据 ---
@@ -117,105 +132,136 @@ def run_model_training():
         logger.info("特征数据加载成功。")
         logger.info("Schema:")
         sdf.printSchema()
-        row_count = sdf.count()
-        logger.info(f"数据总行数: {row_count:,}")
+        # row_count = sdf.count() # 避免立即计算全量 count
+        # logger.info(f"数据总行数: {row_count:,}") # 可以在需要时取消注释
 
-        # --- 步骤 2: 转换为 Pandas DataFrame ---
-        # 注意：如果数据量非常大，直接 toPandas() 可能导致 Driver OOM
-        # 对于大数据集，需要考虑分布式训练 (Spark MLlib) 或采样后转 Pandas
-        logger.info("--- 步骤 2: 将 Spark DataFrame 转换为 Pandas DataFrame ---")
-        if row_count > 10_000_000: # 设置一个阈值，超过则警告
-             logger.warning(f"数据行数 ({row_count:,}) 较多，转换为 Pandas 可能需要大量内存并耗时较长！")
-        start_pandas_conv = time.time()
-        pdf = sdf.toPandas()
-        end_pandas_conv = time.time()
-        logger.info(f"转换为 Pandas DataFrame 耗时: {end_pandas_conv - start_pandas_conv:.2f} 秒")
-        logger.info(f"Pandas DataFrame 内存占用: {pdf.memory_usage(deep=True).sum() / (1024**3):.2f} GB") # 估算内存占用
-
-        # --- 步骤 3: 数据预处理和分割 ---
-        logger.info("--- 步骤 3: 数据预处理和时间分割 ---")
-        # 选择特征列 (排除非特征列和目标列)
-        # 假设 'y' 是目标列, 'unique_id', 'timestamp' 不是特征
-        exclude_cols = ['y', 'unique_id', 'timestamp', 'location_id'] # 可能还有其他非数值列
-        # 动态选择特征列，排除非数值类型和上面指定的列
-        feature_cols = [c for c in pdf.columns if c not in exclude_cols and pd.api.types.is_numeric_dtype(pdf[c])]
+        # --- 步骤 2: 特征准备 ---
+        logger.info("--- 步骤 2: 特征准备 (VectorAssembler) ---")
         target_col = 'y'
+        # 排除非特征列和目标列
+        exclude_cols = [target_col, 'unique_id', 'timestamp', 'location_id']
+        # 动态识别数值类型的特征列
+        numeric_feature_cols = [f.name for f in sdf.schema.fields if isinstance(f.dataType, NumericType) and f.name not in exclude_cols]
 
-        if not feature_cols:
-             logger.error("未能自动识别任何数值类型的特征列！请检查数据和 exclude_cols 设置。")
-             raise ValueError("No numeric feature columns found.")
+        if not numeric_feature_cols:
+            logger.error("未能自动识别任何数值类型的特征列！请检查数据和 exclude_cols 设置。")
+            raise ValueError("No numeric feature columns found.")
 
-        logger.info(f"选定的特征列 ({len(feature_cols)}): {feature_cols[:5]}...{feature_cols[-5:]}") # 显示部分特征名
+        logger.info(f"识别出的数值特征列 ({len(numeric_feature_cols)}): {numeric_feature_cols[:5]}...{numeric_feature_cols[-5:]}")
         logger.info(f"目标列: {target_col}")
 
-        # 按时间分割
-        train_pdf, test_pdf = time_based_split(pdf, test_ratio=0.2)
+        assembler = VectorAssembler(
+            inputCols=numeric_feature_cols,
+            outputCol="features",
+            handleInvalid="skip" # 或 'keep', 'error' - 处理特征中的无效值 (NaN, Null)
+        )
 
-        X_train = train_pdf[feature_cols]
-        y_train = train_pdf[target_col]
-        X_test = test_pdf[feature_cols]
-        y_test = test_pdf[target_col]
+        # 应用 VectorAssembler (这是一个转换操作，延迟执行)
+        sdf_assembled = assembler.transform(sdf)
+        logger.info("特征已合并到 'features' 列。")
+        # 选择后续需要的列，减少数据量
+        sdf_final = sdf_assembled.select('timestamp', 'features', F.col(target_col).alias('label')) # MLlib 通常需要目标列名为 'label'
+        logger.info("已选择 'timestamp', 'features', 'label' 列。")
+
+
+        # --- 步骤 3: 时间分割 ---
+        logger.info("--- 步骤 3: 基于时间戳分割数据 ---")
+        train_sdf, test_sdf = spark_time_based_split(sdf_final, timestamp_col='timestamp', test_ratio=0.2)
+
+        # 可选: 缓存训练集和测试集以加速后续模型训练（如果内存允许）
+        # train_sdf.persist(StorageLevel.MEMORY_AND_DISK)
+        # test_sdf.persist(StorageLevel.MEMORY_AND_DISK)
+        # logger.info("训练集和测试集已缓存。")
+
 
         # --- 步骤 4: 训练和评估模型 ---
-        logger.info("--- 步骤 4: 训练和评估模型 ---")
+        logger.info("--- 步骤 4: 训练和评估 Spark MLlib 模型 ---")
 
-        # --- 4.1: 线性回归 (基线) ---
-        logger.info("--- 开始训练 线性回归 模型 ---")
+        # 定义评估器
+        evaluator_rmse = RegressionEvaluator(labelCol="label", predictionCol="prediction", metricName="rmse")
+        evaluator_mae = RegressionEvaluator(labelCol="label", predictionCol="prediction", metricName="mae")
+
+        # --- 4.1: 线性回归 (MLlib) ---
+        logger.info("--- 开始训练 MLlib 线性回归 模型 ---")
         start_lr = time.time()
-        lr_model = LinearRegression()
-        lr_model.fit(X_train, y_train)
+        lr = LinearRegression(featuresCol='features', labelCol='label')
+        lr_model = lr.fit(train_sdf)
         end_lr = time.time()
-        logger.info(f"线性回归训练耗时: {end_lr - start_lr:.2f} 秒")
+        logger.info(f"MLlib 线性回归训练耗时: {end_lr - start_lr:.2f} 秒")
 
         # 评估
-        y_pred_lr = lr_model.predict(X_test)
-        evaluate_model(y_test, y_pred_lr, "线性回归")
+        logger.info("评估 MLlib 线性回归模型...")
+        lr_predictions = lr_model.transform(test_sdf)
+        lr_rmse = evaluator_rmse.evaluate(lr_predictions)
+        lr_mae = evaluator_mae.evaluate(lr_predictions)
+        logger.success(f"--- MLlib 线性回归 评估结果 ---")
+        logger.success(f"  均方根误差 (RMSE): {lr_rmse:.4f}")
+        logger.success(f"  平均绝对误差 (MAE): {lr_mae:.4f}")
+        logger.success("---------------------------------")
 
         # 保存模型
-        lr_model_path = models_dir / "linear_regression_model.joblib"
-        joblib.dump(lr_model, lr_model_path)
-        logger.info(f"线性回归模型已保存到: {lr_model_path}")
+        lr_model_path = models_dir / "mllib_linear_regression_model"
+        lr_model.write().overwrite().save(str(lr_model_path)) # MLlib 模型保存为目录
+        logger.info(f"MLlib 线性回归模型已保存到: {lr_model_path}")
 
 
-        # --- 4.2: LightGBM ---
-        logger.info("--- 开始训练 LightGBM 模型 ---")
-        start_lgb = time.time()
-        lgb_model = lgb.LGBMRegressor(random_state=42, n_jobs=-1) # 使用所有可用核心
-        # 可以添加 early_stopping_rounds 来防止过拟合，需要一个验证集
-        # 这里我们先在整个训练集上训练，在测试集上评估
-        lgb_model.fit(X_train, y_train)
-        end_lgb = time.time()
-        logger.info(f"LightGBM 训练耗时: {end_lgb - start_lgb:.2f} 秒")
+        # --- 4.2: GBT 回归 (MLlib) ---
+        logger.info("--- 开始训练 MLlib GBT 回归 模型 ---")
+        start_gbt = time.time()
+        gbt = GBTRegressor(featuresCol='features', labelCol='label', seed=42) # 可添加 maxIter, maxDepth 等参数
+        gbt_model = gbt.fit(train_sdf)
+        end_gbt = time.time()
+        logger.info(f"MLlib GBT 回归训练耗时: {end_gbt - start_gbt:.2f} 秒")
 
         # 评估
-        y_pred_lgb = lgb_model.predict(X_test)
-        evaluate_model(y_test, y_pred_lgb, "LightGBM")
+        logger.info("评估 MLlib GBT 回归模型...")
+        gbt_predictions = gbt_model.transform(test_sdf)
+        gbt_rmse = evaluator_rmse.evaluate(gbt_predictions)
+        gbt_mae = evaluator_mae.evaluate(gbt_predictions)
+        logger.success(f"--- MLlib GBT 回归 评估结果 ---")
+        logger.success(f"  均方根误差 (RMSE): {gbt_rmse:.4f}")
+        logger.success(f"  平均绝对误差 (MAE): {gbt_mae:.4f}")
+        logger.success("-----------------------------")
 
         # 保存模型
-        lgb_model_path = models_dir / "lightgbm_model.joblib"
-        joblib.dump(lgb_model, lgb_model_path)
-        logger.info(f"LightGBM 模型已保存到: {lgb_model_path}")
+        gbt_model_path = models_dir / "mllib_gbt_regression_model"
+        gbt_model.write().overwrite().save(str(gbt_model_path))
+        logger.info(f"MLlib GBT 回归模型已保存到: {gbt_model_path}")
 
-        # --- (可选) 步骤 5: 特征重要性分析 (LightGBM) ---
-        if hasattr(lgb_model, 'feature_importances_'):
-            logger.info("--- LightGBM 特征重要性 ---")
-            feature_importance_df = pd.DataFrame({
-                'feature': feature_cols,
-                'importance': lgb_model.feature_importances_
-            }).sort_values('importance', ascending=False)
-            logger.info(f"\nTop 10 Features:\n{feature_importance_df.head(10)}")
-            # 可以将完整的重要性保存到文件
-            importance_path = plots_dir / "lgbm_feature_importance.csv"
-            feature_importance_df.to_csv(importance_path, index=False)
-            logger.info(f"特征重要性已保存到: {importance_path}")
+        # --- (可选) 步骤 5: 特征重要性分析 (GBT) ---
+        if hasattr(gbt_model, 'featureImportances'):
+             logger.info("--- MLlib GBT 特征重要性 ---")
+             # 注意：MLlib 的 featureImportances 是一个 SparseVector 或 DenseVector
+             # 需要与 numeric_feature_cols 对应起来
+             importances = gbt_model.featureImportances.toArray() # 转为 numpy array
+             if len(importances) == len(numeric_feature_cols):
+                 feature_importance_list = sorted(zip(numeric_feature_cols, importances), key=lambda x: x[1], reverse=True)
+                 logger.info("Top 10 Features:")
+                 for feature, importance in feature_importance_list[:10]:
+                     logger.info(f"  {feature}: {importance:.4f}")
+                 # 可以将完整的重要性保存到文件
+                 # import pandas as pd # 临时导入 pandas 用于保存 csv
+                 # importance_df = pd.DataFrame(feature_importance_list, columns=['feature', 'importance'])
+                 # importance_path = plots_dir / "mllib_gbt_feature_importance.csv"
+                 # importance_df.to_csv(importance_path, index=False)
+                 # logger.info(f"特征重要性已保存到: {importance_path}")
+             else:
+                 logger.warning("特征重要性向量长度与特征列数量不匹配，无法显示名称。")
+                 logger.warning(f"重要性向量: {importances}")
+
+
+        # 可选: 解除缓存
+        # train_sdf.unpersist()
+        # test_sdf.unpersist()
+        # logger.info("训练集和测试集已解除缓存。")
 
 
         logger.info("=====================================================")
-        logger.info("===         模型训练脚本 执行完毕         ===")
+        logger.info("===      Spark MLlib 模型训练脚本 执行完毕      ===")
         logger.info("=====================================================")
 
     except Exception as e:
-        logger.critical(f"模型训练过程中发生严重错误: {e}")
+        logger.critical(f"Spark MLlib 模型训练过程中发生严重错误: {e}")
         logger.exception("Traceback:")
     finally:
         if spark:
@@ -228,11 +274,12 @@ def run_model_training():
 
         end_run_time = time.time()
         logger.info(
-            f"--- 模型训练脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+            f"--- Spark MLlib 模型训练脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
 
 if __name__ == "__main__":
     try:
-        run_model_training()
+        # 重命名主函数调用
+        run_model_training_spark()
     except Exception as e:
         # 主函数已有详细日志记录
         sys.exit(1)

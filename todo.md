@@ -67,3 +67,31 @@
 1.  **重新运行 `3_run_feature_engineering.py` (全量数据)** 并密切监控 Spark UI 和日志。
 2.  如果成功，继续特征工程：分类特征编码。
 3.  如果仍然失败，分析 Spark UI 和日志（特别是 OOM 的 Heap Dump 文件，如果生成了的话），可能需要进一步调整配置或优化代码逻辑。
+
+## 当前任务
+
+*   **模型训练 (进行中):**
+    *   **问题:** 当前使用 `toPandas()` 将大数据集加载到 Driver 内存，导致潜在的内存溢出。
+    *   **方案:** 重构 `4_run_model_training.py`，使用 Spark MLlib 进行分布式模型训练，以处理大规模数据集。
+    *   **待确认:** 用户确认是否采用 Spark MLlib 方案。
+
+## 下一步任务 (待定)
+
+*   **Spark MLlib 重构:**
+    *   移除 `toPandas()`。
+    *   实现 `VectorAssembler` 特征准备。
+    *   实现基于 Spark DataFrame 的时间分割。
+    *   替换 Scikit-learn/LightGBM 模型为 Spark MLlib 模型 (`LinearRegression`, `GBTRegressor`)。
+    *   替换评估逻辑为 Spark MLlib `RegressionEvaluator`。
+    *   替换模型保存/加载逻辑为 Spark MLlib 格式。
+*   **模型评估与分析:** 分析 MLlib 模型的性能和特征重要性 (如果 GBT 支持)。
+*   **(可选) 超参数调优:** 使用 Spark MLlib 的 `CrossValidator` 或 `TrainValidationSplit` 进行超参数搜索。
+
+## 已完成任务
+
+*   ~~环境设置和库安装~~
+*   ~~数据加载与初步探索 (0_setup_and_load.py)~~
+*   ~~数据概览与质量检查 (1_explore_data_quality.py)~~
+*   ~~数据分析与可视化 (2_analyze_data.py)~~
+*   ~~特征工程 (3_feature_engineering.py)~~
+*   ~~模型训练脚本基础框架 (4_run_model_training.py - 初始 Pandas 版本)~~
