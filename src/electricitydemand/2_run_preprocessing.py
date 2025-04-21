@@ -7,8 +7,9 @@ from loguru import logger
 # Determine project root dynamically
 try:
     _script_path = os.path.abspath(__file__)
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(_script_path)))
-except NameError: # If __file__ is not defined (e.g., interactive)
+    project_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(_script_path)))
+except NameError:  # If __file__ is not defined (e.g., interactive)
     project_root = os.getcwd()
     # Add project root to path if running interactively might be needed
     if project_root not in sys.path:
@@ -27,7 +28,8 @@ except ImportError:
     logger.add(sys.stderr, level="INFO")
     logger.warning("Using basic stderr logging due to import error.")
 
-log_prefix = os.path.splitext(os.path.basename(__file__))[0] # Use run_preprocessing as prefix
+log_prefix = os.path.splitext(os.path.basename(__file__))[
+    0]  # Use run_preprocessing as prefix
 logs_dir = os.path.join(project_root, 'logs')
 os.makedirs(logs_dir, exist_ok=True)
 
@@ -46,11 +48,13 @@ logger.info(f"数据目录：{data_dir}")
 
 # --- 导入所需函数 ---
 try:
-    from electricitydemand.eda.load_data import load_demand_data # Need the loader
-    from electricitydemand.preprocessing import resample_demand_to_hourly, validate_resampling # Import preprocessing functions
+    from electricitydemand.eda.load_data import load_demand_data  # Need the loader
+    # Import preprocessing functions
+    from electricitydemand.preprocessing import resample_demand_to_hourly, validate_resampling
 except ImportError as e:
     logger.exception(f"Failed to import necessary modules: {e}")
     sys.exit(1)
+
 
 def run_demand_resampling():
     """Loads demand data and resamples it to hourly frequency."""
@@ -63,8 +67,8 @@ def run_demand_resampling():
     ddf_demand = load_demand_data(demand_path)
 
     if ddf_demand is None:
-         logger.error("未能加载 Demand 数据文件。终止处理。")
-         return # Exit the function
+        logger.error("未能加载 Demand 数据文件。终止处理。")
+        return  # Exit the function
 
     # --- 数据预处理：重采样 ---
     logger.info("--- 步骤 2: Demand 数据重采样 ---")
@@ -73,7 +77,8 @@ def run_demand_resampling():
     # --- 验证重采样结果 ---
     if ddf_demand_hourly is not None:
         logger.info("--- 步骤 3: 验证重采样结果 ---")
-        validate_resampling(ddf_demand_hourly, n_check=10) # Check first 10 records
+        # Check first 10 records
+        validate_resampling(ddf_demand_hourly, n_check=10)
 
         # --- (可选) 保存重采样后的数据 ---
         output_path = os.path.join(data_dir, "demand_hourly.parquet")
@@ -89,14 +94,14 @@ def run_demand_resampling():
     else:
         logger.error("Demand 数据重采样失败，无法进行验证或保存。")
 
-
     logger.info("=========================================")
     logger.info("===     Demand 数据重采样脚本执行完毕   ===")
     logger.info("=========================================")
+
 
 if __name__ == "__main__":
     try:
         run_demand_resampling()
     except Exception as e:
         logger.exception(f"执行过程中发生错误：{e}")
-        sys.exit(1) 
+        sys.exit(1)

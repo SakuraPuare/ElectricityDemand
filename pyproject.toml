@@ -18,6 +18,7 @@ dependencies = [
     "pyspark>=3.5.5",
     "setuptools>=79.0.0",
     "psutil>=7.0.0",
+    "dask>=2025.3.0",
 ]
 readme = "README.md"
 requires-python = "== 3.12"
@@ -28,7 +29,9 @@ build-backend = "hatchling.build"
 
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "autopep8>=2.3.2",
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true
