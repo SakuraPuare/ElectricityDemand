@@ -3,6 +3,7 @@ import os
 # 移除 dask 和 pandas 的导入 (如果不再直接使用它们加载)
 # import dask.dataframe as dd
 # import pandas as pd
+import pandas as pd # Pandas 仍然需要用于 Metadata 分析和部分绘图
 from loguru import logger
 # 引入 Spark
 from pyspark.sql import SparkSession
@@ -48,18 +49,17 @@ logger.info(f"项目根目录: {project_root}")
 logger.info(f"日志目录: {logs_dir}")
 logger.info(f"图表目录: {plots_dir}")
 
-# --- 数据文件路径 ---
-data_dir = os.path.join(project_root, "data")
-demand_path = os.path.join(data_dir, "demand.parquet")
-metadata_path = os.path.join(data_dir, "metadata.parquet")
-weather_path = os.path.join(data_dir, "weather.parquet")
-logger.info(f"数据目录: {data_dir}")
 
-# --- 导入分析函数 (需要后续迁移) ---
+# --- 数据文件路径 ---
+data_dir = os.path.join(project_root, "data") # 使用 project_root 确保路径正确
+demand_path = os.path.join(data_dir, "demand_converted.parquet")
+metadata_path = os.path.join(data_dir, "metadata.parquet")
+weather_path = os.path.join(data_dir, "weather_converted.parquet")
+logger.info(f"数据目录：{data_dir}")
+# --- 导入分析函数 ---
 try:
-    # 修改导入: load_datasets 现在需要 SparkSession
+    # 导入已修改/确认的函数
     from electricitydemand.eda.load_data import load_datasets
-    # 其他分析函数暂时保持，但需要迁移才能使用 Spark DataFrame
     from electricitydemand.eda.analyze_demand import (
         analyze_demand_y_distribution,
         plot_demand_y_distribution,
@@ -71,11 +71,11 @@ try:
         analyze_metadata_numerical,
         analyze_missing_locations,
     )
-    from electricitydemand.eda.analyze_weather import (
+    from electricitydemand.eda.analyze_weather import ( # 已迁移
         analyze_weather_numerical,
         analyze_weather_categorical,
     )
-    from electricitydemand.eda.analyze_relationships import (
+    from electricitydemand.eda.analyze_relationships import ( # 已迁移
         analyze_demand_vs_metadata,
         analyze_demand_vs_location,
         analyze_demand_vs_weather,
@@ -95,123 +95,125 @@ def run_all_eda():
     try:
         # --- 创建 SparkSession ---
         logger.info("创建 SparkSession...")
+        # 增加一些常用配置，特别是针对 Parquet 时间戳的处理
         spark = SparkSession.builder \
-            .appName("ElectricityDemand_EDA") \
+            .appName("ElectricityDemand_EDA_Spark") \
             .master("local[*]") \
-            .config("spark.driver.memory", "4g") \
+            .config("spark.driver.memory", "8g") \
             .config("spark.executor.memory", "4g") \
             .config("spark.sql.parquet.int96RebaseModeInRead", "CORRECTED") \
             .config("spark.sql.parquet.int96RebaseModeInWrite", "CORRECTED") \
             .config("spark.sql.parquet.datetimeRebaseModeInRead", "CORRECTED") \
             .config("spark.sql.parquet.datetimeRebaseModeInWrite", "CORRECTED") \
-            .config("spark.sql.parquet.int64AsTimestampNanos", "true") \
+            .config("spark.sql.execution.arrow.pyspark.enabled", "true") \
             .getOrCreate()
         logger.info("SparkSession 创建成功。")
         logger.info(f"Spark Web UI: {spark.sparkContext.uiWebUrl}")
 
         # --- 加载数据 (使用 Spark) ---
         logger.info("--- 步骤 1: 加载数据 (Spark) ---")
-        # 调用更新后的 load_datasets 函数，传入 SparkSession
-        ddf_demand, ddf_metadata, ddf_weather = load_datasets(spark)
+        # 调用更新后的 load_datasets 函数，传入 SparkSession 和路径
+        sdf_demand, sdf_metadata, sdf_weather = load_datasets(spark, demand_path, metadata_path, weather_path)
 
         # Check if data loading was successful
-        if ddf_demand is None or ddf_metadata is None or ddf_weather is None:
+        if sdf_demand is None or sdf_metadata is None or sdf_weather is None:
             logger.error("未能加载所有必需的数据文件。终止 EDA。")
             return # Exit the function
 
-        # --- 缓存常用的 DataFrame (可选，如果内存允许) ---
-        # logger.info("缓存 Demand 和 Weather DataFrame 以加速后续操作...")
-        # ddf_demand.cache()
-        # ddf_weather.cache()
-        # ddf_demand.count() # 触发缓存计算
-        # ddf_weather.count() # 触发缓存计算
-        # logger.info("DataFrame 缓存完成。")
+        # --- 单变量分析 ---
+        logger.info("--- 步骤 2: 单变量分析 ---")
 
-        # --- 单变量分析 (需要迁移) ---
-        logger.info("--- 步骤 2: 单变量分析 (需要迁移到 Spark) ---")
+        # Demand 分析 (使用 Spark DF)
+        logger.info("--- 开始 Demand 分析 (Spark) ---")
+        # 调用 analyze_demand_y_distribution (已迁移, 接收 Spark DF, 返回 Pandas Series)
+        y_sample_pd = analyze_demand_y_distribution(sdf_demand, sample_frac=0.005)
+        if y_sample_pd is not None and not y_sample_pd.empty:
+             plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000) # 绘图接收 Pandas Series
+        else:
+             logger.warning("未能获取用于绘图的 Demand 'y' 样本数据。")
 
-        # Demand 'y' 分析 (需要迁移)
-        logger.info("--- 开始 Demand 'y' 分析 (待迁移) ---")
-        # 以下函数需要重写以接受 Spark DataFrame
-        # y_sample_pd = analyze_demand_y_distribution(ddf_demand, sample_frac=0.005)
-        # if y_sample_pd is not None and not y_sample_pd.empty:
-        #      plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000)
-        # analyze_demand_timeseries_sample(ddf_demand, n_samples=3, plots_dir=plots_dir)
-        logger.warning("Demand 'y' 分析函数尚未迁移到 Spark，将跳过。")
-        logger.info("--- 完成 Demand 'y' 分析 (跳过) ---")
+        # 调用 analyze_demand_timeseries_sample (已迁移, 接收 Spark DF)
+        analyze_demand_timeseries_sample(sdf_demand, n_samples=3, plots_dir=plots_dir)
+        logger.info("--- 完成 Demand 分析 (Spark) ---")
 
-        # Metadata 分析 (需要迁移)
-        # Metadata 数据量不大，可以考虑 collect 到 Pandas 进行分析
-        logger.info("--- 开始 Metadata 分析 (部分可使用 Pandas) ---")
+        # Metadata 分析 (将 Spark DF 转为 Pandas DF)
+        logger.info("--- 开始 Metadata 分析 (Spark DF -> Pandas DF) ---")
+        pdf_metadata = None
         try:
-            logger.info("将 Metadata Spark DataFrame 转换为 Pandas DataFrame (如果内存允许)...")
-            pdf_metadata = ddf_metadata.toPandas()
+            logger.info("将 Metadata Spark DataFrame 转换为 Pandas DataFrame...")
+            pdf_metadata = sdf_metadata.toPandas() # Action: Collects to driver
             logger.info(f"Metadata Pandas DataFrame 转换成功，形状: {pdf_metadata.shape}")
 
-            # 现在可以调用原来的基于 Pandas 的 Metadata 分析函数
+            # 调用基于 Pandas 的 Metadata 分析函数
             analyze_metadata_categorical(pdf_metadata)
             plot_metadata_categorical(pdf_metadata, plots_dir=plots_dir, top_n=10)
             analyze_metadata_numerical(pdf_metadata, plots_dir=plots_dir)
             analyze_missing_locations(pdf_metadata)
         except Exception as e:
-             logger.exception("将 Metadata 转换为 Pandas 或进行分析时出错。")
+             logger.exception("将 Metadata 转换为 Pandas 或进行分析时出错。检查驱动程序内存。")
              logger.warning("Metadata 分析函数 (基于 Pandas) 可能未完全执行。")
         logger.info("--- 完成 Metadata 分析 ---")
 
 
-        # Weather 分析 (需要迁移)
-        logger.info("--- 开始 Weather 分析 (待迁移) ---")
-        # 以下函数需要重写以接受 Spark DataFrame
-        # analyze_weather_numerical(ddf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
-        # analyze_weather_categorical(ddf_weather, plots_dir=plots_dir, top_n=15)
-        logger.warning("Weather 分析函数尚未迁移到 Spark，将跳过。")
-        logger.info("--- 完成 Weather 分析 (跳过) ---")
+        # Weather 分析 (调用已迁移的函数)
+        logger.info("--- 开始 Weather 分析 (Spark) ---")
+        analyze_weather_numerical(sdf_weather, plots_dir=plots_dir, plot_sample_frac=0.05)
+        analyze_weather_categorical(sdf_weather, plots_dir=plots_dir, top_n=15)
+        # logger.warning("Weather 分析函数待迁移，暂时跳过。") # 注释掉旧的警告
+        logger.info("--- 完成 Weather 分析 (Spark) ---")
 
 
-        # --- 关系分析 --- (需要迁移)
-        logger.info("--- 步骤 3: 关系分析 (待迁移) ---")
+        # --- 关系分析 --- (调用已迁移的函数)
+        logger.info("--- 步骤 3: 关系分析 ---")
 
-        # Demand vs Metadata (building_class) (需要迁移)
-        # logger.info("--- 开始 Demand vs building_class 分析 (待迁移) ---")
-        # analyze_demand_vs_metadata(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001) # pdf_metadata 已是 Pandas
-        # logger.info("--- 完成 Demand vs building_class 分析 (跳过) ---")
+        if pdf_metadata is not None: # 确保 Metadata Pandas DF 存在
+             # Demand vs Metadata (building_class)
+             logger.info("--- 开始 Demand vs building_class 分析 (Spark->Pandas) ---")
+             analyze_demand_vs_metadata(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001)
+             # logger.warning("Demand vs Metadata (building_class) 分析函数待迁移，暂时跳过。") # 注释掉旧的警告
+             logger.info("--- 完成 Demand vs building_class 分析 ---")
 
-        # Demand vs Metadata (location) (需要迁移)
-        # logger.info("--- 开始 Demand vs location 分析 (待迁移) ---")
-        # analyze_demand_vs_location(ddf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5) # pdf_metadata 已是 Pandas
-        # logger.info("--- 完成 Demand vs location 分析 (跳过) ---")
+             # Demand vs Metadata (location)
+             logger.info("--- 开始 Demand vs location 分析 (Spark->Pandas) ---")
+             analyze_demand_vs_location(sdf_demand, pdf_metadata, plots_dir=plots_dir, sample_frac=0.001, top_n=5)
+             # logger.warning("Demand vs Metadata (location) 分析函数待迁移，暂时跳过。") # 注释掉旧的警告
+             logger.info("--- 完成 Demand vs location 分析 ---")
 
-        # Demand vs Weather (需要迁移)
-        logger.info("--- 开始 Demand vs Weather 分析 (待迁移) ---")
-        # try:
-        #     analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=plots_dir, n_sample_ids=50) # pdf_metadata 已是 Pandas
-        # except Exception as e:
-        #      logger.error(f"Demand vs Weather 分析执行期间遇到问题: {e}")
-        logger.warning("Demand vs Weather 分析函数尚未迁移到 Spark，将跳过。")
-        logger.info("--- 完成 Demand vs Weather 分析 (跳过) ---")
+             # Demand vs Weather (需要传入 SparkSession)
+             logger.info("--- 开始 Demand vs Weather 分析 (Spark->Pandas Merge) ---")
+             analyze_demand_vs_weather(sdf_demand, pdf_metadata, sdf_weather, spark, plots_dir=plots_dir, n_sample_ids=50) # 传入 spark
+             # logger.warning("Demand vs Weather 分析函数待迁移，暂时跳过。") # 注释掉旧的警告
+             logger.info("--- 完成 Demand vs Weather 分析 ---")
+        else:
+             logger.error("Metadata Pandas DataFrame 未成功创建，跳过所有关系分析。")
 
 
         logger.info("=========================================")
-        logger.info("===     Spark EDA 脚本初步执行完毕     ===")
-        logger.info("(注意: 大部分分析函数需要迁移才能运行)")
+        logger.info("===       Spark EDA 脚本执行完毕       ===")
+        # logger.info("(注意: Weather 和 Relationships 分析函数需要迁移)") # 注释掉旧的警告
         logger.info("=========================================")
 
     except Exception as e:
-        logger.exception(f"执行过程中发生错误: {e}")
-        if spark: # 确保即使出错也尝试停止 Spark
-            logger.info("正在停止 SparkSession...")
-            spark.stop()
-        sys.exit(1)
+        logger.exception(f"执行过程中发生严重错误: {e}")
+        # Ensure Spark is stopped even on error
+        if spark:
+            logger.info("正在停止 SparkSession (因错误)...")
+            try:
+                spark.stop()
+            except Exception as stop_e:
+                logger.error(f"停止 SparkSession 时也发生错误: {stop_e}")
+        sys.exit(1) # Exit with error code
     finally:
+        # Ensure Spark is stopped in normal execution or after handled exception in try block
         if spark:
             logger.info("正在停止 SparkSession...")
-            spark.stop()
-            logger.info("SparkSession 已停止。")
+            try:
+                spark.stop()
+                logger.info("SparkSession 已停止。")
+            except Exception as stop_e:
+                 logger.error(f"停止 SparkSession 时发生错误: {stop_e}")
 
 
 if __name__ == "__main__":
-    try:
-        run_all_eda()
-    except Exception as e:
-        # logger 已在 run_all_eda 的 finally 中处理
-        pass # 避免重复打印
+    # try-except block here is less necessary as run_all_eda handles its exceptions
+    run_all_eda()

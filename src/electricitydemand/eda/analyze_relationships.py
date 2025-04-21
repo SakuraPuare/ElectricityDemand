@@ -1,12 +1,16 @@
 import pandas as pd
 import numpy as np
-import dask.dataframe as dd
+# 移除 Dask 导入
+# import dask.dataframe as dd
+# 引入 Spark 相关库
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
 import matplotlib.pyplot as plt
 import seaborn as sns
 from loguru import logger
 
 # 使用相对导入
-from ..utils.eda_utils import dask_compute_context, save_plot
+from ..utils.eda_utils import save_plot # 移除 dask_compute_context
 
 # Helper function moved and renamed (no longer internal)
 def merge_demand_metadata_sample(ddf_demand, pdf_metadata, metadata_cols, sample_frac, random_state):

@@ -1,13 +1,9 @@
 import os
-import contextlib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from loguru import logger
-from dask import persist
-from dask.distributed import Client, futures_of
-from distributed.client import Future # 检查 future 类型
 
 # --- 辅助函数 ---
 
@@ -65,20 +61,28 @@ def plot_categorical_distribution(data_pd_series, col_name, filename_base, plots
     fig, ax = plt.subplots(figsize=(12, 6))
 
     try:
-        value_counts = data_pd_series.value_counts(dropna=False) # Include NaN
+        # 如果输入已经是计算好的 counts (Series, index=value, value=count)
+        if isinstance(data_pd_series, pd.Series) and pd.api.types.is_numeric_dtype(data_pd_series):
+            value_counts = data_pd_series
+        # 如果输入是原始 Series
+        elif isinstance(data_pd_series, pd.Series):
+            value_counts = data_pd_series.value_counts(dropna=False) # Include NaN
+        else:
+            logger.error(f"Unsupported data type for categorical plot: {type(data_pd_series)}")
+            return
+
         num_unique = len(value_counts)
 
         if num_unique > top_n:
             logger.info(f"Column '{col_name}' has {num_unique} unique values, showing Top {top_n} and 'Others'.")
-            top_values = value_counts.head(top_n)
+            top_values = value_counts.head(top_n).copy() # Use copy to avoid modifying original
             other_count = value_counts.iloc[top_n:].sum()
             if other_count > 0:
                 others_label = 'Others'
                 others_series = pd.Series([other_count], index=[others_label])
-                if others_label in top_values.index: # Defensive check
+                if others_label in top_values.index:
                     top_values[others_label] += other_count
                 else:
-                    # Use pd.concat instead of direct assignment for pandas > 1.x
                     top_values = pd.concat([top_values, others_series])
             data_to_plot = top_values
             title = f'{title_prefix}Top {top_n} {col_name} Distribution'
@@ -90,15 +94,19 @@ def plot_categorical_distribution(data_pd_series, col_name, filename_base, plots
         plot_index = data_to_plot.index.astype(str)
         # Try sorting by original value (numeric or string), fallback to count order
         try:
-            # Ensure we use the original index for sorting, then convert to string
-            sort_order_index = data_to_plot.sort_index().index
+            # Use the index of the data *before* potential 'Others' addition for sorting basis
+            sort_basis_index = value_counts.index
+            sort_order_index = sort_basis_index.sort_values()
             sort_order = sort_order_index.astype(str)
-            # Filter plot_index to only include those in sort_order (handles 'Others')
+            # Filter plot_index to only include those in sort_order
             plot_index_ordered = [idx for idx in sort_order if idx in plot_index]
-            # Ensure 'Others' is last if it exists
-            if 'Others' in plot_index_ordered:
-                plot_index_ordered.remove('Others')
+            # Ensure 'Others' is last if it exists and was added
+            if 'Others' in plot_index and 'Others' not in sort_order:
+                if 'Others' in plot_index_ordered: # Should not happen if logic is right, but safety check
+                     plot_index_ordered.remove('Others')
                 plot_index_ordered.append('Others')
+            elif 'Others' in plot_index and 'Others' in sort_order: # If 'Others' was an original category
+                 pass # Keep its sorted position
 
         except TypeError: # Cannot sort mixed types or complex index
             logger.debug(f"Cannot sort index for '{col_name}' easily, using count order.")
@@ -126,52 +134,36 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
 
     # --- Existing logic to calculate dist_df and total_count ---
     if is_already_counts:
-        # ... (代码未改变) ...
-        if not isinstance(data, (pd.DataFrame, pd.Series)):
-             logger.error(f"当 is_already_counts=True 时，期望输入为 Pandas DataFrame/Series，但收到 {type(data)}")
+        # Expecting a Pandas DataFrame with value and count columns
+        if not isinstance(data, pd.DataFrame):
+             logger.error(f"当 is_already_counts=True 时，期望输入为 Pandas DataFrame，但收到 {type(data)}")
              return
+        # Assume the first column is the value and the second is the count
+        if len(data.columns) < 2:
+            logger.error("当 is_already_counts=True 时，输入的 DataFrame 至少需要两列 (值和计数)。")
+            return
         dist_df = data.copy()
-        # Try to infer count and percentage columns or require specific names
-        count_col = '计数' if '计数' in dist_df.columns else (dist_df.columns[0] if len(dist_df.columns) > 0 else None)
-        perc_col = '百分比 (%)' if '百分比 (%)' in dist_df.columns else None
-
-        if count_col is None:
-             logger.error("无法在已计数的 DataFrame 中找到计数列。")
-             return
+        value_col = dist_df.columns[0]
+        count_col = dist_df.columns[1]
+        # Rename for consistency
+        dist_df.columns = ['value', '计数'] # Rename to standard names
+        count_col = '计数' # Update count_col name
 
         total_count = dist_df[count_col].sum()
-        if perc_col is None and normalize and total_count > 0:
+        if normalize and total_count > 0:
             dist_df['百分比 (%)'] = (dist_df[count_col] / total_count * 100).round(2)
-            perc_col = '百分比 (%)'
-        elif perc_col is None:
-            dist_df['百分比 (%)'] = 0.0 # Default percentage if not calculable
-            perc_col = '百分比 (%)'
-        # Ensure columns exist for sorting
-        if count_col not in dist_df.columns or perc_col not in dist_df.columns:
-             logger.error(f"计数或百分比列 ('{count_col}', '{perc_col}') 在 DataFrame 中缺失。")
-             return
+        else:
+            dist_df['百分比 (%)'] = 0.0
 
-    elif isinstance(data, pd.Series):
-        # ... (代码未改变) ...
-        try:
-            # Pandas Series
-            value_counts = data.value_counts(dropna=False)
-            total_count = len(data) # More direct for Pandas
-            dist_df = pd.DataFrame({'计数': value_counts})
-            if normalize and total_count > 0:
-                 dist_df['百分比 (%)'] = (dist_df['计数'] / total_count * 100).round(2)
-            else:
-                 dist_df['百分比 (%)'] = 0.0
-        except Exception as e:
-            logger.error(f"计算 Pandas Series '{column_name}' 值计数时出错：{e}")
-            return
+        # Set index to the value column for consistent logging format
+        dist_df = dist_df.set_index('value')
+
 
     elif isinstance(data, (pd.Series, pd.Index)):
-         # ... (代码未改变) ...
          try:
              # Pandas Series or Index
-             value_counts = data.value_counts(dropna=False)
-             total_count = len(data) # More direct for Pandas
+             value_counts = data.value_counts(dropna=False) # Include NaNs
+             total_count = len(data) # Total count including NaNs
              dist_df = pd.DataFrame({'计数': value_counts})
              if normalize and total_count > 0:
                  dist_df['百分比 (%)'] = (dist_df['计数'] / total_count * 100).round(2)
@@ -180,6 +172,8 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
          except Exception as e:
              logger.error(f"计算 Pandas Series/Index '{column_name}' 值计数时出错：{e}")
              return
+    # Removed Dask Series case
+    # elif isinstance(data, dd.Series): ...
     else:
         logger.error(f"不支持的数据类型进行值计数：{type(data)} for column '{column_name}'")
         return
@@ -192,39 +186,22 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
          # Check for NaN values in the original data if applicable and not already done
          if isinstance(data, (pd.Series, pd.Index)) and not is_already_counts:
               nan_count = data.isnull().sum()
-              if nan_count > 0:
-                   logger.warning(f"列 '{column_name}' 包含 {nan_count} 个 NaN 值 ({nan_count/len(data)*100:.2f}%)。")
-              else:
+              if total_count > 0 and nan_count > 0:
+                   logger.warning(f"列 '{column_name}' 包含 {nan_count} 个 NaN 值 ({nan_count/total_count*100:.2f}%)。")
+              elif total_count > 0:
                    logger.info(f"列 '{column_name}' 不包含 NaN 值。")
-         elif isinstance(data, pd.Series) and not is_already_counts:
-              try:
-                   nan_count = data.isnull().sum()
-                   total_s = len(data)
-                   if total_s > 0 and nan_count > 0:
-                        logger.warning(f"列 '{column_name}' 包含 {nan_count} 个 NaN 值 ({nan_count/total_s*100:.2f}%)。")
-                   elif total_s > 0:
-                        logger.info(f"列 '{column_name}' 不包含 NaN 值。")
-                   else:
-                        logger.warning(f"无法计算 Pandas Series '{column_name}' 的大小。")
-
-              except Exception as e:
-                   logger.warning(f"检查 Pandas Series '{column_name}' 的 NaN 时出错：{e}")
-
+              else:
+                   logger.warning(f"无法计算 Pandas Series/Index '{column_name}' 的大小。")
+         # Removed Dask NaN check
          return # Exit if dist_df is None or empty
 
     # --- Sort by count descending ---
-    # Ensure '计数' column exists before sorting
-    count_col_name = '计数' if '计数' in dist_df.columns else (dist_df.columns[0] if len(dist_df.columns) > 0 else None)
-    if count_col_name:
-        try:
-            dist_df = dist_df.sort_values(by=count_col_name, ascending=False)
-        except Exception as e:
-            logger.error(f"按 '{count_col_name}' 列排序时出错：{e}\nDataFrame:\n{dist_df.head()}")
-            return # Stop if sorting fails
-    else:
-        logger.error("在 dist_df 中找不到用于排序的计数列。")
-        return
-
+    count_col_name = '计数' # Standardized name
+    try:
+        dist_df = dist_df.sort_values(by=count_col_name, ascending=False)
+    except Exception as e:
+        logger.error(f"按 '{count_col_name}' 列排序时出错：{e}\nDataFrame:\n{dist_df.head()}")
+        return # Stop if sorting fails
 
     # --- Handle top_n logic ---
     original_len = len(dist_df)
@@ -232,7 +209,6 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
     if top_n is not None and original_len > top_n:
         logger.info(f"列 '{column_name}' 唯一值过多 ({original_len})，仅显示 Top {top_n}。")
         display_df = dist_df.head(top_n)
-        # Note: Adding 'Others' row removed for simplicity, can be added back if needed carefully
         log_message = f"值分布 (Top {top_n}, 含 NaN):\n{display_df.to_string()}"
     else:
         # If top_n is None or len <= top_n, display all
@@ -243,56 +219,36 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
 
 
     # --- 检查 NaN 值 ---
-    # Check for NaN in the index of the counts DataFrame if normalization was done
-    # If dropna=False was used, NaN should appear as an index level
-    nan_present_in_index = pd.NA in display_df.index or None in display_df.index or np.nan in display_df.index
-    # More robust check across index types
+    # Check for NaN in the index of the counts DataFrame
+    nan_present_in_index = False
     try:
+        # Check if any index element is NaN using pd.isna()
         nan_present_in_index = any(pd.isna(idx) for idx in display_df.index)
     except TypeError: # Handle cases like multi-index where isna might fail directly
          logger.warning(f"无法直接检查列 '{column_name}' 值计数索引中的 NaN。")
-         nan_present_in_index = False # Assume no NaNs if check fails
-
 
     if nan_present_in_index:
          try:
-             nan_row = display_df.loc[[idx for idx in display_df.index if pd.isna(idx)]]
-             if not nan_row.empty:
-                 nan_count = nan_row['计数'].iloc[0] # Get count from the first NaN row found
-                 nan_perc = nan_row['百分比 (%)'].iloc[0] # Get percentage
+             # Select rows where the index is NaN
+             nan_rows = display_df[[pd.isna(idx) for idx in display_df.index]]
+             if not nan_rows.empty:
+                 # Assuming there's only one NaN category row
+                 nan_count = nan_rows['计数'].iloc[0]
+                 nan_perc = nan_rows['百分比 (%)'].iloc[0]
                  logger.warning(f"列 '{column_name}' 存在缺失值 (NaN)。数量：{nan_count}, 百分比：{nan_perc:.2f}%")
              else:
-                # This case should not happen if nan_present_in_index is True, but adding for safety
-                logger.info(f"列 '{column_name}' 值计数中未明确找到 NaN 行，尽管索引检查提示存在。")
+                 # This case should not happen if nan_present_in_index is True, but adding for safety
+                 logger.info(f"列 '{column_name}' 值计数中未明确找到 NaN 行，尽管索引检查提示存在。")
          except KeyError:
-            logger.warning(f"无法在列 '{column_name}' 的值计数中定位 NaN 行进行统计。")
+            logger.warning(f"无法在列 '{column_name}' 的值计数中定位 NaN 行进行统计 (KeyError)。")
          except Exception as e:
              logger.warning(f"检查列 '{column_name}' 的 NaN 统计时出错：{e}")
-
     else:
-        # Check original data if NaN wasn't in counts (e.g., if dropna=True was somehow used or data had no NaNs)
-        # This check might be redundant if already performed when dist_df was empty, but can be a fallback.
-        if not is_already_counts: # Only check original if we calculated counts
-            nan_in_original = False
-            original_nan_count = 0
-            original_total = 0
-            if isinstance(data, (pd.Series, pd.Index)):
-                 original_nan_count = data.isnull().sum()
-                 original_total = len(data)
-                 nan_in_original = original_nan_count > 0
-            elif isinstance(data, pd.Series):
-                try:
-                    original_nan_count = data.isnull().sum()
-                    original_total = len(data)
-                    nan_in_original = original_nan_count > 0
-                except Exception as e:
-                    logger.warning(f"检查原始 Pandas Series '{column_name}' 的 NaN 时出错：{e}")
-
-            if nan_in_original and original_total > 0:
-                 logger.warning(f"列 '{column_name}' 原始数据中发现 NaN，但在最终值计数中未显示。"
-                               f" 原始 NaN 数量：{original_nan_count}, 百分比：{original_nan_count/original_total*100:.2f}%")
-            elif not nan_in_original:
+         # If no NaN in index, still good to confirm no NaNs in original if counts were calculated
+         if not is_already_counts and isinstance(data, (pd.Series, pd.Index)):
+             if data.isnull().sum() == 0:
                  logger.info(f"列 '{column_name}' 值计数中未发现 NaN。")
+             # else: This case indicates NaNs were present but lost somehow, covered by earlier checks?
 
 
     # Log unique value count
@@ -301,46 +257,39 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
 
     logger.info("-" * 20) # Separator
 
-@contextlib.contextmanager
-def dask_compute_context(*dask_objects):
-    """上下文管理器，用于触发 Dask persist/compute 并尝试清理。"""
-    persisted_objects = []
-    try:
-        if dask_objects:
-            logger.debug(f"尝试持久化 {len(dask_objects)} 个 Dask 对象...")
-            # 注意：persist 返回新的对象列表
-            # 使用导入的 dask.persist 函数
-            persisted_objects = persist(*dask_objects)
-            logger.debug("Dask 对象持久化完成。")
-        yield persisted_objects # 返回持久化的对象供使用
-    finally:
-        if persisted_objects:
-            logger.debug("尝试释放 Dask 持久化对象...")
-            try:
-                # 检查是否有活动的客户端
-                with contextlib.suppress(RuntimeError, ImportError): # 忽略 'no client found' 和 Import Error
-                     client = Client.current() # 可能引发 RuntimeError
-                     # 收集所有的 Future 对象
-                     futures = []
-                     for obj in persisted_objects:
-                         # 对于 DataFrame 或 Series
-                         if hasattr(obj, 'dask'):
-                            futures.extend(futures_of(obj))
-                         # 如果直接传入 Future
-                         elif isinstance(obj, Future):
-                            futures.append(obj)
-
-                     if futures:
-                         logger.debug(f"找到 {len(futures)} 个 futures，尝试取消...")
-                         client.cancel(futures, force=True) # 强制取消
-                         logger.debug("取消 Futures 尝试完成。")
-                     else:
-                         logger.debug("未找到 Dask Futures 进行取消 (可能已完成或无 Client)。")
-
-            except ImportError:
-                # This case is now handled by the suppress above, but kept for clarity
-                logger.debug("未安装 dask.distributed，跳过显式内存清理。")
-            except Exception as e:
-                # Log other unexpected exceptions during cleanup
-                logger.warning(f"清理 Dask 内存时出现其他异常：{e}", exc_info=False)
-            logger.debug("Dask 上下文退出。") 
+# 移除 dask_compute_context
+# @contextlib.contextmanager
+# def dask_compute_context(*dask_objects):
+#    """上下文管理器，用于触发 Dask persist/compute 并尝试清理。"""
+#    persisted_objects = []
+#    try:
+#        if dask_objects:
+#            logger.debug(f"尝试持久化 {len(dask_objects)} 个 Dask 对象...")
+#            persisted_objects = persist(*dask_objects)
+#            logger.debug("Dask 对象持久化完成。")
+#        yield persisted_objects
+#    finally:
+#        if persisted_objects:
+#            logger.debug("尝试释放 Dask 持久化对象...")
+#            try:
+#                with contextlib.suppress(RuntimeError, ImportError):
+#                     client = Client.current()
+#                     futures = []
+#                     for obj in persisted_objects:
+#                         if hasattr(obj, 'dask'):
+#                            futures.extend(futures_of(obj))
+#                         elif isinstance(obj, Future):
+#                            futures.append(obj)
+#
+#                     if futures:
+#                         logger.debug(f"找到 {len(futures)} 个 futures，尝试取消...")
+#                         client.cancel(futures, force=True)
+#                         logger.debug("取消 Futures 尝试完成。")
+#                     else:
+#                         logger.debug("未找到 Dask Futures 进行取消 (可能已完成或无 Client)。")
+#
+#            except ImportError:
+#                logger.debug("未安装 dask.distributed，跳过显式内存清理。")
+#            except Exception as e:
+#                logger.warning(f"清理 Dask 内存时出现其他异常：{e}", exc_info=False)
+#            logger.debug("Dask 上下文退出。") 

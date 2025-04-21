@@ -1,94 +1,93 @@
 import numpy as np
 import pandas as pd
-import dask.dataframe as dd
+# 移除 Dask 相关导入
+# import dask.dataframe as dd
+# 引入 Spark 相关库
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql import functions as F
+from pyspark.sql.types import NumericType # 用于检查数值类型
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+from tqdm import tqdm # tqdm 仍然可以在 Pandas 部分使用
 from loguru import logger
 
-# 使用相对导入
-from ..utils.eda_utils import dask_compute_context, plot_numerical_distribution, save_plot
+# 使用相对导入 (utils 保持不变，假设绘图函数仍用 Pandas)
+from ..utils.eda_utils import plot_numerical_distribution, save_plot # 移除 dask_compute_context
 
-def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42):
-    """分析 Demand 数据 'y' 列的分布 (基于抽样)。"""
-    logger.info(f"--- 开始分析 Demand 'y' 列分布 (抽样比例: {sample_frac:.1%}) ---")
+# --- 迁移后的 analyze_demand_y_distribution ---
+def analyze_demand_y_distribution(sdf_demand: DataFrame, sample_frac=0.005, random_state=42):
+    """使用 Spark 分析 Demand 数据 'y' 列的分布 (基于 Spark 计算和抽样)。"""
+    logger.info(f"--- 开始使用 Spark 分析 Demand 'y' 列分布 (抽样比例: {sample_frac:.1%}) ---")
+    if 'y' not in sdf_demand.columns:
+        logger.error("输入 Spark DataFrame 缺少 'y' 列。")
+        return None
+    # 确保 'y' 是数值类型
+    if not isinstance(sdf_demand.schema['y'].dataType, NumericType):
+         logger.error(f"'y' 列不是数值类型 ({sdf_demand.schema['y'].dataType})。无法进行分析。")
+         return None
+
     y_sample_pd = None
     try:
-        with dask_compute_context(ddf_demand['y']) as persisted_data:
-            y_col = persisted_data[0] # 获取持久化的 'y' 列
-            logger.info("对 'y' 列进行抽样...")
-            # 确保先dropna再抽样
-            y_sample = y_col.dropna().sample(frac=sample_frac, random_state=random_state)
+        # --- 1. Spark 计算描述性统计 ---
+        logger.info("使用 Spark 计算 'y' 列的描述性统计...")
+        desc_stats_spark = sdf_demand.select('y').summary("count", "mean", "stddev", "min", "25%", "50%", "75%", "max").toPandas()
+        # 格式化输出
+        desc_stats_spark.set_index('summary', inplace=True)
+        logger.info(f"'y' 列 (Spark 全量统计) 描述性统计:\n{desc_stats_spark.to_string()}")
 
-            # 检查抽样结果是否为空
-            if not isinstance(y_sample, (dd.Series, pd.Series)) or y_sample.npartitions == 0:
-                 logger.warning("抽样结果为空或无效，无法进行分布分析。")
-                 return None
+        # 获取总行数 (用于计算百分比)
+        total_count = sdf_demand.count()
+        if total_count == 0:
+             logger.warning("DataFrame 为空，无法进行进一步分析。")
+             return None
 
-            with dask_compute_context(y_sample) as persisted_sample:
-                y_sample_persisted = persisted_sample[0]
-                # 在计算之前检查分区数
-                if y_sample_persisted.npartitions == 0:
-                    logger.warning("持久化后的抽样结果分区数为0，无法计算。")
-                    return None
+        # --- 2. Spark 计算非正值 ---
+        logger.info("使用 Spark 检查 'y' 列中的非正值 (<= 0)...")
+        non_positive_count = sdf_demand.filter(F.col('y') <= 0).count()
+        non_positive_perc = (non_positive_count / total_count) * 100 if total_count > 0 else 0
+        logger.info(f"全量数据中 'y' <= 0 的数量: {non_positive_count:,} ({non_positive_perc:.2f}%)")
 
-                logger.info("计算抽样数据的长度...")
-                num_samples = len(y_sample_persisted) # len 在持久化后更快
-                logger.info(f"抽样完成，得到 {num_samples:,} 个非空样本。")
+        # --- 3. Spark 抽样并收集到 Pandas ---
+        logger.info(f"对 'y' 列进行 Spark 抽样 (比例: {sample_frac:.1%})...")
+        # 先过滤掉 NaN/Null 值再抽样，以匹配 Dask 版本逻辑
+        y_col_sdf = sdf_demand.select('y').dropna()
+        # 使用 sample 方法
+        # withReplacement=False 表示不放回抽样
+        y_sample_sdf = y_col_sdf.sample(withReplacement=False, fraction=sample_frac, seed=random_state)
 
-                if num_samples == 0:
-                    logger.warning("抽样结果长度为 0，无法进行分布分析。")
-                    return None
+        logger.info("将抽样结果收集到 Pandas Series...")
+        # .rdd.flatMap(lambda x: x).collect() 是将单列 DataFrame 转换为 list 的常用方法
+        # y_sample_list = y_sample_sdf.rdd.flatMap(lambda x: x).collect()
+        # 或者更直接地使用 toPandas (对于单列抽样通常可行)
+        y_sample_pd = y_sample_sdf.toPandas()['y'] # 转换为 Pandas Series
 
-                logger.info("计算抽样数据的描述性统计信息...")
-                # Handle potential compute errors or empty results
-                try:
-                    desc_stats = y_sample_persisted.describe().compute()
-                    if desc_stats is None or desc_stats.empty:
-                        logger.warning("计算描述性统计信息失败或结果为空。")
-                        return None
-                    logger.info(f"'y' 列 (抽样) 描述性统计:\n{desc_stats.to_string()}")
-                except Exception as desc_e:
-                    logger.exception(f"计算描述性统计信息时出错: {desc_e}")
-                    return None
+        if y_sample_pd is None or y_sample_pd.empty:
+            logger.warning("Spark 抽样结果收集到 Pandas 后为空。")
+            return None
 
+        num_samples = len(y_sample_pd)
+        logger.info(f"抽样并收集完成，得到 {num_samples:,} 个非空样本 (Pandas)。")
 
-                logger.info("检查抽样数据中的非正值 (<= 0)...")
-                try:
-                    non_positive_count = (y_sample_persisted <= 0).sum().compute()
-                    if non_positive_count is None:
-                         logger.warning("计算非正值数量失败。")
-                         non_positive_count = 0 # Assume zero if compute fails
-                    non_positive_perc = (non_positive_count / num_samples) * 100 if num_samples > 0 else 0
-                    logger.info(f"抽样数据中 'y' <= 0 的数量: {non_positive_count:,} ({non_positive_perc:.2f}%)")
-                except Exception as nonpos_e:
-                    logger.exception(f"检查非正值时出错: {nonpos_e}")
-                    # Proceed without non-positive info if it fails
+        # 可以在这里也计算一下 Pandas 样本的描述性统计，与 Spark 全量统计对比
+        if num_samples > 0:
+            logger.info("计算 Pandas 抽样数据的描述性统计信息...")
+            desc_stats_pd = y_sample_pd.describe()
+            logger.info(f"'y' 列 (Pandas 抽样) 描述性统计:\n{desc_stats_pd.to_string()}")
 
-                logger.info("将抽样结果转换为 Pandas Series...")
-                # Handle potential compute errors or empty results
-                try:
-                    y_sample_pd = y_sample_persisted.compute()
-                    if y_sample_pd is None or y_sample_pd.empty:
-                        logger.warning("将抽样结果转换为 Pandas Series 失败或结果为空。")
-                        return None
-                    logger.info("转换为 Pandas Series 完成。")
-                    return y_sample_pd
-                except Exception as compute_e:
-                    logger.exception(f"将抽样结果转换为 Pandas Series 时出错: {compute_e}")
-                    return None
+        return y_sample_pd
 
     except Exception as e:
-        logger.exception(f"分析 Demand 'y' 列分布时发生错误: {e}")
+        logger.exception(f"使用 Spark 分析 Demand 'y' 列分布时发生错误: {e}")
         return None
 
-
+# --- plot_demand_y_distribution ---
+# 此函数接收 Pandas Series，无需修改
 def plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000, random_state=42):
-    """绘制 Demand 'y' 列 (抽样) 的分布图并保存。"""
+    """绘制 Demand 'y' 列 (抽样得到的 Pandas Series) 的分布图并保存。"""
     if y_sample_pd is None or y_sample_pd.empty:
-        logger.warning("Input 'y' sample is empty, skipping plotting.")
+        logger.warning("Input 'y' sample (Pandas Series) is empty, skipping plotting.")
         return
 
-    # --- Further sampling for plotting ---
+    # --- Further sampling for plotting (logic remains the same) ---
     if len(y_sample_pd) > plot_sample_size:
         logger.info(f"Original sample size {len(y_sample_pd):,} is large, further sampling {plot_sample_size:,} points for plotting.")
         y_plot_sample = y_sample_pd.sample(n=plot_sample_size, random_state=random_state)
@@ -96,107 +95,106 @@ def plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000, 
         y_plot_sample = y_sample_pd
     logger.info(f"--- Starting plotting for Demand 'y' distribution (Plot sample size: {len(y_plot_sample):,}) ---")
 
-    # --- Plot original scale ---
+    # --- Plot original scale (logic remains the same) ---
     plot_numerical_distribution(y_plot_sample, 'y',
                                 'demand_y_distribution_original_scale', plots_dir,
                                 title_prefix="Demand ", kde=False, showfliers=False)
 
-    # --- Plot log scale ---
+    # --- Plot log scale (logic remains the same) ---
     epsilon = 1e-6
-    # Ensure we only select non-negative values before transformation
-    y_plot_sample_non_neg = y_plot_sample[y_plot_sample >= 0].copy() # Use .copy() to avoid SettingWithCopyWarning
+    y_plot_sample_non_neg = y_plot_sample[y_plot_sample >= 0].copy()
 
     if y_plot_sample_non_neg.empty:
         logger.warning("No non-negative values in plot sample, skipping log scale plot.")
         return
 
     try:
-        # Apply log1p transformation safely
         y_log_transformed = np.log1p(y_plot_sample_non_neg + epsilon)
-
-        # Check for NaN/inf in transformed data
         if y_log_transformed.isnull().all() or not np.isfinite(y_log_transformed).any():
              logger.warning("Log transformation resulted in all NaN or infinite values, skipping log plot.")
              return
-
         plot_numerical_distribution(y_log_transformed, 'log1p(y + epsilon)',
                                     'demand_y_distribution_log1p_scale', plots_dir,
                                     title_prefix="Demand ", kde=True, showfliers=True)
     except Exception as log_plot_e:
          logger.exception(f"Error plotting log-transformed 'y' distribution: {log_plot_e}")
 
-
     logger.info("Demand 'y' distribution plotting complete.")
 
 
-def analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=None, random_state=42):
-    """抽取 n_samples 个 unique_id 的完整时间序列数据，绘制图形并分析频率。"""
-    logger.info(f"--- Starting analysis of Demand time series characteristics (sampling {n_samples} unique_id) ---")
+# --- 迁移后的 analyze_demand_timeseries_sample ---
+def analyze_demand_timeseries_sample(sdf_demand: DataFrame, n_samples=5, plots_dir=None, random_state=42):
+    """使用 Spark 抽取 n_samples 个 unique_id 的完整时间序列数据到 Pandas，然后绘制图形并分析频率。"""
+    logger.info(f"--- Starting Spark analysis of Demand time series (sampling {n_samples} unique_id) ---")
     if plots_dir is None:
         logger.error("plots_dir not provided, cannot save time series plots.")
         return
+    if 'unique_id' not in sdf_demand.columns or 'timestamp' not in sdf_demand.columns or 'y' not in sdf_demand.columns:
+         logger.error("Input Spark DataFrame missing required columns ('unique_id', 'timestamp', 'y').")
+         return
 
     pdf_sample = None # Initialize
     try:
-        # 1. Get and sample unique_id
-        logger.info("Getting all unique_ids...")
-        with dask_compute_context(ddf_demand['unique_id'].unique()) as persisted_ids:
-            # Check if computation was successful
-            if not persisted_ids:
-                logger.error("Failed to persist unique_ids.")
-                return
-            try:
-                all_unique_ids = persisted_ids[0].compute() # Compute to get Pandas Series
-                if all_unique_ids is None or all_unique_ids.empty:
-                     logger.error("Failed to compute unique_ids or result is empty.")
-                     return
-            except Exception as compute_id_e:
-                logger.exception(f"Error computing unique IDs: {compute_id_e}")
-                return
+        # 1. Spark 获取并抽样 unique_id
+        logger.info("使用 Spark 获取所有 unique_ids...")
+        # distinct() 是一个转换操作，需要 action (如 .rdd 或 .collect) 触发
+        all_unique_ids_sdf = sdf_demand.select('unique_id').distinct()
+        # 使用 takeSample 获取随机样本 (action)
+        # takeSample(withReplacement, num, [seed])
+        num_distinct_ids = all_unique_ids_sdf.count() # 获取总 ID 数，以便调整 n_samples
 
+        if num_distinct_ids == 0:
+             logger.warning("数据中没有发现 unique_id。")
+             return
 
-        if len(all_unique_ids) < n_samples:
-            logger.warning(f"Total unique_id count ({len(all_unique_ids)}) is less than requested sample size ({n_samples}), using all unique_ids.")
-            sampled_ids = all_unique_ids.tolist()
-            n_samples = len(sampled_ids)
+        if num_distinct_ids < n_samples:
+            logger.warning(f"Total unique_id count ({num_distinct_ids}) is less than requested sample size ({n_samples}), using all unique_ids.")
+            sampled_ids_rows = all_unique_ids_sdf.collect() # Collect all IDs
+            n_samples = num_distinct_ids
         else:
-            logger.info(f"Randomly sampling {n_samples} unique_ids from {len(all_unique_ids):,}...")
-            np.random.seed(random_state)
-            sampled_ids = np.random.choice(all_unique_ids, n_samples, replace=False).tolist()
+            logger.info(f"Randomly sampling {n_samples} unique_ids from {num_distinct_ids:,} using takeSample...")
+            # takeSample returns a list of Row objects
+            sampled_ids_rows = all_unique_ids_sdf.rdd.takeSample(False, n_samples, seed=random_state)
+
+        # 从 Row 对象中提取 ID 字符串/值
+        sampled_ids = [row.unique_id for row in sampled_ids_rows]
         logger.info(f"Selected unique_ids: {sampled_ids}")
 
-        # 2. Filter and compute Pandas DataFrame
-        logger.info("Filtering Dask DataFrame to get sample data...")
-        ddf_sample_filtered = ddf_demand[ddf_demand['unique_id'].isin(sampled_ids)]
+        # 2. Spark 过滤数据
+        logger.info("使用 Spark 过滤数据以获取样本 ID 的时间序列...")
+        sdf_sample_filtered = sdf_demand.filter(F.col('unique_id').isin(sampled_ids))
 
-        logger.info("Converting sample data to Pandas DataFrame (might take time and memory)...")
-        with dask_compute_context(ddf_sample_filtered) as persisted_sample:
-             if not persisted_sample:
-                 logger.error("Failed to persist filtered sample data.")
-                 return
-             try:
-                 pdf_sample = persisted_sample[0].compute()
-                 if pdf_sample is None or pdf_sample.empty:
-                     logger.error("Failed to compute sample Pandas DataFrame or result is empty.")
-                     return
-             except Exception as compute_sample_e:
-                  logger.exception(f"Error computing sample Pandas DataFrame: {compute_sample_e}")
-                  return
-        logger.info(f"Pandas DataFrame created, containing {len(pdf_sample):,} rows.")
+        # 3. 收集到 Pandas
+        logger.info("将过滤后的样本数据收集到 Pandas DataFrame (可能需要一些时间和内存)...")
+        try:
+            pdf_sample = sdf_sample_filtered.toPandas()
+            if pdf_sample is None or pdf_sample.empty:
+                logger.error("收集样本数据到 Pandas 失败或结果为空。")
+                return
+            logger.info(f"Pandas DataFrame created from Spark sample, containing {len(pdf_sample):,} rows.")
+        except Exception as collect_e:
+             logger.exception(f"收集 Spark 样本数据到 Pandas 时出错: {collect_e}")
+             # 可以考虑增加重试或错误处理逻辑
+             return
 
+        # 确保 Pandas DataFrame 按 ID 和时间排序 (后续绘图和频率分析需要)
         pdf_sample = pdf_sample.sort_values(['unique_id', 'timestamp'])
+        # 确保 timestamp 是 datetime 类型
+        if not pd.api.types.is_datetime64_any_dtype(pdf_sample['timestamp']):
+            pdf_sample['timestamp'] = pd.to_datetime(pdf_sample['timestamp'])
 
-        # 3. Plot and analyze
-        logger.info("Starting to plot time series for each sample and analyze frequency...")
+
+        # 4. 在 Pandas 上进行绘图和频率分析 (这部分逻辑不变)
+        logger.info("Starting to plot time series for each sample (in Pandas) and analyze frequency...")
         plt.style.use('seaborn-v0_8-whitegrid')
 
-        for unique_id in tqdm(sampled_ids, desc="Processing samples"):
+        for unique_id in tqdm(sampled_ids, desc="Processing samples (Pandas)"):
             df_id = pdf_sample[pdf_sample['unique_id'] == unique_id]
             if df_id.empty:
-                logger.warning(f"No data found for unique_id '{unique_id}', skipping.")
+                logger.warning(f"No data found for unique_id '{unique_id}' in the Pandas sample, skipping.")
                 continue
 
-            # Plot
+            # --- 绘图逻辑 (不变) ---
             try:
                 fig, ax = plt.subplots(figsize=(15, 5))
                 ax.plot(df_id['timestamp'], df_id['y'], label=f'ID: {unique_id}')
@@ -206,42 +204,34 @@ def analyze_demand_timeseries_sample(ddf_demand, n_samples=5, plots_dir=None, ra
                 ax.legend()
                 plt.xticks(rotation=45)
                 plt.tight_layout()
-                save_plot(fig, f'timeseries_sample_{unique_id}.png', plots_dir) # Use helper
+                save_plot(fig, f'timeseries_sample_{unique_id}.png', plots_dir)
             except Exception as plot_e:
                  logger.exception(f"Error plotting time series for unique_id '{unique_id}': {plot_e}")
                  plt.close(fig) # Ensure plot is closed even on error
 
-
-            # Analyze frequency
+            # --- 频率分析逻辑 (不变) ---
             try:
-                 # Convert to Pandas Timestamp if not already
-                 if not pd.api.types.is_datetime64_any_dtype(df_id['timestamp']):
-                     df_id['timestamp'] = pd.to_datetime(df_id['timestamp'])
-
-                 # Ensure it's sorted by timestamp before diff
-                 df_id = df_id.sort_values('timestamp')
+                 # 确保已排序
                  time_diffs = df_id['timestamp'].diff()
-
                  if len(time_diffs) > 1:
-                     # Drop the first NA value from diff()
                      freq_counts = time_diffs.dropna().value_counts()
                      if not freq_counts.empty:
-                         logger.info(f"--- unique_id: {unique_id} Timestamp Interval Frequency ---")
+                         logger.info(f"--- unique_id: {unique_id} Timestamp Interval Frequency (Pandas Sample) ---")
                          log_str = f"Frequency Stats (Top 5):\n{freq_counts.head().to_string()}"
                          if len(freq_counts) > 5: log_str += "\n..."
                          logger.info(log_str)
                          if len(freq_counts) > 1:
-                             logger.warning(f" unique_id '{unique_id}' has multiple time intervals detected, possible missing data or frequency change.")
+                             logger.warning(f" unique_id '{unique_id}' has multiple time intervals detected in sample.")
                      else:
-                         logger.info(f" unique_id '{unique_id}' has only one timestamp after diff/dropna, cannot calculate frequency.")
+                         logger.info(f" unique_id '{unique_id}' has only one timestamp after diff/dropna in sample.")
                  else:
-                     logger.info(f" unique_id '{unique_id}' has only one or zero timestamps, cannot calculate frequency.")
+                     logger.info(f" unique_id '{unique_id}' has only one or zero timestamps in sample.")
             except Exception as freq_e:
-                logger.exception(f"Error analyzing frequency for unique_id '{unique_id}': {freq_e}")
+                logger.exception(f"Error analyzing frequency for unique_id '{unique_id}' in sample: {freq_e}")
 
-
-        logger.info("Time series sample analysis complete.")
+        logger.info("Time series sample analysis (Spark filter -> Pandas plot/analyze) complete.")
 
     except Exception as e:
-        logger.exception(f"Error analyzing Demand time series samples: {e}")
+        logger.exception(f"Error analyzing Demand time series samples with Spark: {e}")
+
     # No explicit cleanup needed due to context manager 

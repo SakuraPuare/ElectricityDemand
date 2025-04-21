@@ -18,16 +18,16 @@
     -   [x] 修改 `load_data.py` 中的 `log_time_ranges` 函数，使用 Spark API (`.agg()`, `F.min()`, `F.max()`)。
     -   [x] 更新 `1_run_eda.py` 以使用 Spark 加载数据。
 -   [ ] **EDA 分析函数迁移**:
-    -   [ ] **Demand 分析 (`analyze_demand.py`)**:
-        -   [ ] `analyze_demand_y_distribution`: 使用 Spark `.describe()` 或近似分位数计算。抽样 (`.sample()`) -> Pandas -> 绘图 (`plot_numerical_distribution`)。
-        -   [ ] `plot_demand_y_distribution`: 调整以接收 Pandas Series (来自 Spark 抽样)。
-        -   [ ] `analyze_demand_timeseries_sample`: 使用 Spark `.filter()` 获取样本 ID -> Pandas -> 绘图/频率分析。
+    -   [x] **Demand 分析 (`analyze_demand.py`)**:
+        -   [x] `analyze_demand_y_distribution`: 使用 Spark `.summary()`/`.approxQuantile()`, `.filter().count()`, `.sample()` -> Pandas。
+        -   [x] `plot_demand_y_distribution`: 接收 Pandas Series (来自 Spark 抽样)，无需修改。
+        -   [x] `analyze_demand_timeseries_sample`: 使用 Spark `.distinct()`, `.takeSample()`, `.filter()` -> Pandas -> 绘图/频率分析。
     -   [ ] **Metadata 分析 (`analyze_metadata.py`)**:
-        -   [ ] (已部分完成) 当前策略：如果内存允许，将 Metadata collect 到 Pandas (`.toPandas()`)，然后复用现有函数。检查内存占用。
+        -   [x] (已部分完成) 当前策略：如果内存允许，将 Metadata collect 到 Pandas (`.toPandas()`)，然后复用现有函数。检查内存占用。
         -   [ ] 备选方案 (如果内存不足)：重写函数，使用 Spark API (`.groupBy().count()`, `.describe()`) 进行分析，抽样 -> Pandas -> 绘图。
     -   [ ] **Weather 分析 (`analyze_weather.py`)**:
-        -   [ ] `analyze_weather_numerical`: 使用 Spark `.describe()`，抽样 (`.sample()`) -> Pandas -> 绘图。
-        -   [ ] `analyze_weather_categorical`: 使用 Spark `.groupBy().count()`, 抽样/排序 -> Pandas -> 绘图。
+        -   [ ] `analyze_weather_numerical`: 使用 Spark `.describe()` 或 `.summary()` 获取统计信息。抽样 (`.sample()`) -> Pandas -> 调用 `plot_numerical_distribution` 绘图。增加 Spark 方式的负值检查。
+        -   [ ] `analyze_weather_categorical`: 使用 Spark 的 `.groupBy().count()` 计算分类特征的频数。抽样或排序 (`orderBy()`) -> Pandas -> 调用 `plot_categorical_distribution` 绘图。
     -   [ ] **关系分析 (`analyze_relationships.py`)**:
         -   [ ] `merge_demand_metadata_sample`: 重写，使用 Spark Join 操作 (`ddf_demand.join(ddf_metadata, on='unique_id')`)，然后抽样 (`.sample()`)。
         -   [ ] `analyze_demand_vs_metadata`: 使用 Spark Join 获取合并数据，抽样 -> Pandas -> 绘图 (`sns.boxplot`)。
@@ -42,11 +42,11 @@
         *   `groupBy('unique_id', 'hourly_timestamp').agg(F.sum('y').alias('y'))`。
     -   [ ] `validate_resampling`: 抽样检查结果。
 -   [ ] **工具函数迁移 (`eda_utils.py`)**:
-    -   [ ] 检查 `save_plot`, `plot_*_distribution`, `log_value_counts` 是否仍适用 (它们主要操作 Pandas 对象，应与抽样后的数据配合)。
-    -   [ ] 移除或重构 `dask_compute_context`。
--   [ ] **更新运行脚本**:
-    -   [ ] 确保所有脚本 (`0_download_data.py`, `2_run_preprocessing.py` 等) 使用 SparkSession 并调用迁移后的函数。
-    -   [ ] 移除 Dask 相关代码。
+    -   [x] 检查 `save_plot`, `plot_*_distribution`, `log_value_counts` 是否仍适用 (它们主要操作 Pandas 对象，与抽样/聚合后的数据配合)。
+    -   [x] 移除 `dask_compute_context` 及其相关导入。
+-   [x] **更新运行脚本**:
+    -   [x] 确保主脚本 (`1_run_eda.py`) 使用 SparkSession 并调用迁移后的函数。
+    -   [x] 移除 Dask 相关代码。
 
 ## 阶段一：数据加载与概览 (原 Dask/Pandas)
 
@@ -128,14 +128,45 @@
 
 ---
 
-**当前任务**: 继续迁移 EDA 分析函数到 PySpark。
+**当前任务**: 继续迁移 EDA 分析函数到 PySpark，下一步是 **Weather 分析**。
 
 ---
 
 **下一步建议**:
 
-我们已经成功将数据加载和基础检查迁移到了 Spark。现在 `1_run_eda.py` 可以使用 Spark 加载数据，并将 Metadata 数据转换为 Pandas 进行分析。
+我们已经成功迁移了 Demand 数据分析部分。下一步是迁移 **Weather 数据分析函数 (`analyze_weather.py`)**。这与 Demand 的迁移类似：
 
-下一步，我们应该开始迁移处理 Demand 和 Weather 这两个大数据集的 EDA 函数，这些函数不能简单地 `toPandas()`。
+1.  `analyze_weather_numerical`: 使用 Spark `.describe()` 或 `.summary()` 获取统计信息。抽样 (`.sample()`) -> Pandas -> 调用 `plot_numerical_distribution` 绘图。增加 Spark 方式的负值检查。
+2.  `analyze_weather_categorical`: 使用 Spark 的 `.groupBy().count()` 计算分类特征的频数。抽样或排序 (`orderBy()`) -> Pandas -> 调用 `plot_categorical_distribution` 绘图。
 
-**建议优先迁移 `analyze_demand.py` 中的函数**，因为它们是分析核心目标变量 `y` 的关键。你觉得如何？
+你觉得这个计划如何？
+
+## 当前进度
+
+- [x] 将项目基础框架迁移到 Spark (SparkSession 初始化/停止, 基本配置)。
+- [x] 修改 `load_data.py` 使用 Spark 加载 Parquet 文件。
+- [x] 更新 `1_run_eda.py` 调用 Spark 加载函数，并管理 SparkSession 生命周期。
+- [x] 确认 `analyze_demand.py` 已适配 Spark DataFrame 输入 (抽样 -> Pandas)。
+- [x] 确认 `analyze_metadata.py` 仍可使用 (通过 Spark DF -> Pandas DF 转换)。
+- [x] 迁移 `analyze_weather.py` 以使用 Spark DataFrame 进行计算和抽样。
+- [x] 迁移 `analyze_relationships.py` (`vs_metadata`, `vs_location`) 使用 Spark 抽样 -> Pandas 合并/分析。
+- [x] 迁移 `analyze_relationships.py` (`vs_weather`) 使用 Spark 过滤 -> Pandas 合并 (`merge_asof`) / 分析 (注意内存)。
+- [x] 迁移 `eda_utils.py` (移除 Dask 相关代码)。
+- [x] 更新 `1_run_eda.py` 以调用所有已迁移的分析函数。
+
+## 下一步任务
+
+1.  **运行和测试**: 完整运行 `1_run_eda.py` 脚本。
+2.  **检查输出**:
+    *   检查日志 (`logs/1_run_eda.log`) 是否有错误或警告，特别是关于内存、数据类型、合并步骤的。
+    *   检查 `plots/` 目录下生成的图表是否符合预期。
+3.  **性能和内存**: 观察 Spark UI (`http://localhost:4040` 或类似地址) 监控任务执行情况和资源使用。如果 `analyze_demand_vs_weather` 步骤因内存不足失败，考虑：
+    *   减少 `n_sample_ids` 的数量。
+    *   增加 Spark Driver 内存 (`spark.driver.memory`)。
+    *   (高级) 探索在 Spark 中直接实现近似 `merge_asof` 的方法（如果必须处理非常大的样本）。
+4.  **代码注释和优化**:
+    *   根据运行结果，调整日志级别或内容。
+    *   清理不再需要的旧代码或注释。
+    *   确保遵循代码风格。
+5.  **细化分析**: 根据初步 EDA 结果，决定是否需要进行更深入的特定分析。
+6.  **迁移预处理**: 开始迁移 `preprocessing.py` 中的函数到 Spark。
