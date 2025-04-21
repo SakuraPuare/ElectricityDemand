@@ -6,7 +6,6 @@ authors = [
     { name = "Steven Moder", email = "java20131114@gmail.com" }
 ]
 dependencies = [
-    "dask[complete]>=2025.3.0",
     "pandas>=2.2.3",
     "pyarrow>=19.0.1",
     "fastparquet>=2024.11.0",
@@ -16,6 +15,7 @@ dependencies = [
     "datasets>=3.5.0",
     "loguru>=0.7.3",
     "tqdm>=4.67.1",
+    "pyspark>=3.5.5",
 ]
 readme = "README.md"
 requires-python = ">= 3.13"
