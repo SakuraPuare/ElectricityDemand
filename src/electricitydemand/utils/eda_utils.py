@@ -417,8 +417,8 @@ def plot_comparison_boxplot(
     fig_orig = None  # Initialize figure variable
     try:
         fig_orig, ax_orig = plt.subplots(figsize=(12, 7))
-        sns.boxplot(data=pdf, x=x_col, y=y_col,
-                    showfliers=False, ax=ax_orig, palette=palette, order=order)
+        sns.boxplot(data=pdf, x=x_col, y=y_col, hue=x_col,
+                    legend=False, showfliers=False, ax=ax_orig, palette=palette, order=order)
         ax_orig.set_title(
             f'{title_prefix} by {x_label} (Original Scale, No Outliers)')
         ax_orig.set_xlabel(x_label)
@@ -461,8 +461,8 @@ def plot_comparison_boxplot(
                 f"No valid log values or target values to plot for {x_col}, skipping log scale box plot.")
         else:
             fig_log, ax_log = plt.subplots(figsize=(12, 7))
-            sns.boxplot(data=pdf_plot_log, x=x_col, y='y_log1p',
-                        showfliers=True, ax=ax_log, palette=palette, order=order)
+            sns.boxplot(data=pdf_plot_log, x=x_col, y='y_log1p', hue=x_col,
+                        legend=False, showfliers=True, ax=ax_log, palette=palette, order=order)
             ax_log.set_title(f'{title_prefix} by {x_label} (Log1p Scale)')
             ax_log.set_xlabel(x_label)
             ax_log.set_ylabel(y_label_log)

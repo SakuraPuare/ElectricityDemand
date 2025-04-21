@@ -63,10 +63,13 @@ def create_spark_session(
     driver_mem_ratio: float = 0.5,
     executor_mem_ratio: float = 0.5,
     default_mem_gb: int = 4,
+    driver_cores: Optional[int] = None,
+    executor_cores: Optional[int] = None,
+    dynamic_allocation: bool = True,
     additional_configs: Optional[Dict[str, str]] = None
 ) -> SparkSession:
     """
-    Creates or gets a SparkSession with dynamic memory allocation.
+    Creates or gets a SparkSession with dynamic resource allocation based on system specs.
 
     Args:
         app_name: Name of the Spark application.
@@ -75,6 +78,9 @@ def create_spark_session(
         driver_mem_ratio: Ratio of available system memory for the driver (if not explicit).
         executor_mem_ratio: Ratio of available system memory for executors (if not explicit).
         default_mem_gb: Default memory in GB if calculation results are too low.
+        driver_cores: Number of cores for driver. If None, calculated automatically.
+        executor_cores: Number of cores per executor. If None, calculated automatically.
+        dynamic_allocation: Whether to enable dynamic allocation for executors.
         additional_configs: Dictionary of additional Spark configurations.
 
     Returns:
@@ -82,34 +88,77 @@ def create_spark_session(
     """
     logger.info(f"Creating SparkSession for app: {app_name}...")
 
-    if driver_mem_gb is None or executor_mem_gb is None:
-        try:
-            total_memory_gb = psutil.virtual_memory().available / (1024 ** 3)
-            logger.info(f"System available memory: {total_memory_gb:.2f} GB")
-            if driver_mem_gb is None:
-                driver_mem_gb = max(default_mem_gb, int(
-                    total_memory_gb * driver_mem_ratio + 0.5))
-            if executor_mem_gb is None:
-                executor_mem_gb = max(default_mem_gb, int(
-                    total_memory_gb * executor_mem_ratio + 0.5))
-            logger.info(
-                f"Calculated memory -> Driver: {driver_mem_gb}g, Executor: {executor_mem_gb}g")
-        except Exception as e:
-            logger.warning(
-                f"Failed to get system memory: {e}. Using default memory: {default_mem_gb}g")
-            driver_mem_gb = driver_mem_gb or default_mem_gb
-            executor_mem_gb = executor_mem_gb or default_mem_gb
+    # Get system resources
+    try:
+        total_cores = psutil.cpu_count(logical=True)
+        physical_cores = psutil.cpu_count(logical=False)
+        total_memory_gb = psutil.virtual_memory().total / (1024 ** 3)
+        available_memory_gb = psutil.virtual_memory().available / (1024 ** 3)
 
-    else:
+        logger.info(f"System resources: {physical_cores} physical cores, "
+                  f"{total_cores} logical cores, "
+                  f"{total_memory_gb:.2f} GB total memory, "
+                  f"{available_memory_gb:.2f} GB available memory")
+
+        # Reserve memory for OS and other processes (10% of total or at least 2GB)
+        system_reserve_gb = max(2, total_memory_gb * 0.1)
+        usable_memory_gb = available_memory_gb - system_reserve_gb
+
+        # Calculate memory if not provided
+        if driver_mem_gb is None:
+            driver_mem_gb = max(default_mem_gb, int(usable_memory_gb * driver_mem_ratio))
+
+        if executor_mem_gb is None:
+            executor_mem_gb = max(default_mem_gb, int(usable_memory_gb * executor_mem_ratio))
+
+        # Calculate cores if not provided
+        if driver_cores is None:
+            driver_cores = max(1, min(4, physical_cores // 2))  # 1-4 cores for driver
+
+        if executor_cores is None:
+            executor_cores = max(1, min(4, physical_cores // 2))  # 1-4 cores per executor
+
+        # Calculate number of executors based on available resources
+        default_parallelism = max(2, total_cores - driver_cores)
+
         logger.info(
-            f"Using explicit memory -> Driver: {driver_mem_gb}g, Executor: {executor_mem_gb}g")
+            f"Calculated resources -> Driver: {driver_mem_gb}GB/{driver_cores} cores, "
+            f"Executor: {executor_mem_gb}GB/{executor_cores} cores, "
+            f"Default parallelism: {default_parallelism}")
+    except Exception as e:
+        logger.warning(f"Failed to get system resources: {e}. Using defaults.")
+        driver_mem_gb = driver_mem_gb or default_mem_gb
+        executor_mem_gb = executor_mem_gb or default_mem_gb
+        driver_cores = driver_cores or 2
+        executor_cores = executor_cores or 2
+        default_parallelism = 4
 
+    # Build Spark configuration
     builder = SparkSession.builder.appName(app_name) \
         .config("spark.driver.memory", f"{driver_mem_gb}g") \
         .config("spark.executor.memory", f"{executor_mem_gb}g") \
+        .config("spark.driver.cores", driver_cores) \
+        .config("spark.executor.cores", executor_cores) \
+        .config("spark.default.parallelism", default_parallelism) \
         .config("spark.sql.execution.arrow.pyspark.enabled", "true") \
         .config("spark.sql.adaptive.enabled", "true") \
-        .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "true") \
+        .config("spark.memory.fraction", "0.8") \
+        .config("spark.memory.storageFraction", "0.3")
+
+    # Enable dynamic allocation if requested
+    if dynamic_allocation:
+        builder = builder \
+            .config("spark.dynamicAllocation.enabled", "true") \
+            .config("spark.shuffle.service.enabled", "true") \
+            .config("spark.dynamicAllocation.initialExecutors", "1") \
+            .config("spark.dynamicAllocation.minExecutors", "1") \
+            .config("spark.dynamicAllocation.maxExecutors", max(2, total_cores // executor_cores))
+
+    # Add off-heap memory configuration
+    overhead_factor = 0.1  # 10% of executor memory for off-heap
+    overhead_mb = int(executor_mem_gb * 1024 * overhead_factor)
+    builder = builder.config("spark.executor.memoryOverhead", f"{overhead_mb}m")
 
     # Add any extra configurations
     if additional_configs:
@@ -119,8 +168,19 @@ def create_spark_session(
 
     try:
         spark = builder.getOrCreate()
+
+        # Set level of parallelism for shuffles
+        spark.conf.set("spark.sql.shuffle.partitions", default_parallelism * 2)
+
         logger.success("SparkSession created successfully.")
         logger.info(f"Spark Web UI: {spark.sparkContext.uiWebUrl}")
+
+        # Log final configuration
+        spark_conf = spark.sparkContext.getConf().getAll()
+        logger.info("Spark configuration:")
+        for item in spark_conf:
+            logger.info(f"  {item[0]} = {item[1]}")
+
         return spark
     except Exception as e:
         logger.exception("Failed to create SparkSession!")

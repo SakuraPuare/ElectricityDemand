@@ -121,7 +121,7 @@ def analyze_demand_y_distribution(sdf_demand: DataFrame, sample_frac=0.005, rand
 
                         # --- 4. 调用绘图函数 ---
                         plot_demand_y_distribution(
-                            y_sample_pd, plots_dir, random_state=random_state)
+                            y_sample_pd, plots_dir, sample_frac, True)
 
             except Exception as collect_e:
                 logger.exception(f"收集 Spark 抽样数据到 Pandas 或绘图时出错: {collect_e}")
@@ -141,61 +141,46 @@ def analyze_demand_y_distribution(sdf_demand: DataFrame, sample_frac=0.005, rand
 
 # --- plot_demand_y_distribution ---
 # 此函数接收 Pandas Series，无需修改
-def plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000, random_state=42):
-    """绘制 Demand 'y' 列 (抽样得到的 Pandas Series) 的分布图并保存。"""
-    if y_sample_pd is None or y_sample_pd.empty:
-        logger.warning(
-            "Input 'y' sample (Pandas Series) is empty, skipping plotting.")
-        return
+def plot_demand_y_distribution(
+    y_sample: pd.Series,
+    col_name: str = 'y',
+    sample_frac: float = 0.01,
+    plots_dir: Path = Path("plots")
+):
+    """
+    绘制电力需求 'y' 列的分布图 (直方图和箱线图)。
 
-    # --- Further sampling for plotting (logic remains the same) ---
-    if len(y_sample_pd) > plot_sample_size:
-        logger.info(
-            f"Original sample size {len(y_sample_pd):,} is large, further sampling {plot_sample_size:,} points for plotting.")
-        y_plot_sample = y_sample_pd.sample(
-            n=plot_sample_size, random_state=random_state)
-    else:
-        y_plot_sample = y_sample_pd
-    logger.info(
-        f"--- Starting plotting for Demand 'y' distribution (Plot sample size: {len(y_plot_sample):,}) ---")
-
-    # --- Plot original scale (logic remains the same) ---
-    plot_numerical_distribution(y_plot_sample, 'y',
-                                'demand_y_distribution_original_scale', plots_dir,
-                                title_prefix="Demand ", kde=False, showfliers=False)
-
-    # --- Plot log scale (logic remains the same) ---
-    epsilon = 1e-6
-    y_plot_sample_non_neg = y_plot_sample[y_plot_sample >= 0].copy()
-
-    if y_plot_sample_non_neg.empty:
-        logger.warning(
-            "No non-negative values in plot sample, skipping log scale plot.")
+    Args:
+        y_sample (pd.Series): 抽样的 'y' 数据。
+        col_name (str): 列名 (通常是 'y')。
+        sample_frac (float): 用于图例的抽样比例。
+        plots_dir (Path): 保存图表的目录。
+    """
+    logger.info(f"绘制 'y' 分布图 (样本比例: {sample_frac*100:.1f}%)...")
+    if y_sample.empty:
+        logger.warning("抽样数据为空，无法绘制 'y' 分布图。")
         return
 
     try:
-        # Ensure input is numeric before transformation
-        y_plot_sample_non_neg = pd.to_numeric(
-            y_plot_sample_non_neg, errors='coerce').dropna()
-        if y_plot_sample_non_neg.empty:
-            logger.warning(
-                "No numeric non-negative values after coercion, skipping log plot.")
-            return
+        # Plot on original scale
+        plot_numerical_distribution(y_sample.dropna(), col_name,
+                                    f"Demand Value ({col_name}) Distribution (Original Scale, Sample)",
+                                    f"demand_{col_name}_dist_orig", plots_dir, kde=True)
 
-        y_log_transformed = np.log1p(
-            y_plot_sample_non_neg + epsilon)  # 使用 np.log1p
-        if y_log_transformed.isnull().all() or not np.isfinite(y_log_transformed).any():
-            logger.warning(
-                "Log transformation resulted in all NaN or infinite values, skipping log plot.")
-            return
-        plot_numerical_distribution(y_log_transformed, 'log1p(y + epsilon)',
-                                    'demand_y_distribution_log1p_scale', plots_dir,
-                                    title_prefix="Demand ", kde=True, showfliers=True)
-    except Exception as log_plot_e:
-        logger.exception(
-            f"Error plotting log-transformed 'y' distribution: {log_plot_e}")
+        # Plot on log scale (log1p)
+        y_log_sample = np.log1p(y_sample.dropna())
+        # Ensure log sample isn't all NaN/inf
+        if y_log_sample.notna().any():
+            plot_numerical_distribution(y_log_sample, f'{col_name} (log1p)',
+                                        f"Demand Value ({col_name}) Distribution (Log1p Scale, Sample)",
+                                        f"demand_{col_name}_dist_log1p", plots_dir, kde=True) # Removed log_scale=True
+        else:
+             logger.warning("Log-transformed sample contains only NaN/inf, skipping log scale plot.")
 
-    logger.info("Demand 'y' distribution plotting complete.")
+
+    except Exception as e:
+        logger.error(f"绘制 'y' 分布图时出错: {e}")
+        logger.debug(traceback.format_exc()) # Log full traceback for debugging
 
 
 # --- 迁移后的 analyze_demand_timeseries_sample ---
