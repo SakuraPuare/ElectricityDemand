@@ -113,7 +113,10 @@ def plot_categorical_distribution(data_pd_series, col_name, filename_base, plots
             sort_order = data_to_plot.index.astype(str) # Order by appearance (count order)
             plot_index_ordered = plot_index.tolist() # Use original order as list
 
-        sns.barplot(x=plot_index, y=data_to_plot.values, ax=ax, palette="viridis", order=plot_index_ordered)
+        # 修复 FutureWarning，明确设置 hue 参数
+        sns.barplot(x=plot_index, y=data_to_plot.values, ax=ax, 
+                   hue=plot_index, palette="viridis", legend=False, 
+                   order=plot_index_ordered)
         ax.set_title(title)
         ax.set_xlabel(col_name)
         ax.set_ylabel('Count')
@@ -256,40 +259,3 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
     logger.info(f"列 '{column_name}' 唯一值数量 (含 NaN): {unique_count}")
 
     logger.info("-" * 20) # Separator
-
-# 移除 dask_compute_context
-# @contextlib.contextmanager
-# def dask_compute_context(*dask_objects):
-#    """上下文管理器，用于触发 Dask persist/compute 并尝试清理。"""
-#    persisted_objects = []
-#    try:
-#        if dask_objects:
-#            logger.debug(f"尝试持久化 {len(dask_objects)} 个 Dask 对象...")
-#            persisted_objects = persist(*dask_objects)
-#            logger.debug("Dask 对象持久化完成。")
-#        yield persisted_objects
-#    finally:
-#        if persisted_objects:
-#            logger.debug("尝试释放 Dask 持久化对象...")
-#            try:
-#                with contextlib.suppress(RuntimeError, ImportError):
-#                     client = Client.current()
-#                     futures = []
-#                     for obj in persisted_objects:
-#                         if hasattr(obj, 'dask'):
-#                            futures.extend(futures_of(obj))
-#                         elif isinstance(obj, Future):
-#                            futures.append(obj)
-#
-#                     if futures:
-#                         logger.debug(f"找到 {len(futures)} 个 futures，尝试取消...")
-#                         client.cancel(futures, force=True)
-#                         logger.debug("取消 Futures 尝试完成。")
-#                     else:
-#                         logger.debug("未找到 Dask Futures 进行取消 (可能已完成或无 Client)。")
-#
-#            except ImportError:
-#                logger.debug("未安装 dask.distributed，跳过显式内存清理。")
-#            except Exception as e:
-#                logger.warning(f"清理 Dask 内存时出现其他异常：{e}", exc_info=False)
-#            logger.debug("Dask 上下文退出。") 

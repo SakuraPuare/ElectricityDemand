@@ -17,6 +17,7 @@ dependencies = [
     "tqdm>=4.67.1",
     "pyspark>=3.5.5",
     "setuptools>=79.0.0",
+    "psutil>=7.0.0",
 ]
 readme = "README.md"
 requires-python = "== 3.12"
