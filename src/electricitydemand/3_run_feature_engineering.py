@@ -317,9 +317,6 @@ def run_feature_engineering_spark():
         }
         spark = create_spark_session(
             app_name="ElectricityDemandFeatureEngineering",
-            driver_mem_ratio=0.6,  # 增加内存比例
-            executor_mem_ratio=0.6,
-            default_mem_gb=4,  # 增加默认值
             additional_configs=feature_eng_configs
         )
 
