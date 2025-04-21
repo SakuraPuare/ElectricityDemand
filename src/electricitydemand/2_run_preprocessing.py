@@ -77,20 +77,8 @@ def run_demand_resampling_spark():
     try:
         # --- 创建 SparkSession ---
         logger.info("创建 SparkSession...")
-        # 重采样可能需要较多 shuffle，保持一些特定配置
-        resample_spark_configs = {
-            "spark.sql.adaptive.coalescePartitions.minPartitionSize": "1000000",
-            "spark.sql.adaptive.coalescePartitions.minNumPartitions": "100",
-            "spark.sql.adaptive.coalescePartitions.maxNumPartitions": "1000",
-            "spark.sql.shuffle.partitions": "200",
-            "spark.default.parallelism": "200"
-        }
         spark = create_spark_session(
             app_name="ElectricityDemandPreprocessing - Resample",
-            driver_mem_ratio=0.4,  # 使用与 EDA 相同的比例和默认值
-            executor_mem_ratio=0.4,
-            default_mem_gb=2,
-            additional_configs=resample_spark_configs
         )
 
         logger.info("SparkSession 创建成功。")
@@ -171,13 +159,7 @@ def run_merge_data_spark():
             "spark.sql.shuffle.partitions": "200"  # 保持 shuffle 分区数
             # "spark.sql.autoBroadcastJoinThreshold": "-1" # 如有 OOM 可考虑禁用广播
         }
-        spark = create_spark_session(
-            app_name="ElectricityDemandPreprocessing - Merge",
-            driver_mem_ratio=0.5,  # 增加内存比例
-            executor_mem_ratio=0.5,
-            default_mem_gb=4,  # 增加默认值
-            additional_configs=merge_spark_configs
-        )
+        spark = create_spark_session()
 
         logger.info("SparkSession 创建成功。")
         logger.info(f"Spark Web UI: {spark.sparkContext.uiWebUrl}")

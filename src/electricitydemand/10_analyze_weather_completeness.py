@@ -56,9 +56,6 @@ def analyze_weather_completeness_spark():
         logger.info("创建 SparkSession...")
         spark = create_spark_session(
             app_name="WeatherCompletenessAnalysis",
-            driver_mem_ratio=0.5,
-            executor_mem_ratio=0.5,
-            default_mem_gb=4
         )
 
         logger.info("SparkSession 创建成功。")

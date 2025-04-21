@@ -94,10 +94,7 @@ def run_all_eda():
         # --- Spark Session ---
         logger.info("创建 SparkSession...")
         spark = create_spark_session(
-            app_name="ElectricityDemandEDA",
-            driver_mem_ratio=0.4,  # 保持原比例
-            executor_mem_ratio=0.4,
-            default_mem_gb=2  # 保持原默认值
+            app_name="ElectricityDemandEDA"
         )
 
         logger.info("SparkSession 创建成功。")
