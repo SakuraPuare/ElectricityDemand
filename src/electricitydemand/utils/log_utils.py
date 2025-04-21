@@ -72,17 +72,17 @@ def setup_logger(
     配置 Loguru 日志记录器，集成多种高级特性。
 
     Args:
-        log_file_prefix (str): 日志文件名前缀.
-        logs_dir (str): 存放日志文件的目录.
-        level (str): 默认的最低日志记录级别.
-        console_level (str | None): 控制台的最低级别, 默认为 'level'.
-        file_level (str | None): 文本日志文件的最低级别, 默认为 'level'.
-        json_log_path (str | None): 如果提供，则启用 JSON 格式日志到指定文件.
+        log_file_prefix (str): 日志文件名前缀。
+        logs_dir (str): 存放日志文件的目录。
+        level (str): 默认的最低日志记录级别。
+        console_level (str | None): 控制台的最低级别，默认为 'level'.
+        file_level (str | None): 文本日志文件的最低级别，默认为 'level'.
+        json_log_path (str | None): 如果提供，则启用 JSON 格式日志到指定文件。
         secure_permissions (bool): 如果为 True, 设置文本日志文件权限为 0o600.
-        intercept_standard_logging (bool): 是否拦截标准库 logging 的日志.
-        enable_global_exception_hook (bool): 是否设置 sys.excepthook 来捕获未处理异常.
+        intercept_standard_logging (bool): 是否拦截标准库 logging 的日志。
+        enable_global_exception_hook (bool): 是否设置 sys.excepthook 来捕获未处理异常。
         diagnose_backtrace (bool): 是否为所有处理器启用 diagnose 和 backtrace.
-                                    警告：在生产环境中 diagnose=True 可能泄露敏感数据!
+                                    警告：在生产环境中 diagnose=True 可能泄露敏感数据！
     """
     logger.remove() # 清理现有配置
 
@@ -131,7 +131,7 @@ def setup_logger(
         diagnose=diagnose_backtrace,
         opener=file_opener # 使用自定义 opener (如果需要)
     )
-    logger.info(f"文本日志将写入: {log_file_path}")
+    logger.info(f"文本日志将写入：{log_file_path}")
     if secure_permissions:
         logger.info(f"已为文本日志文件设置安全权限 (0o600)。")
 
@@ -149,7 +149,7 @@ def setup_logger(
             backtrace=diagnose_backtrace, # JSON 中也包含堆栈信息
             diagnose=diagnose_backtrace
         )
-        logger.info(f"JSON 结构化日志将写入: {json_log_path}")
+        logger.info(f"JSON 结构化日志将写入：{json_log_path}")
 
     # --- 添加自定义级别示例 (TRACE) ---
     # level no 5 is between DEBUG (10) and NOTSET (0)
@@ -176,7 +176,7 @@ def setup_logger(
         sys.excepthook = handle_exception
         logger.info("已设置全局异常处理钩子 (sys.excepthook)。")
 
-    logger.log(level.upper(), f"Loguru 初始化完成。默认级别: {level.upper()}. 控制台: {effective_console_level}. 文件: {effective_file_level}.")
+    logger.log(level.upper(), f"Loguru 初始化完成。默认级别：{level.upper()}. 控制台：{effective_console_level}. 文件：{effective_file_level}.")
     if diagnose_backtrace:
         logger.warning("Diagnose 和 Backtrace 已启用。注意：在生产环境中 'diagnose=True' 可能泄露敏感数据！")
 
@@ -253,7 +253,7 @@ if __name__ == '__main__':
     # 因为我们设置了文件级别为 TRACE/DEBUG，这个 lambda 会被执行
     logger.opt(lazy=True).debug("昂贵计算结果 (文件可见): {result}", result=lambda: expensive_calculation(10))
     # 如果控制台级别是 WARNING，这个 lambda 就不会执行
-    logger.opt(lazy=True).info("另一个惰性求值示例: {data}", data=lambda: expensive_calculation(5))
+    logger.opt(lazy=True).info("另一个惰性求值示例：{data}", data=lambda: expensive_calculation(5))
 
     # 7. 测试与 tqdm 的兼容性
     print("-" * 20 + " 测试 tqdm 兼容性 " + "-" * 20)

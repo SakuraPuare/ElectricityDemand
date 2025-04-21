@@ -20,10 +20,10 @@ def save_plot(fig, filename, plots_dir):
     filepath = os.path.join(plots_dir, filename)
     try:
         fig.savefig(filepath)
-        logger.info(f"图表已保存到: {filepath}")
+        logger.info(f"图表已保存到：{filepath}")
         plt.close(fig) # 保存后关闭图形
     except Exception as e:
-        logger.exception(f"保存图表 '{filename}' 时出错: {e}")
+        logger.exception(f"保存图表 '{filename}' 时出错：{e}")
         plt.close(fig) # 出错也要关闭
 
 def plot_numerical_distribution(data_pd_series, col_name, filename_base, plots_dir, title_prefix="", kde=True, showfliers=True):
@@ -119,7 +119,7 @@ def plot_categorical_distribution(data_pd_series, col_name, filename_base, plots
 
 def log_value_counts(data, column_name, top_n=10, is_already_counts=False, normalize=True):
     """记录 Series 或 Dask Series 的值分布。"""
-    logger.info(f"--- 分析列: {column_name} 值分布 ---")
+    logger.info(f"--- 分析列：{column_name} 值分布 ---")
 
     dist_df = None # Initialize dist_df
     total_count = 0 # Initialize total_count
@@ -163,7 +163,7 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
             else:
                  dist_df['百分比 (%)'] = 0.0
         except Exception as e:
-            logger.error(f"计算 Pandas Series '{column_name}' 值计数时出错: {e}")
+            logger.error(f"计算 Pandas Series '{column_name}' 值计数时出错：{e}")
             return
 
     elif isinstance(data, (pd.Series, pd.Index)):
@@ -178,10 +178,10 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
              else:
                  dist_df['百分比 (%)'] = 0.0
          except Exception as e:
-             logger.error(f"计算 Pandas Series/Index '{column_name}' 值计数时出错: {e}")
+             logger.error(f"计算 Pandas Series/Index '{column_name}' 值计数时出错：{e}")
              return
     else:
-        logger.error(f"不支持的数据类型进行值计数: {type(data)} for column '{column_name}'")
+        logger.error(f"不支持的数据类型进行值计数：{type(data)} for column '{column_name}'")
         return
 
     # --- End of logic to calculate dist_df ---
@@ -208,7 +208,7 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
                         logger.warning(f"无法计算 Pandas Series '{column_name}' 的大小。")
 
               except Exception as e:
-                   logger.warning(f"检查 Pandas Series '{column_name}' 的 NaN 时出错: {e}")
+                   logger.warning(f"检查 Pandas Series '{column_name}' 的 NaN 时出错：{e}")
 
          return # Exit if dist_df is None or empty
 
@@ -219,7 +219,7 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
         try:
             dist_df = dist_df.sort_values(by=count_col_name, ascending=False)
         except Exception as e:
-            logger.error(f"按 '{count_col_name}' 列排序时出错: {e}\nDataFrame:\n{dist_df.head()}")
+            logger.error(f"按 '{count_col_name}' 列排序时出错：{e}\nDataFrame:\n{dist_df.head()}")
             return # Stop if sorting fails
     else:
         logger.error("在 dist_df 中找不到用于排序的计数列。")
@@ -260,14 +260,14 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
              if not nan_row.empty:
                  nan_count = nan_row['计数'].iloc[0] # Get count from the first NaN row found
                  nan_perc = nan_row['百分比 (%)'].iloc[0] # Get percentage
-                 logger.warning(f"列 '{column_name}' 存在缺失值 (NaN)。数量: {nan_count}, 百分比: {nan_perc:.2f}%")
+                 logger.warning(f"列 '{column_name}' 存在缺失值 (NaN)。数量：{nan_count}, 百分比：{nan_perc:.2f}%")
              else:
                 # This case should not happen if nan_present_in_index is True, but adding for safety
                 logger.info(f"列 '{column_name}' 值计数中未明确找到 NaN 行，尽管索引检查提示存在。")
          except KeyError:
             logger.warning(f"无法在列 '{column_name}' 的值计数中定位 NaN 行进行统计。")
          except Exception as e:
-             logger.warning(f"检查列 '{column_name}' 的 NaN 统计时出错: {e}")
+             logger.warning(f"检查列 '{column_name}' 的 NaN 统计时出错：{e}")
 
     else:
         # Check original data if NaN wasn't in counts (e.g., if dropna=True was somehow used or data had no NaNs)
@@ -286,11 +286,11 @@ def log_value_counts(data, column_name, top_n=10, is_already_counts=False, norma
                     original_total = len(data)
                     nan_in_original = original_nan_count > 0
                 except Exception as e:
-                    logger.warning(f"检查原始 Pandas Series '{column_name}' 的 NaN 时出错: {e}")
+                    logger.warning(f"检查原始 Pandas Series '{column_name}' 的 NaN 时出错：{e}")
 
             if nan_in_original and original_total > 0:
                  logger.warning(f"列 '{column_name}' 原始数据中发现 NaN，但在最终值计数中未显示。"
-                               f" 原始 NaN 数量: {original_nan_count}, 百分比: {original_nan_count/original_total*100:.2f}%")
+                               f" 原始 NaN 数量：{original_nan_count}, 百分比：{original_nan_count/original_total*100:.2f}%")
             elif not nan_in_original:
                  logger.info(f"列 '{column_name}' 值计数中未发现 NaN。")
 
@@ -308,7 +308,7 @@ def dask_compute_context(*dask_objects):
     try:
         if dask_objects:
             logger.debug(f"尝试持久化 {len(dask_objects)} 个 Dask 对象...")
-            # 注意: persist 返回新的对象列表
+            # 注意：persist 返回新的对象列表
             # 使用导入的 dask.persist 函数
             persisted_objects = persist(*dask_objects)
             logger.debug("Dask 对象持久化完成。")
@@ -342,5 +342,5 @@ def dask_compute_context(*dask_objects):
                 logger.debug("未安装 dask.distributed，跳过显式内存清理。")
             except Exception as e:
                 # Log other unexpected exceptions during cleanup
-                logger.warning(f"清理 Dask 内存时出现其他异常: {e}", exc_info=False)
+                logger.warning(f"清理 Dask 内存时出现其他异常：{e}", exc_info=False)
             logger.debug("Dask 上下文退出。") 

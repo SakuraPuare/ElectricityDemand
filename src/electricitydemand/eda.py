@@ -26,7 +26,7 @@ except (ImportError, ValueError, AttributeError, NameError):
     try:
         _script_path = os.path.abspath(__file__)
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(_script_path)))
-    except NameError: # 如果 __file__ 未定义 (例如, 交互式环境)
+    except NameError: # 如果 __file__ 未定义 (例如，交互式环境)
         project_root = os.getcwd()
 
     # 如果是直接运行，将项目根目录添加到 sys.path
@@ -44,16 +44,16 @@ os.makedirs(plots_dir, exist_ok=True) # 确保目录存在
 
 # 设置日志级别为 INFO
 setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir, level="INFO")
-logger.info(f"项目根目录: {project_root}")
-logger.info(f"日志目录: {logs_dir}")
-logger.info(f"图表目录: {plots_dir}")
+logger.info(f"项目根目录：{project_root}")
+logger.info(f"日志目录：{logs_dir}")
+logger.info(f"图表目录：{plots_dir}")
 
 # --- 数据文件路径 ---
 data_dir = os.path.join(project_root, "data")
 demand_path = os.path.join(data_dir, "demand.parquet")
 metadata_path = os.path.join(data_dir, "metadata.parquet")
 weather_path = os.path.join(data_dir, "weather.parquet")
-logger.info(f"数据目录: {data_dir}")
+logger.info(f"数据目录：{data_dir}")
 
 # --- 辅助函数 ---
 
@@ -66,10 +66,10 @@ def _save_plot(fig, filename, plots_dir):
     filepath = os.path.join(plots_dir, filename)
     try:
         fig.savefig(filepath)
-        logger.info(f"图表已保存到: {filepath}")
+        logger.info(f"图表已保存到：{filepath}")
         plt.close(fig) # 保存后关闭图形
     except Exception as e:
-        logger.exception(f"保存图表 '{filename}' 时出错: {e}")
+        logger.exception(f"保存图表 '{filename}' 时出错：{e}")
         plt.close(fig) # 出错也要关闭
 
 def _plot_numerical_distribution(data_pd_series, col_name, filename_base, plots_dir, title_prefix="", kde=True, showfliers=True):
@@ -162,11 +162,11 @@ def _log_value_counts(data_pd_series, col_name, top_n=10, is_already_counts=Fals
         top_n: How many top values to display in the log.
         is_already_counts: Set to True if data_pd_series is already the result of value_counts().
     """
-    logger.info(f"--- 分析列: {col_name} 值分布 ---")
+    logger.info(f"--- 分析列：{col_name} 值分布 ---")
 
     # Input validation
     if not isinstance(data_pd_series, pd.Series):
-        logger.warning(f"输入给 _log_value_counts 的 '{col_name}' 不是 Pandas Series，跳过。类型: {type(data_pd_series)}")
+        logger.warning(f"输入给 _log_value_counts 的 '{col_name}' 不是 Pandas Series，跳过。类型：{type(data_pd_series)}")
         return
     if data_pd_series.empty:
         logger.warning(f"列 '{col_name}' 的数据为空，跳过值计数记录。")
@@ -175,10 +175,10 @@ def _log_value_counts(data_pd_series, col_name, top_n=10, is_already_counts=Fals
     if is_already_counts:
         counts = data_pd_series
         total_rows = int(counts.sum()) # Total is the sum of counts
-        logger.debug(f"处理预先计算的计数值，总计: {total_rows}")
+        logger.debug(f"处理预先计算的计数值，总计：{total_rows}")
     else:
         total_rows = len(data_pd_series)
-        logger.debug(f"计算原始数据的计数值，总行数: {total_rows}")
+        logger.debug(f"计算原始数据的计数值，总行数：{total_rows}")
         counts = data_pd_series.value_counts(dropna=False) # 包含 NaN
 
     if total_rows > 0:
@@ -211,7 +211,7 @@ def _log_value_counts(data_pd_series, col_name, top_n=10, is_already_counts=Fals
         else:
             nan_count = data_pd_series.isnull().sum()
         nan_perc = (nan_count / total_rows * 100).round(2) if total_rows > 0 else 0
-        logger.warning(f"列 '{col_name}' 存在缺失值 (NaN)。数量: {nan_count}, 百分比: {nan_perc:.2f}%")
+        logger.warning(f"列 '{col_name}' 存在缺失值 (NaN)。数量：{nan_count}, 百分比：{nan_perc:.2f}%")
 
 
 @contextlib.contextmanager
@@ -221,7 +221,7 @@ def _dask_compute_context(*dask_objects):
     try:
         if dask_objects:
             logger.debug(f"尝试持久化 {len(dask_objects)} 个 Dask 对象...")
-            # 注意: persist 返回新的对象列表
+            # 注意：persist 返回新的对象列表
             # 使用导入的 dask.persist 函数
             persisted_objects = persist(*dask_objects)
             logger.debug("Dask 对象持久化完成。")
@@ -257,7 +257,7 @@ def _dask_compute_context(*dask_objects):
                 logger.debug("未安装 dask.distributed，跳过显式内存清理。")
             except Exception as e:
                 # Log other unexpected exceptions during cleanup
-                logger.warning(f"清理 Dask 内存时出现其他异常: {e}", exc_info=False)
+                logger.warning(f"清理 Dask 内存时出现其他异常：{e}", exc_info=False)
             logger.debug("Dask 上下文退出。")
 
 # --- 数据加载函数 (保持不变) ---
@@ -266,14 +266,14 @@ def load_demand_data():
     logger.info("开始加载 Demand 数据集...")
     try:
         ddf_demand = dd.read_parquet(demand_path)
-        logger.info(f"成功加载 Demand 数据: {demand_path}")
-        logger.info(f"Demand Dask DataFrame 分区数: {ddf_demand.npartitions}, 列: {ddf_demand.columns}")
+        logger.info(f"成功加载 Demand 数据：{demand_path}")
+        logger.info(f"Demand Dask DataFrame 分区数：{ddf_demand.npartitions}, 列：{ddf_demand.columns}")
         return ddf_demand
     except FileNotFoundError as e:
-        logger.error(f"Demand 数据文件未找到: {e}")
+        logger.error(f"Demand 数据文件未找到：{e}")
         sys.exit(1)
     except Exception as e:
-        logger.exception(f"加载 Demand 数据集时发生错误: {e}")
+        logger.exception(f"加载 Demand 数据集时发生错误：{e}")
         sys.exit(1)
 
 def load_metadata():
@@ -281,16 +281,16 @@ def load_metadata():
     logger.info("开始加载 Metadata 数据集...")
     try:
         pdf_metadata = pd.read_parquet(metadata_path)
-        logger.info(f"成功加载 Metadata 数据: {metadata_path}")
-        logger.info(f"Metadata Pandas DataFrame 形状: {pdf_metadata.shape}, 列: {pdf_metadata.columns.tolist()}")
+        logger.info(f"成功加载 Metadata 数据：{metadata_path}")
+        logger.info(f"Metadata Pandas DataFrame 形状：{pdf_metadata.shape}, 列：{pdf_metadata.columns.tolist()}")
         logger.info(f"Metadata 头部信息:\n{pdf_metadata.head().to_string()}")
         logger.info(f"Metadata 数据类型:\n{pdf_metadata.dtypes.to_string()}")
         return pdf_metadata
     except FileNotFoundError as e:
-        logger.error(f"Metadata 数据文件未找到: {e}")
+        logger.error(f"Metadata 数据文件未找到：{e}")
         sys.exit(1)
     except Exception as e:
-        logger.exception(f"加载 Metadata 数据集时发生错误: {e}")
+        logger.exception(f"加载 Metadata 数据集时发生错误：{e}")
         sys.exit(1)
 
 def load_weather_data():
@@ -298,15 +298,15 @@ def load_weather_data():
     logger.info("开始加载 Weather 数据集...")
     try:
         ddf_weather = dd.read_parquet(weather_path)
-        logger.info(f"成功加载 Weather 数据: {weather_path}")
-        logger.info(f"Weather Dask DataFrame 分区数: {ddf_weather.npartitions}, 列: {ddf_weather.columns}")
+        logger.info(f"成功加载 Weather 数据：{weather_path}")
+        logger.info(f"Weather Dask DataFrame 分区数：{ddf_weather.npartitions}, 列：{ddf_weather.columns}")
         logger.info(f"Weather 数据类型:\n{ddf_weather.dtypes.to_string()}")
         return ddf_weather
     except FileNotFoundError as e:
-        logger.error(f"Weather 数据文件未找到: {e}")
+        logger.error(f"Weather 数据文件未找到：{e}")
         sys.exit(1)
     except Exception as e:
-        logger.exception(f"加载 Weather 数据集时发生错误: {e}")
+        logger.exception(f"加载 Weather 数据集时发生错误：{e}")
         sys.exit(1)
 
 
@@ -314,7 +314,7 @@ def load_weather_data():
 
 def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42):
     """分析 Demand 数据 'y' 列的分布 (基于抽样)。"""
-    logger.info(f"--- 开始分析 Demand 'y' 列分布 (抽样比例: {sample_frac:.1%}) ---")
+    logger.info(f"--- 开始分析 Demand 'y' 列分布 (抽样比例：{sample_frac:.1%}) ---")
     y_sample_pd = None
     try:
         with _dask_compute_context(ddf_demand['y']) as persisted_data:
@@ -338,7 +338,7 @@ def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42
                 logger.info("检查抽样数据中的非正值 (<= 0)...")
                 non_positive_count = (y_sample_persisted <= 0).sum().compute()
                 non_positive_perc = (non_positive_count / num_samples) * 100 if num_samples > 0 else 0
-                logger.info(f"抽样数据中 'y' <= 0 的数量: {non_positive_count:,} ({non_positive_perc:.2f}%)")
+                logger.info(f"抽样数据中 'y' <= 0 的数量：{non_positive_count:,} ({non_positive_perc:.2f}%)")
 
                 logger.info("将抽样结果转换为 Pandas Series...")
                 y_sample_pd = y_sample_persisted.compute()
@@ -346,7 +346,7 @@ def analyze_demand_y_distribution(ddf_demand, sample_frac=0.005, random_state=42
                 return y_sample_pd
 
     except Exception as e:
-        logger.exception(f"分析 Demand 'y' 列分布时发生错误: {e}")
+        logger.exception(f"分析 Demand 'y' 列分布时发生错误：{e}")
         return None
 
 def plot_demand_y_distribution(y_sample_pd, plots_dir, plot_sample_size=100000, random_state=42):
@@ -559,7 +559,7 @@ def analyze_missing_locations(pdf_metadata):
         missing_df = pdf_metadata[missing_mask].copy() # Use .copy() to avoid SettingWithCopyWarning
         if not missing_df.empty: # Check if the subset is not empty
             logger.info(f"缺失位置信息的行 (前 5 行):\n{missing_df.head().to_string()}")
-            logger.info("分析缺失位置信息行的其他特征分布:")
+            logger.info("分析缺失位置信息行的其他特征分布：")
             analyze_cols = ['dataset', 'building_class', 'freq'] # 分析示例列
             for col in analyze_cols:
                  if col in missing_df.columns:
@@ -1075,7 +1075,7 @@ def main():
     #     analyze_demand_vs_weather(ddf_demand, pdf_metadata, ddf_weather, plots_dir=plots_dir, n_sample_ids=50)
     # except Exception as e:
     #      # analyze_demand_vs_weather 内部已记录详细错误，这里只记录简要信息
-    #      logger.error(f"Demand vs Weather 分析执行期间遇到问题: {e}")
+    #      logger.error(f"Demand vs Weather 分析执行期间遇到问题：{e}")
     # logger.info("--- 完成 Demand vs Weather 分析 (或已跳过) ---")
 
 

@@ -19,7 +19,7 @@ except (ImportError, ValueError, AttributeError, NameError):
     try:
         _script_path = os.path.abspath(__file__)
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(_script_path)))
-    except NameError: # 如果 __file__ 未定义 (例如, 交互式环境)
+    except NameError: # 如果 __file__ 未定义 (例如，交互式环境)
         project_root = os.getcwd()
 
     # 如果是直接运行，将项目根目录添加到 sys.path
@@ -34,36 +34,36 @@ log_prefix = os.path.splitext(os.path.basename(__file__))[0] # 从文件名自�
 logs_dir = os.path.join(project_root, 'logs')
 # 设置日志级别为 INFO
 setup_logger(log_file_prefix=log_prefix, logs_dir=logs_dir, level="INFO")
-logger.info(f"项目根目录: {project_root}")
-logger.info(f"日志目录: {logs_dir}")
+logger.info(f"项目根目录：{project_root}")
+logger.info(f"日志目录：{logs_dir}")
 
 # --- 数据文件路径 ---
 data_dir = os.path.join(project_root, "data") # 使用 project_root 确保路径正确
 demand_path = os.path.join(data_dir, "demand.parquet")
 metadata_path = os.path.join(data_dir, "metadata.parquet")
 weather_path = os.path.join(data_dir, "weather.parquet")
-logger.info(f"数据目录: {data_dir}")
+logger.info(f"数据目录：{data_dir}")
 
 def load_datasets():
     """加载 Demand, Metadata, 和 Weather 数据集."""
     logger.info("开始加载数据集...")
     try:
         ddf_demand = dd.read_parquet(demand_path)
-        logger.info(f"成功加载 Demand 数据: {demand_path}")
+        logger.info(f"成功加载 Demand 数据：{demand_path}")
 
         ddf_metadata = dd.read_parquet(metadata_path)
-        logger.info(f"成功加载 Metadata 数据: {metadata_path}")
+        logger.info(f"成功加载 Metadata 数据：{metadata_path}")
 
         ddf_weather = dd.read_parquet(weather_path)
-        logger.info(f"成功加载 Weather 数据: {weather_path}")
+        logger.info(f"成功加载 Weather 数据：{weather_path}")
 
         logger.info("所有数据集加载完成。")
         return ddf_demand, ddf_metadata, ddf_weather
     except FileNotFoundError as e:
-        logger.error(f"数据文件未找到: {e}")
+        logger.error(f"数据文件未找到：{e}")
         sys.exit(1)
     except Exception as e:
-        logger.exception(f"加载数据集时发生错误: {e}")
+        logger.exception(f"加载数据集时发生错误：{e}")
         sys.exit(1)
 
 def log_basic_info(ddf_demand, ddf_metadata, ddf_weather):
@@ -83,12 +83,12 @@ def log_basic_info(ddf_demand, ddf_metadata, ddf_weather):
     num_metadata_rows = len(ddf_metadata)
     num_weather_rows = len(ddf_weather)
     logger.info(f"Demand 数据行数 (估算): {num_demand_rows:,}")
-    logger.info(f"Metadata 数据行数: {num_metadata_rows:,}")
-    logger.info(f"Weather 数据行数: {num_weather_rows:,}")
+    logger.info(f"Metadata 数据行数：{num_metadata_rows:,}")
+    logger.info(f"Weather 数据行数：{num_weather_rows:,}")
 
     # 查看数据样本
     logger.info("--- 查看数据样本 (前 5 行) ---")
-    # 使用 compute() 获取实际数据，head() 默认获取前5行
+    # 使用 compute() 获取实际数据，head() 默认获取前 5 行
     logger.info(f"Demand head:\n{ddf_demand.head().to_string()}")
     logger.info(f"Metadata head:\n{ddf_metadata.head().to_string()}")
     logger.info(f"Weather head:\n{ddf_weather.head().to_string()}")
@@ -106,7 +106,7 @@ def check_missing_values(ddf_demand, ddf_metadata, ddf_weather, num_demand_rows,
     logger.info("--- 检查缺失值 ---")
 
     # Demand 缺失值
-    logger.info("Demand 缺失值统计:")
+    logger.info("Demand 缺失值统计：")
     missing_demand = ddf_demand.isnull().sum().compute()
     logger.info(f"\n{missing_demand.to_string()}")
     if num_demand_rows > 0:
@@ -116,7 +116,7 @@ def check_missing_values(ddf_demand, ddf_metadata, ddf_weather, num_demand_rows,
 
 
     # Metadata 缺失值
-    logger.info("Metadata 缺失值统计:")
+    logger.info("Metadata 缺失值统计：")
     missing_metadata = ddf_metadata.isnull().sum().compute()
     logger.info(f"\n{missing_metadata.to_string()}")
     if num_metadata_rows > 0:
@@ -126,7 +126,7 @@ def check_missing_values(ddf_demand, ddf_metadata, ddf_weather, num_demand_rows,
 
 
     # Weather 缺失值
-    logger.info("Weather 缺失值统计:")
+    logger.info("Weather 缺失值统计：")
     missing_weather = ddf_weather.isnull().sum().compute()
     logger.info(f"\n{missing_weather.to_string()}")
     if num_weather_rows > 0:
@@ -149,11 +149,11 @@ def check_duplicates(ddf_demand, ddf_metadata, ddf_weather):
     ).compute()
     logger.info(f"Demand 数据中 {'存在' if has_duplicates_demand_partition else '不存在'} 基于 ['unique_id', 'timestamp'] 的重复值 (分区内检查)。")
     if has_duplicates_demand_partition:
-         logger.warning("Demand 数据中检测到分区内重复，如果需要精确全局计数，可能需要更复杂的操作（如set_index）")
+         logger.warning("Demand 数据中检测到分区内重复，如果需要精确全局计数，可能需要更复杂的操作（如 set_index）")
     # 尝试计算全局重复数 (如果数据不大或资源允许)
     # try:
     #     num_duplicates_demand = ddf_demand.duplicated(subset=['unique_id', 'timestamp']).sum().compute()
-    #     logger.info(f"Demand 中基于 ['unique_id', 'timestamp'] 的全局重复行数估算: {num_duplicates_demand}")
+    #     logger.info(f"Demand 中基于 ['unique_id', 'timestamp'] 的全局重复行数估算：{num_duplicates_demand}")
     # except Exception as e:
     #      logger.warning(f"计算 Demand 全局重复数时出错 (可能因数据量大): {e}")
 
@@ -168,7 +168,7 @@ def check_duplicates(ddf_demand, ddf_metadata, ddf_weather):
     #     logger.warning(f"发现 {num_duplicates_metadata} 行 Metadata 的 unique_id 重复，需要检查具体哪些 unique_id 重复了。")
     #     # 查找重复的 unique_id 本身可能更有用
     #     # duplicated_ids = ddf_metadata[ddf_metadata.duplicated(subset=['unique_id'], keep=False)]['unique_id'].unique().compute()
-    #     # logger.warning(f"重复的 unique_id 样本: {duplicated_ids[:5]}") # 只显示前几个
+    #     # logger.warning(f"重复的 unique_id 样本：{duplicated_ids[:5]}") # 只显示前几个
     logger.warning("暂时跳过 Metadata 全局重复值精确计数。")
 
 
@@ -189,16 +189,16 @@ def log_time_ranges(ddf_demand, ddf_weather):
     try:
         min_demand_ts = ddf_demand['timestamp'].min().compute()
         max_demand_ts = ddf_demand['timestamp'].max().compute()
-        logger.info(f"Demand 时间范围: 从 {min_demand_ts} 到 {max_demand_ts}")
+        logger.info(f"Demand 时间范围：从 {min_demand_ts} 到 {max_demand_ts}")
     except Exception as e:
-        logger.exception(f"计算 Demand 时间范围时出错: {e}")
+        logger.exception(f"计算 Demand 时间范围时出错：{e}")
 
     try:
         min_weather_ts = ddf_weather['timestamp'].min().compute()
         max_weather_ts = ddf_weather['timestamp'].max().compute()
-        logger.info(f"Weather 时间范围: 从 {min_weather_ts} 到 {max_weather_ts}")
+        logger.info(f"Weather 时间范围：从 {min_weather_ts} 到 {max_weather_ts}")
     except Exception as e:
-        logger.exception(f"计算 Weather 时间范围时出错: {e}")
+        logger.exception(f"计算 Weather 时间范围时出错：{e}")
 
 
 def main():
@@ -222,7 +222,7 @@ def main():
 
         logger.info("数据加载和初步检查脚本执行完毕。")
     except Exception as e:
-        logger.exception(f"在主执行流程中发生严重错误: {e}")
+        logger.exception(f"在主执行流程中发生严重错误：{e}")
         sys.exit(1)
 
 if __name__ == "__main__":
