@@ -4,12 +4,12 @@ import time
 from pathlib import Path
 
 from loguru import logger
+from pyspark import StorageLevel
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import NumericType, StringType, TimestampType  # 用于检查列类型
 from pyspark.sql.window import Window
-from pyspark.sql.storage import StorageLevel
-
+from pyspark.sql.dataframe import DataFrame
 # --- 项目设置 ---
 try:
     _script_path = os.path.abspath(__file__)
@@ -282,13 +282,18 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
 # ======================================================================
 # ==                   Main Execution Function                      ==
 # ======================================================================
-def run_feature_engineering_spark(sample_fraction: float | None = None):
+def run_feature_engineering_spark():
     """Loads merged data, performs feature engineering using Spark, and saves the results."""
     logger.info("=====================================================")
     logger.info("=== 开始执行 特征工程脚本 (Spark) ===")
     logger.info("=====================================================")
     start_run_time = time.time()
     spark = None
+
+    # 定义抽样比例 (例如: 0.01 表示 1%)
+    # 如果设置为 None 或 1.0, 则使用全量数据
+    sample_fraction = None
+    # sample_fraction = None # 取消注释这行以使用全量数据
 
     try:
         # --- 创建 SparkSession ---
@@ -328,23 +333,26 @@ def run_feature_engineering_spark(sample_fraction: float | None = None):
             logger.exception(f"加载 Parquet 文件失败: {load_e}")
             raise
 
-        # 移除抽样逻辑 (注释掉或删除)
-        # if sample_fraction is not None and 0 < sample_fraction < 1:
-        #     logger.warning(f"--- 注意: 已启用数据抽样，仅使用 {sample_fraction:.2%} 的数据 ---")
-        #     initial_row_count = sdf.count()
-        #     sdf_processed = sdf.sample(withReplacement=False, fraction=sample_fraction, seed=42)
-        #     sampled_row_count = sdf_processed.count()
-        #     logger.info(f"抽样前行数: {initial_row_count:,}")
-        #     logger.info(f"抽样后行数: {sampled_row_count:,}")
-        #     # Define output path for sampled data
-        #     features_output_path_final = features_output_path.parent / f"{features_output_path.stem}_sampled_{sample_fraction:.1f}{features_output_path.suffix}"
-        # else:
-        #     logger.info("--- 注意: 将在完整数据集上运行特征工程 ---")
-        #     sdf_processed = sdf
-        #     features_output_path_final = features_output_path
-
-        sdf_processed = sdf # 直接使用全量数据
-        features_output_path_final = features_output_path # 使用原始全量输出路径
+        # 重新启用抽样逻辑
+        if sample_fraction is not None and 0 < sample_fraction < 1:
+            logger.warning(f"--- 注意: 已启用数据抽样，仅使用 {sample_fraction:.2%} 的数据 ---")
+            initial_row_count = sdf.count() # 在抽样前计算一次总行数（可选，但有助于了解比例）
+            sdf_processed = sdf.sample(withReplacement=False, fraction=sample_fraction, seed=42)
+            # 缓存抽样后的数据，后续操作基于此缓存
+            sdf_processed.persist(StorageLevel.MEMORY_AND_DISK)
+            sampled_row_count = sdf_processed.count() # 计算抽样后的实际行数
+            logger.info(f"抽样前行数: {initial_row_count:,}")
+            logger.info(f"抽样后行数: {sampled_row_count:,}")
+            # 定义抽样数据的输出路径
+            features_output_path_final = features_output_path.parent / f"{features_output_path.stem}_sampled_{str(sample_fraction).replace('.', 'p')}{features_output_path.suffix}"
+            logger.info(f"抽样特征数据将保存到: {features_output_path_final}")
+        else:
+            logger.info("--- 注意: 将在完整数据集上运行特征工程 ---")
+            sdf_processed = sdf
+            features_output_path_final = features_output_path
+            logger.info(f"全量特征数据将保存到: {features_output_path_final}")
+            # 如果是全量数据，也建议缓存一下
+            sdf_processed.persist(StorageLevel.MEMORY_AND_DISK)
 
 
         # --- 步骤 2: 执行特征工程 ---
@@ -361,9 +369,7 @@ def run_feature_engineering_spark(sample_fraction: float | None = None):
                 sdf_processed,
                 target_col='y',
                 window_sizes=window_hours_list,
-                stats=stats_list,
-                partition_col='unique_id',
-                timestamp_col='timestamp'
+                stats=stats_list
             )
 
             # --- 步骤 2.3: 处理缺失值 ---
@@ -380,8 +386,17 @@ def run_feature_engineering_spark(sample_fraction: float | None = None):
             # --- 步骤 2.5: (待添加) 更多特征? ---
             # Lag features, interaction features etc.
 
+            # 特征工程完成后，如果之前 persist 了，可以 unpersist 释放缓存
+            if sdf_processed.is_cached:
+                logger.info("Unpersisting processed data frame before saving.")
+                sdf_processed.unpersist()
+
         except Exception as fe_e:
             logger.exception(f"特征工程步骤中发生错误: {fe_e}")
+            # 如果在特征工程中出错，也尝试 unpersist
+            if sdf_processed.is_cached:
+                logger.info("Unpersisting processed data frame due to error.")
+                sdf_processed.unpersist()
             raise
 
         # --- 步骤 3: 保存特征工程后的数据 ---
@@ -424,10 +439,7 @@ def run_feature_engineering_spark(sample_fraction: float | None = None):
 
 if __name__ == "__main__":
     try:
-        # !!! 开发时可以启用抽样 !!!
-        # run_feature_engineering_spark(use_sampling=True, sample_fraction=0.1)
-        # !!! 最终运行时关闭抽样 !!!
-        run_feature_engineering_spark(sample_fraction=None)
+        run_feature_engineering_spark()
     except Exception as e:
         # 主函数已有详细日志记录
         sys.exit(1)
