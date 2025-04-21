@@ -5,7 +5,7 @@ from pathlib import Path
 from loguru import logger
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import NumericType, StringType, TimestampType  # 用于检查列类型
+from pyspark.sql.types import NumericType, StringType, TimestampType, DoubleType, IntegerType, LongType, FloatType  # 用于检查列类型
 from pyspark.sql.window import Window
 from pyspark.sql.dataframe import DataFrame
 from pyspark.storagelevel import StorageLevel  # 显式导入
@@ -144,145 +144,86 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
     return sdf_with_rolling
 
 
-@logger.catch(reraise=True)
-def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
+def handle_missing_values_spark(
+    sdf: DataFrame, max_window: int, target_col: str = "y"
+) -> DataFrame:
     """
-    Handles missing values in the feature DataFrame using Spark.
-
-    1. Removes rows where the target 'y' is null.
-    2. Removes initial rows within the rolling window period for each time series.
-    3. Identifies remaining nulls and applies specific strategies:
-       - Fills rolling stddev nulls with 0.0.
-       - Removes rows where location_id is null.
-       - Reports any other unexpected nulls.
+    处理 Spark DataFrame 中的缺失值：
+    1. 删除目标列 ('y') 为 null 的行。
+    2. 基于最大滚动窗口期删除初始行（这些行的滚动特征为 null）。
+    3. （可选）对其他特征列进行填充（当前未实现，因为天气数据无缺失）。
 
     Args:
-        sdf (DataFrame): Input Spark DataFrame with features.
-        window_hours (int): The maximum rolling window size used, to determine initial rows to drop.
+        sdf (DataFrame): 输入的 Spark DataFrame，包含滚动特征。
+        max_window (int): 计算滚动特征时使用的最大窗口大小 (小时)。
+        target_col (str): 目标列名 (默认为 'y')。
 
     Returns:
-        DataFrame: Spark DataFrame with missing values handled.
+        DataFrame: 处理缺失值后的 DataFrame。
     """
     logger.info("开始处理缺失值...")
     initial_count = sdf.count()
-    logger.info(f"处理前总行数: {initial_count:,}")
+    logger.info(f"处理前总行数: {initial_count}")
 
-    # 1. 删除 target 'y' 为 null 的行
-    logger.info("检查列 'y' 的缺失值...")
-    sdf_no_y_null = sdf.filter(F.col("y").isNotNull())
+    # 1. 删除目标列 ('y') 为 null 的行
+    logger.info(f"检查列 '{target_col}' 的缺失值...")
+    sdf_no_y_null = sdf.filter(F.col(target_col).isNotNull())
     count_after_y_drop = sdf_no_y_null.count()
-    rows_dropped_y = initial_count - count_after_y_drop
+    deleted_y_null = initial_count - count_after_y_drop
     logger.info(
-        f"删除 'y' 为 null 的行后，剩余行数: {count_after_y_drop:,} (删除了 {rows_dropped_y:,} 行)")
-    sdf = sdf_no_y_null  # Update sdf
+        f"删除 '{target_col}' 为 null 的行后，剩余行数: {count_after_y_drop} (删除了 {deleted_y_null} 行)"
+    )
 
-    # 2. 删除每个时间序列的初始窗口期数据
-    # 使用滚动均值列来识别（如果滚动特征计算正确，应该有 null）
-    # 注意：如果一个序列的初始值全部相同，stddev 可能是 0 或 null，mean 可能非 null
-    # 更健壮的方法可能是使用 row_number，但这里暂时沿用基于 rolling mean 的方法
-    rolling_col_for_init_drop = f"y_rolling_mean_{window_hours}h"
-    if rolling_col_for_init_drop not in sdf.columns:
-        logger.error(f"用于删除初始窗口的列 '{rolling_col_for_init_drop}' 不存在！跳过此步骤。")
+    # 2. 基于最大滚动窗口删除初始行为 null 的行
+    rolling_feature_col = f"{target_col}_rolling_mean_{max_window}h"
+    if rolling_feature_col not in sdf_no_y_null.columns:
+        logger.warning(
+            f"列 '{rolling_feature_col}' 不存在，无法基于滚动窗口删除初始行。"
+        )
+        sdf_no_initial_window = sdf_no_y_null
     else:
-        logger.info(f"检查列 '{rolling_col_for_init_drop}' 的缺失值以删除初始窗口期...")
-        # 确保在删除前缓存，避免重复计算 filter
-        sdf.persist(StorageLevel.MEMORY_AND_DISK)
-        sdf_no_initial_window = sdf.filter(
-            F.col(rolling_col_for_init_drop).isNotNull())
-        count_after_init_drop = sdf_no_initial_window.count()
-        rows_dropped_init = count_after_y_drop - \
-            count_after_init_drop  # Compare with count after y drop
-        logger.info(
-            f"删除每个 unique_id 前 {window_hours} 小时的记录（基于 '{rolling_col_for_init_drop}' 为 null）后，剩余行数: {count_after_init_drop:,} (又删除了 {rows_dropped_init:,} 行)")
-        sdf = sdf_no_initial_window  # Update sdf
-        # Check if the initial drop removed significant rows, if not, warn.
-        if rows_dropped_init == 0 and initial_count > 0:
-            logger.warning(
-                f"基于 '{rolling_col_for_init_drop}' 的初始窗口删除未移除任何行。请检查滚动特征计算或窗口期是否足够长。")
-        # Unpersist the intermediate sdf if needed, but let's keep it for the next step
-        # sdf.unpersist() # Unpersist previous sdf version
+        logger.info(f"检查列 '{rolling_feature_col}' 的缺失值以删除初始窗口期...")
+        sdf_no_initial_window = sdf_no_y_null.filter(
+            F.col(rolling_feature_col).isNotNull()
+        )
+        # count_after_init_drop = sdf_no_initial_window.count() # <--- OOM发生点
+        # deleted_init_rows = count_after_y_drop - count_after_init_drop
+        # logger.info(
+        #     f"删除基于滚动窗口 '{rolling_feature_col}' 的初始 null 行后，剩余行数: {count_after_init_drop} (删除了 {deleted_init_rows} 行)"
+        # ) # <--- 注释掉相关日志
 
-    # 3. 处理 location_id 为 Null 的情况 (删除这些行)
-    logger.info("检查并删除 'location_id' 为 null 的行...")
-    count_before_loc_drop = sdf.count()
-    sdf_valid_location = sdf.filter(F.col("location_id").isNotNull())
-    final_count_after_loc_drop = sdf_valid_location.count()
-    rows_dropped_loc = count_before_loc_drop - final_count_after_loc_drop
-    logger.info(
-        f"删除 'location_id' 为 null 的行后，剩余行数: {final_count_after_loc_drop:,} (删除了 {rows_dropped_loc:,} 行)")
-    sdf = sdf_valid_location  # Update sdf
-    if rows_dropped_loc > 0:
-        logger.success(f"成功删除 {rows_dropped_loc:,} 行因 location_id 为 null 的记录。")
+    # 3. （可选）处理其他特征列的缺失值 (此处假设天气数据等无缺失)
+    # TODO: 如果其他列有缺失，在这里添加填充逻辑 (e.g., ffill, mean/median imputation)
+    numeric_cols = [
+        f.name
+        for f in sdf_no_initial_window.schema.fields
+        if isinstance(f.dataType, (DoubleType, IntegerType, LongType, FloatType))
+           and f.name not in ["y", "unique_id", "location_id", "cluster_size"] # 排除非特征数值列和目标列
+    ]
+    # logger.info(f"检查数值特征列的缺失值: {numeric_cols}")
+    # null_counts = sdf_no_initial_window.select([F.sum(F.col(c).isNull().cast("int")).alias(c) for c in numeric_cols]).first().asDict()
+    # cols_with_nulls = {k: v for k, v in null_counts.items() if v > 0}
+    # if cols_with_nulls:
+    #     logger.warning(f"以下数值特征列存在缺失值，将使用 0 填充: {cols_with_nulls}")
+    #     sdf_filled = sdf_no_initial_window.fillna(0, subset=list(cols_with_nulls.keys()))
+    # else:
+    #     logger.info("数值特征列无缺失值，无需填充。")
+    #     sdf_filled = sdf_no_initial_window
 
-    # 4. 处理滚动标准差 (stddev) 特征的 Null 值 (填充为 0.0)
-    stddev_cols = [c for c in sdf.columns if "y_rolling_stddev" in c]
-    if stddev_cols:
-        logger.info("检查并填充滚动标准差列的 Null 值为 0.0...")
-        null_counts_stddev_before = {}
-        for col_name in stddev_cols:
-            # 检查是否存在 Null (耗时操作，可选)
-            # null_count = sdf.where(F.col(col_name).isNull()).count()
-            # if null_count > 0:
-            #     null_counts_stddev_before[col_name] = null_count
-            #     logger.warning(f"  - 列 '{col_name}' 将填充 {null_count} 个 null 值。")
-            sdf = sdf.withColumn(col_name, F.when(
-                F.col(col_name).isNull(), 0.0).otherwise(F.col(col_name)))
-        logger.success(f"已将以下滚动标准差列中的 Null 值填充为 0.0: {stddev_cols}")
-        # 可选：再次检查填充后是否还有 Null
-        # for col_name in stddev_cols:
-        #     null_count_after = sdf.where(F.col(col_name).isNull()).count()
-        #     if null_count_after > 0:
-        #         logger.error(f"  - 警告！列 '{col_name}' 在填充后仍有 {null_count_after} 个 null 值！")
+    # 暂时不进行数值列填充，因为之前的分析显示其他数值列无缺失
+    sdf_filled = sdf_no_initial_window
 
-    else:
-        logger.info("未找到滚动标准差特征列，跳过填充步骤。")
+    # 持久化处理后的数据，便于后续计算
+    logger.info("持久化处理缺失值后的 DataFrame...")
+    sdf_filled.persist(StorageLevel.MEMORY_AND_DISK)
+    final_count = sdf_filled.count() # 在持久化后进行 count 通常更安全
+    logger.info(f"持久化完成，最终处理后的数据行数: {final_count}")
+    # deleted_init_rows = count_after_y_drop - final_count # 可以推算出删除的初始行数
+    # logger.info(f"基于滚动窗口 '{rolling_feature_col}' 删除的初始 null 行数: {deleted_init_rows}")
 
-    # 5. 最终检查并报告剩余的 Null 值
-    logger.info("最终检查剩余列中的缺失值...")
-    final_count = sdf.count()
-    remaining_null_cols = []
-    null_check_results = {}
-    for col_name in sdf.columns:
-        # Check for nulls more efficiently if possible, maybe aggregate?
-        # For now, use count for simplicity
-        null_count = sdf.where(F.col(col_name).isNull()).count()
-        if null_count > 0:
-            percentage = (null_count / final_count) * \
-                100 if final_count > 0 else 0
-            col_type = sdf.schema[col_name].dataType
-            null_check_results[col_name] = (null_count, percentage, col_type)
-            remaining_null_cols.append(col_name)
-            logger.warning(
-                f"  - 列 '{col_name}' (类型: {col_type}) 仍存在 {null_count:,} 个 null 值 ({percentage:.4f}%).")
 
-    if not remaining_null_cols:
-        logger.success(
-            "============================== 缺失值报告 ==============================")
-        logger.success("所有预期的缺失值已处理完毕，未发现其他列存在 Null。")
-        logger.success(
-            "======================================================================")
-    else:
-        logger.error(
-            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 缺失值警告 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        logger.error("在执行完所有处理步骤后，以下列仍包含 Null 值:")
-        for col_name in remaining_null_cols:
-            n_count, perc, c_type = null_check_results[col_name]
-            logger.error(
-                f"  - 列 '{col_name}' ({c_type}): {n_count:,} 个 null ({perc:.4f}%)")
-        logger.error("请检查数据源或处理逻辑，这些 Null 值可能影响后续模型训练！")
-        logger.error(
-            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        # 根据需要，可以选择在这里抛出异常停止执行
-        # raise ValueError("发现未处理的 Null 值，请检查日志。")
-
-    logger.info(
-        f"处理后最终行数: {final_count:,} (总共删除了 {initial_count - final_count:,} 行)")
-
-    # Unpersist the final sdf before returning if it was persisted
-    if sdf.is_cached:
-        sdf.unpersist()
-
-    return sdf
+    logger.success("缺失值处理完成。")
+    return sdf_filled
 
 # --- 其他特征工程函数将在此处添加 ---
 # def add_lag_features_spark(sdf, lags=[1, 2, 3, 24]): ...
@@ -293,158 +234,187 @@ def handle_missing_values_spark(sdf: DataFrame, window_hours: int) -> DataFrame:
 # ======================================================================
 
 
-def run_feature_engineering_spark():
-    """Loads merged data, performs feature engineering using Spark, and saves the results."""
-    logger.info("=====================================================")
+def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: float = 0.0001):
+    """
+    使用 Spark 执行完整的特征工程流程。
+
+    Args:
+        use_sampling (bool): 是否对合并后的数据进行采样以进行特征工程。
+        sample_fraction (float): 如果 use_sampling 为 True，使用的采样比例。
+    """
+    logger.info("=" * 53)
     logger.info("=== 开始执行 特征工程脚本 (Spark) ===")
-    logger.info("=====================================================")
-    start_run_time = time.time()
+    logger.info("=" * 53)
+
+    start_time = time.time()
+
+    merged_data_path = data_dir / "merged_data.parquet"
+    if use_sampling:
+        output_feature_path = data_dir / f"features_sampled_{sample_fraction}.parquet"
+    else:
+        output_feature_path = data_dir / "features.parquet"
+
+    logger.info(f"输入合并数据路径: {merged_data_path}")
+    logger.info(f"输出特征数据路径: {output_feature_path}")
+
     spark = None
-
-    # 定义抽样比例 (例如: 0.01 表示 1%)
-    # 如果设置为 None 或 1.0, 则使用全量数据
-    sample_fraction = None
-    # sample_fraction = None # 取消注释这行以使用全量数据
-
     try:
-        # --- 创建 SparkSession ---
         logger.info("创建 SparkSession...")
-        # 特征工程可能需要较多内存和 shuffle，使用更高比例和默认值
-        feature_eng_configs = {
-            "spark.sql.execution.pyarrow.fallback.enabled": "true",  # 确保 PyArrow 回退
-            "spark.sql.shuffle.partitions": "200",  # 保持 shuffle 分区数
-            "spark.default.parallelism": "200"  # 保持并行度
-        }
-        spark = create_spark_session(
-            app_name="ElectricityDemandFeatureEngineering",
-            additional_configs=feature_eng_configs
-        )
-
-        logger.info("SparkSession 创建成功。")
+        spark = create_spark_session("ElectricityDemandFeatureEngineering")
+        if not spark:
+            logger.error("无法创建 SparkSession。")
+            return
+        logger.success("SparkSession 创建成功。")
         logger.info(f"Spark Web UI: {spark.sparkContext.uiWebUrl}")
+
 
         # --- 步骤 1: 加载合并后的数据 ---
         logger.info(f"--- 步骤 1: 加载合并后的数据 {merged_data_path} ---")
-        try:
-            sdf = spark.read.parquet(str(merged_data_path))
-            logger.info("合并数据加载成功。")
-            logger.info("原始 Schema:")
-            sdf.printSchema()
-            # logger.info(f"数据行数 (加载后): {sdf.count():,}") # Count is expensive, maybe remove
-        except Exception as load_e:
-            logger.exception(f"加载 Parquet 文件失败: {load_e}")
-            raise
+        if not merged_data_path.exists():
+             logger.error(f"错误: 合并后的数据文件未找到于 {merged_data_path}")
+             raise FileNotFoundError(f"合并后的数据文件未找到于 {merged_data_path}")
 
-        # 重新启用抽样逻辑
-        if sample_fraction is not None and 0 < sample_fraction < 1:
-            logger.warning(
-                f"--- 注意: 已启用数据抽样，仅使用 {sample_fraction:.2%} 的数据 ---")
-            initial_row_count = sdf.count()  # 在抽样前计算一次总行数（可选，但有助于了解比例）
-            sdf_processed = sdf.sample(
-                withReplacement=False, fraction=sample_fraction, seed=42)
-            # 缓存抽样后的数据，后续操作基于此缓存
-            sdf_processed.persist(StorageLevel.MEMORY_AND_DISK)
-            sampled_row_count = sdf_processed.count()  # 计算抽样后的实际行数
-            logger.info(f"抽样前行数: {initial_row_count:,}")
-            logger.info(f"抽样后行数: {sampled_row_count:,}")
-            # 定义抽样数据的输出路径
-            features_output_path_final = features_output_path.parent / \
-                f"{features_output_path.stem}_sampled_{str(sample_fraction).replace('.', 'p')}{features_output_path.suffix}"
-            logger.info(f"抽样特征数据将保存到: {features_output_path_final}")
+        sdf_merged = spark.read.parquet(str(merged_data_path))
+        logger.info("合并数据加载成功。")
+        logger.info("原始 Schema:")
+        sdf_merged.printSchema()
+        # sdf_merged.show(5)
+
+        if use_sampling:
+            logger.warning(f"--- 注意: 将在 {sample_fraction*100:.4f}% 的抽样数据上运行特征工程 ---")
+            row_count = sdf_merged.count()
+            logger.info(f"原始数据行数: {row_count}")
+            sdf = sdf_merged.sample(fraction=sample_fraction, seed=42)
+            sampled_count = sdf.count()
+            logger.info(f"抽样后数据行数: {sampled_count} (目标比例: {sample_fraction}, 实际比例: {sampled_count/row_count if row_count > 0 else 0:.6f})")
+            logger.info(f"抽样特征数据将保存到: {output_feature_path}")
         else:
             logger.info("--- 注意: 将在完整数据集上运行特征工程 ---")
-            sdf_processed = sdf
-            features_output_path_final = features_output_path
-            logger.info(f"全量特征数据将保存到: {features_output_path_final}")
-            # 如果是全量数据，也建议缓存一下
-            sdf_processed.persist(StorageLevel.MEMORY_AND_DISK)
+            sdf = sdf_merged
+            logger.info(f"全量特征数据将保存到: {output_feature_path}")
+
 
         # --- 步骤 2: 执行特征工程 ---
         logger.info("--- 步骤 2: 执行特征工程 ---")
-        try:
-            # --- 步骤 2.1: 添加时间特征 ---
-            sdf_processed = add_time_features_spark(sdf_processed)
 
-            # --- 步骤 2.2: 添加滚动统计特征 ---
-            logger.info("--- 步骤 2.2: 添加滚动统计特征 ---")
-            window_hours_list = [3, 6, 12, 24, 48, 168]  # 包含最大窗口 168h
-            stats_list = ['mean', 'stddev', 'min', 'max']
-            sdf_processed = add_rolling_features_spark(
-                sdf_processed,
-                target_col='y',
-                window_sizes=window_hours_list,
-                stats=stats_list
-            )
+        # --- 步骤 2.1: 添加时间特征 ---
+        sdf_with_time = add_time_features_spark(sdf)
 
-            # --- 步骤 2.3: 处理缺失值 ---
-            logger.info("--- 步骤 2.3: 处理缺失值 ---")
-            max_window = max(window_hours_list) if window_hours_list else 0
-            logger.info(f"将基于最大历史窗口 {max_window}h 来删除初始行并处理缺失值。")
-            sdf_processed = handle_missing_values_spark(
-                sdf_processed, window_hours=max_window)
+        # --- 步骤 2.2: 添加滚动统计特征 ---
+        logger.info("--- 步骤 2.2: 添加滚动统计特征 ---")
+        # 窗口大小 (小时): 3h, 6h, 12h, 1天, 2天, 1周
+        # 注意：确保窗口单位与数据频率匹配或可转换
+        # 假设数据主要是 30min 或 1h，选择小时窗口
+        window_sizes_hours = [3, 6, 12, 24, 48, 168] # 168 hours = 7 days
+        stats_to_compute = ["mean", "stddev", "min", "max"]
+        sdf_with_rolling = add_rolling_features_spark(
+            sdf_with_time,
+            target_col="y",
+            window_sizes=window_sizes_hours,
+            stats=stats_to_compute
+        )
 
-            # --- 步骤 2.4: (待添加) 分类特征编码 ---
-            logger.warning("--- 步骤 2.4: (待添加) 分类特征编码 ---")
-            # TODO: Add encoding for 'building_class' (e.g., OneHotEncoder)
+        # --- 步骤 2.3: 处理缺失值 ---
+        logger.info("--- 步骤 2.3: 处理缺失值 ---")
+        max_window = max(window_sizes_hours)
+        logger.info(f"将基于最大历史窗口 {max_window}h 来删除初始行并处理缺失值。")
+        sdf_processed = handle_missing_values_spark(
+            sdf_with_rolling, max_window=max_window, target_col="y"
+        )
 
-            # --- 步骤 2.5: (待添加) 更多特征? ---
-            # Lag features, interaction features etc.
+        # --- 步骤 2.4: （可选）添加滞后特征 ---
+        # logger.info("--- 步骤 2.4: 添加滞后特征 ---")
+        # lag_hours = [24, 48, 168] # 1天, 2天, 1周前的 y 值
+        # sdf_with_lags = add_lag_features_spark(
+        #     sdf_processed,
+        #     target_col="y",
+        #     lag_hours=lag_hours,
+        #     partition_col="unique_id",
+        #     order_col="timestamp"
+        # )
+        # logger.success("成功添加滞后特征。")
+        # sdf_final = sdf_with_lags
+        sdf_final = sdf_processed # 如果不加滞后特征
 
-            # 特征工程完成后，如果之前 persist 了，可以 unpersist 释放缓存
-            if sdf_processed.is_cached:
-                logger.info("Unpersisting processed data frame before saving.")
-                sdf_processed.unpersist()
+        # --- 步骤 2.5: （可选）其他特征 (如交互特征、天气特征的滚动/滞后) ---
+        # logger.info("--- 步骤 2.5: 添加其他特征 ---")
+        # 例如: 添加温度的滚动平均
+        # sdf_final = add_rolling_features_spark(sdf_final, target_col="temperature_2m", window_sizes_hours=[6, 12, 24], stats=["mean"], partition_col="unique_id", order_col="timestamp")
+        # logger.success("成功添加温度滚动特征。")
 
-        except Exception as fe_e:
-            logger.exception(f"特征工程步骤中发生错误: {fe_e}")
-            # 如果在特征工程中出错，也尝试 unpersist
-            if sdf_processed.is_cached:
-                logger.info("Unpersisting processed data frame due to error.")
-                sdf_processed.unpersist()
-            raise
 
-        # --- 步骤 3: 保存特征工程后的数据 ---
-        logger.info(f"--- 步骤 3: 保存特征工程后的数据到 {features_output_path_final} ---")
-        try:
-            logger.info("开始写入 Parquet 文件...")
-            # Consider repartitioning or sorting before write if needed
-            # sdf_processed.repartition(200).write.mode("overwrite").parquet(str(features_output_path_final))
-            sdf_processed.write.mode("overwrite").parquet(
-                str(features_output_path_final))
-            logger.success(f"成功保存特征工程后的数据到：{features_output_path_final}")
-        except Exception as save_e:
-            logger.exception(f"保存特征工程数据时出错：{save_e}")
-            raise
+        # --- 步骤 3: 显示最终 Schema 和一些样本数据 ---
+        logger.info("--- 步骤 3: 显示最终 Schema 和样本数据 ---")
+        logger.info("最终特征 Schema:")
+        sdf_final.printSchema()
+        logger.info("最终特征数据样本 (前 10 行):")
+        sdf_final.show(10, truncate=False)
 
-        logger.info("=====================================================")
-        logger.info("===      特征工程脚本 (Spark) 执行完毕       ===")
-        logger.info("=====================================================")
+        # --- 步骤 4: 保存特征数据 ---
+        logger.info(f"--- 步骤 4: 保存特征数据到 {output_feature_path} ---")
+        start_write = time.time()
+        (
+            sdf_final.write.mode("overwrite")
+            .partitionBy("year", "month") # 按年月分区写入，提高后续读取效率
+            .parquet(str(output_feature_path))
+        )
+        write_time = time.time() - start_write
+        logger.success(f"特征数据成功保存到 {output_feature_path} (耗时: {write_time:.2f} 秒)")
+
+        # 验证写入的数据
+        # logger.info("验证写入的数据...")
+        # try:
+        #     df_check = spark.read.parquet(str(output_feature_path))
+        #     final_count = df_check.count()
+        #     logger.info(f"成功读取已保存的特征数据，总行数: {final_count}")
+        # except Exception as e:
+        #     logger.error(f"验证写入数据时出错: {e}")
+
 
     except Exception as e:
-        logger.critical(f"特征工程过程中发生严重错误: {e}")
-        logger.exception("Traceback:")
+        logger.error(f"特征工程步骤中发生错误: {e}")
+        logger.exception("详细错误信息:") # 记录完整的 traceback
+        # 尝试取消持久化的数据
+        if 'sdf_filled' in locals() and sdf_processed.is_cached:
+            try:
+                sdf_processed.unpersist()
+                logger.info("已取消持久化的 sdf_processed。")
+            except Exception as unpersist_e:
+                logger.warning(f"取消持久化 sdf_processed 时出错: {unpersist_e}")
+
+        raise # 重新抛出异常，以便上层或日志钩子捕获
+
     finally:
         if spark:
-            try:
-                if not spark.sparkContext._jsc.sc().isStopped():
-                    logger.info("正在停止 SparkSession...")
-                    spark.stop()
-                    logger.info("SparkSession 已停止。")
-                else:
-                    logger.info("SparkSession 已停止。")
-            except Exception as stop_e:
-                logger.error(f"停止 SparkSession 时发生错误: {stop_e}")
-        else:
-            logger.info("SparkSession 未成功初始化或已停止。")
+            spark.stop()
+            logger.info("SparkSession 已停止。")
 
-        end_run_time = time.time()
-        logger.info(
-            f"--- Spark 特征工程脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+        end_time = time.time()
+        total_time = end_time - start_time
+        logger.info(f"--- Spark 特征工程脚本总执行时间: {total_time:.2f} 秒 ---")
 
 
 if __name__ == "__main__":
-    try:
-        run_feature_engineering_spark()
-    except Exception as e:
-        # 主函数已有详细日志记录
-        sys.exit(1)
+    setup_logger("3_run_feature_engineering")
+
+    logger.info(f"项目根目录：{project_root}")
+    logger.info(f"数据目录：{data_dir}")
+    logger.info(f"日志目录：{logs_dir}")
+    logger.info(f"绘图目录：{plots_dir}")
+
+    # --- 控制运行哪个部分 ---
+    # run_eda = False
+    # run_merge = False
+    run_feature_eng = True
+    use_sampling_fe = False # 控制特征工程是否使用抽样
+    sampling_fraction_fe = 0.001 # 特征工程抽样比例 (如果 use_sampling_fe=True)
+
+    # if run_eda:
+    #     # 在小样本上运行 EDA
+    #     run_eda_spark(sample_fraction=0.005, unique_id_sample_count=100)
+    # if run_merge:
+    #     # 合并完整数据
+    #     run_merge_data_spark()
+    if run_feature_eng:
+        # 在完整数据或抽样数据上运行特征工程
+        run_feature_engineering_spark(use_sampling=use_sampling_fe, sample_fraction=sampling_fraction_fe)

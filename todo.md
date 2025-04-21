@@ -35,20 +35,17 @@
 
 ## 特征工程 (Feature Engineering) ⏳ (进行中)
 
--   [x] **重新运行特征工程**: 使用修正后的 `merged_data.parquet` 重新运行 `3_run_feature_engineering.py`。
-    -   [x] **时间特征提取**: 从 `timestamp` 列提取年、月、日、星期几、小时等特征。
-    -   [x] **滚动统计特征**: 计算过去一段时间内的需求均值、标准差等。
-    -   [x] **处理缺失值**:
-        -   [x] 删除 `y` 为 Null 的行。
-        -   [x] 删除 `location_id` 为 Null 的行 (及关联的天气 Null)。
-        -   [x] 填充 `y_rolling_stddev_*` 的 Null 为 0.0。
-    -   [ ] **重新运行 `3_run_feature_engineering.py` (全量数据)** (待办 - **下一步执行**)
+-   [x] **修复内存溢出 (OOM) 问题**:
+    -   [x] 尝试注释掉 `handle_missing_values_spark` 中间步骤的 `.count()` 操作。
+    -   [x] **优化 Spark 配置**: 修改 `create_spark_session` 以更充分利用 CPU/内存，并允许环境变量覆盖。
+-   [ ] **重新运行 `3_run_feature_engineering.py` (全量数据)** (待办 - **下一步执行**)
+    -   [ ] **监控 Spark UI 和日志**，确认 OOM 是否解决，检查资源利用率和执行情况。
 -   [ ] **特征工程 (续)**:
     -   [ ] **分类特征编码**: 对 `building_class` 等进行编码。 (待办)
     -   [ ] **滞后特征 (Lag Features)** (待办 - 可选)
     -   [ ] **周期性特征编码** (待办 - 可选, 如 sine/cosine 变换)
     -   [ ] **交互特征** (待办 - 可选)
-    -   [ ] **产出**: 最终的特征工程后的 Parquet 文件。
+    -   [ ] **产出**: 最终的特征工程后的 Parquet 文件 (`data/features.parquet`)。
 -   [ ] **(可选) 特征选择**
 
 ## 模型训练与评估 (Modeling & Evaluation)
@@ -65,7 +62,8 @@
 -   生成分析报告总结发现
 
 ---
-**当前状态**: 已修改 `3_run_feature_engineering.py` 以处理所有已知缺失值（填充 stddev nulls, 删除 location_id nulls）并移除抽样逻辑。
+**当前状态**: 已优化 Spark Session 创建逻辑以更好地利用资源并尝试解决 OOM 问题。
 **下一步**:
-1.  **重新运行 `3_run_feature_engineering.py` (全量数据)** 并检查日志，确认缺失值处理成功且最终数据无 Null。
-2.  继续特征工程：分类特征编码。
+1.  **重新运行 `3_run_feature_engineering.py` (全量数据)** 并密切监控 Spark UI 和日志。
+2.  如果成功，继续特征工程：分类特征编码。
+3.  如果仍然失败，分析 Spark UI 和日志（特别是 OOM 的 Heap Dump 文件，如果生成了的话），可能需要进一步调整配置或优化代码逻辑。
