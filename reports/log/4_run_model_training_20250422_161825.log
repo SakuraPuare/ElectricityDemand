@@ -64,3 +64,28 @@
 2025-04-22 16:49:36.194 | SUCCESS  | __main__:run_model_training_spark:210 - ---------------------------------
 2025-04-22 16:49:36.629 | INFO     | __main__:run_model_training_spark:215 - MLlib 线性回归模型已保存到：/home/ubuntu/ElectricityDemand/models/mllib_linear_regression_model
 2025-04-22 16:49:36.629 | INFO     | __main__:run_model_training_spark:218 - --- 开始训练 MLlib GBT 回归 模型 ---
+2025-04-22 18:38:58.388 | INFO     | __main__:run_model_training_spark:223 - MLlib GBT 回归训练耗时：6561.76 秒
+2025-04-22 18:38:58.389 | INFO     | __main__:run_model_training_spark:226 - 评估 MLlib GBT 回归模型...
+2025-04-22 19:04:47.824 | SUCCESS  | __main__:run_model_training_spark:230 - --- MLlib GBT 回归 评估结果 ---
+2025-04-22 19:04:47.824 | SUCCESS  | __main__:run_model_training_spark:231 -   均方根误差 (RMSE): 175.4047
+2025-04-22 19:04:47.825 | SUCCESS  | __main__:run_model_training_spark:232 -   平均绝对误差 (MAE): 54.0403
+2025-04-22 19:04:47.825 | SUCCESS  | __main__:run_model_training_spark:233 - -----------------------------
+2025-04-22 19:04:48.369 | INFO     | __main__:run_model_training_spark:238 - MLlib GBT 回归模型已保存到：/home/ubuntu/ElectricityDemand/models/mllib_gbt_regression_model
+2025-04-22 19:04:48.394 | INFO     | __main__:run_model_training_spark:242 - --- MLlib GBT 特征重要性 ---
+2025-04-22 19:04:48.396 | INFO     | __main__:run_model_training_spark:249 - Top 10 Features:
+2025-04-22 19:04:48.397 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_max_3h: 0.1882
+2025-04-22 19:04:48.397 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_stddev_48h: 0.1161
+2025-04-22 19:04:48.397 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_stddev_6h: 0.0969
+2025-04-22 19:04:48.397 | INFO     | __main__:run_model_training_spark:251 -   hour: 0.0946
+2025-04-22 19:04:48.397 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_min_48h: 0.0908
+2025-04-22 19:04:48.397 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_min_168h: 0.0888
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_stddev_3h: 0.0519
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:251 -   soil_temperature_0_to_7cm: 0.0470
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:251 -   y_rolling_stddev_24h: 0.0394
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:251 -   year: 0.0338
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:267 - =====================================================
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:268 - ===      Spark MLlib 模型训练脚本 执行完毕      ===
+2025-04-22 19:04:48.398 | INFO     | __main__:run_model_training_spark:269 - =====================================================
+2025-04-22 19:04:48.399 | INFO     | electricitydemand.utils.project_utils:stop_spark_session:178 - Stopping SparkSession...
+2025-04-22 19:04:49.404 | SUCCESS  | electricitydemand.utils.project_utils:stop_spark_session:180 - SparkSession stopped.
+2025-04-22 19:04:49.404 | INFO     | __main__:run_model_training_spark:284 - --- Spark MLlib 模型训练脚本总执行时间：9984.11 秒 ---
