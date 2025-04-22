@@ -71,9 +71,9 @@
 ## 当前任务
 
 *   **模型训练 (进行中):**
-    *   **问题:** 当前使用 `toPandas()` 将大数据集加载到 Driver 内存，导致潜在的内存溢出。
-    *   **方案:** 重构 `4_run_model_training.py`，使用 Spark MLlib 进行分布式模型训练，以处理大规模数据集。
-    *   **待确认:** 用户确认是否采用 Spark MLlib 方案。
+    -   **问题:** 当前使用 `toPandas()` 将大数据集加载到 Driver 内存，导致潜在的内存溢出。
+    -   **方案:** 重构 `4_run_model_training.py`，使用 Spark MLlib 进行分布式模型训练，以处理大规模数据集。
+    -   **待确认:** 用户确认是否采用 Spark MLlib 方案。
 
 ## 下一步任务 (待定)
 
@@ -95,3 +95,40 @@
 *   ~~数据分析与可视化 (2_analyze_data.py)~~
 *   ~~特征工程 (3_feature_engineering.py)~~
 *   ~~模型训练脚本基础框架 (4_run_model_training.py - 初始 Pandas 版本)~~
+
+## 当前任务进度和下一步计划
+
+- [x] 1. 下载并初步了解数据集 (`data/demand.parquet`, `data/metadata.parquet`, `data/weather.parquet`).
+      - 已阅读数据集 README 和概览信息，了解数据结构、数据量、缺失值、重复值、时间范围等基本情况。
+- [x] 2. 数据加载和基本探索 (使用 Spark)。
+      - 已使用 Spark 加载原始数据。
+      - 已进行基本的数据概览，例如查看 Schema, 数据量等。
+      - 已对 `demand` 数据进行抽样描述性统计和分布分析（已完成，见概览信息）。
+      - 已对 `metadata` 数据进行探索分析（已完成，见概览信息）。
+      - 已对 `weather` 数据进行探索分析（已完成，见概览信息）。
+      - 已对数据间的关系进行初步分析（已完成，见概览信息）。
+      - 已分析时间戳频率匹配性（已完成，见概览信息）。
+- [x] 3. 数据清洗和预处理。
+      - 已处理 weather 数据中的重复行。
+      - 已考虑 demand 数据中的缺失值 (`y` 列) 和非正值。
+      - 已考虑 metadata 中的缺失值。
+- [x] 4. 特征工程。
+      - 已合并 `demand` 和 `metadata` 数据。
+      - 已考虑合并天气数据并处理时间频率不匹配问题。
+      - 已创建时间相关特征（如小时、星期、月份等）。
+      - 已生成 `data/features.parquet` 特征数据集。
+- [x] 5. Spark MLlib 模型训练。
+    - **错误修复**: 在加载 `data/features.parquet` 时遇到 `[CANNOT_READ_FILE_FOOTER]` 错误，原因是目录中包含非 parquet 文件 `coscli.log`。**下一步：请手动或通过脚本移除 `data/features.parquet/coscli.log` 文件。**
+    - 重新尝试加载特征数据并进行模型训练。
+    - 选择合适的 Spark MLlib 模型（例如 Linear Regression, Gradient Boosted Trees 等）。
+    - 划分训练集和测试集。
+    - 训练模型。
+    - 评估模型性能。
+    - 保存训练好的模型。
+
+## 未来任务 (根据进度更新)
+
+- [ ] 6. 模型评估和调优。
+- [ ] 7. 使用模型进行预测。
+- [ ] 8. 结果可视化和报告。
+- [ ] 9. 考虑更复杂的模型或方法。

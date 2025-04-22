@@ -6,7 +6,7 @@ from loguru import logger
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.regression import GBTRegressor, LinearRegression
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame as SparkDataFrame  # 导入正确的 DataFrame 类型
 from pyspark.sql import functions as F
 from pyspark.sql.types import NumericType  # 用于识别数值列
 
@@ -67,39 +67,50 @@ else:
 # def evaluate_model(y_true, y_pred, model_name="Model"): ...
 
 
-def spark_time_based_split(sdf: SparkSession.DataFrame, timestamp_col: str = "timestamp", test_ratio: float = 0.2):
-    """按时间戳分割 Spark DataFrame"""
+def spark_time_based_split(sdf: SparkDataFrame, timestamp_col: str = "timestamp", test_ratio: float = 0.2):
+    """
+    按时间戳分割 Spark DataFrame。
+    由于 approxQuantile 不支持 TimestampType，此函数将使用基于时间范围比例的分割方法。
+    """
     logger.info(f"开始基于时间戳 '{timestamp_col}' 分割 Spark DataFrame，测试集比例：{test_ratio:.1%}")
     if timestamp_col not in sdf.columns:
         raise ValueError(f"DataFrame 中缺少 '{timestamp_col}' 列，无法进行时间分割。")
 
-    # 确保时间戳列是正确类型 (或者 Spark 能理解的排序类型)
-    # 如果已经是 TimestampType 则无需转换
+    # 直接使用基于时间范围比例的分割方法
+    logger.info("计算时间戳范围以确定分割点...")
+    min_max_time = sdf.agg(F.min(timestamp_col).alias("min_t"), F.max(timestamp_col).alias("max_t")).first()
 
-    # 找到分割点时间戳
-    # 注意：这里假设数据量可以接受计算分位数，如果极大，可能需要抽样估算
-    try:
-        split_timestamp = sdf.approxQuantile(timestamp_col, [1.0 - test_ratio], 0.01)[0]  # 0.01 是相对误差
-        logger.info(f"计算得到的时间分割点：{split_timestamp}")
-    except Exception as e:
-        logger.error(f"计算时间分割点时出错：{e}. 尝试获取最大最小值进行估算。")
-        # 备选方案：按时间范围比例分割 (可能不太精确)
-        min_max_time = sdf.agg(F.min(timestamp_col).alias("min_t"), F.max(timestamp_col).alias("max_t")).first()
-        if not min_max_time or min_max_time["min_t"] is None or min_max_time["max_t"] is None:
-            raise ValueError("无法获取时间戳范围用于分割。")
-        total_duration = (min_max_time["max_t"] - min_max_time["min_t"]).total_seconds()
-        split_timestamp = min_max_time["min_t"] + F.expr(f"INTERVAL {int(total_duration * (1 - test_ratio))} SECONDS")
-        logger.info(f"备选方案 - 估算的时间分割点：{split_timestamp}")
+    if not min_max_time or min_max_time["min_t"] is None or min_max_time["max_t"] is None:
+        raise ValueError("无法获取时间戳范围用于分割。DataFrame 可能为空或时间戳列包含全部 Null。")
 
+    min_t = min_max_time["min_t"]
+    max_t = min_max_time["max_t"]
+    total_duration = max_t - min_t
+
+    # 计算训练集的时间长度
+    train_duration = total_duration * (1 - test_ratio)
+
+    # 计算分割点时间戳
+    split_timestamp = min_t + train_duration
+
+    logger.info(f"数据时间范围从 {min_t} 到 {max_t}")
+    logger.info(f"总时间跨度：{total_duration}")
+    logger.info(f"训练集时间跨度 (估算): {train_duration}")
+    logger.info(f"估算的时间分割点：{split_timestamp}")
+
+    # 执行分割
     train_sdf = sdf.filter(F.col(timestamp_col) < split_timestamp)
     test_sdf = sdf.filter(F.col(timestamp_col) >= split_timestamp)
 
-    # 记录分割后的大小 (可能需要触发计算)
+    # 为了验证分割是否大致符合比例（可选，可能触发计算）
+    # logger.info("验证分割后数据量 (可能耗时)...")
+    # total_count = sdf.count()
     # train_count = train_sdf.count()
     # test_count = test_sdf.count()
-    # logger.info(f"分割后 - 训练集行数：{train_count:,}")
-    # logger.info(f"分割后 - 测试集行数：{test_count:,}")
-    # 为避免不必要的 count()，暂时注释掉，可以在需要时取消注释
+    # logger.info(f"原始数据总行数：{total_count:,}")
+    # logger.info(f"训练集行数：{train_count:,} ({train_count/total_count:.1%})")
+    # logger.info(f"测试集行数：{test_count:,} ({test_count/total_count:.1%})")
+    # 注意：基于时间范围比例的分割不保证严格的行数比例，特别是数据点在时间轴上分布不均匀时。
 
     logger.info("Spark DataFrame 时间分割完成。")
     return train_sdf, test_sdf
@@ -121,7 +132,7 @@ def run_model_training_spark():
         # --- 创建 SparkSession ---
         logger.info("创建 SparkSession...")
         # 可能需要根据集群调整配置
-        spark = create_spark_session(app_name="ElectricityDemandSparkMLTraining")
+        spark = create_spark_session("ElectricityDemandSparkMLTraining")
         logger.info("SparkSession 创建成功。")
 
         # --- 步骤 1: 加载特征数据 ---
