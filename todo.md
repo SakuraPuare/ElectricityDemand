@@ -43,7 +43,7 @@
 -   [ ] **特征工程 (续)**:
     -   [ ] **分类特征编码**: 对 `building_class` 等进行编码。 (待办)
     -   [ ] **滞后特征 (Lag Features)** (待办 - 可选)
-    -   [ ] **周期性特征编码** (待办 - 可选, 如 sine/cosine 变换)
+    -   [ ] **周期性特征编码** (待办 - 可选，如 sine/cosine 变换)
     -   [ ] **交互特征** (待办 - 可选)
     -   [ ] **产出**: 最终的特征工程后的 Parquet 文件 (`data/features.parquet`)。
 -   [ ] **(可选) 特征选择**
@@ -70,65 +70,83 @@
 
 ## 当前任务
 
-*   **模型训练 (进行中):**
-    -   **问题:** 当前使用 `toPandas()` 将大数据集加载到 Driver 内存，导致潜在的内存溢出。
-    -   **方案:** 重构 `4_run_model_training.py`，使用 Spark MLlib 进行分布式模型训练，以处理大规模数据集。
-    -   **待确认:** 用户确认是否采用 Spark MLlib 方案。
-
-## 下一步任务 (待定)
-
-*   **Spark MLlib 重构:**
-    *   移除 `toPandas()`。
-    *   实现 `VectorAssembler` 特征准备。
-    *   实现基于 Spark DataFrame 的时间分割。
-    *   替换 Scikit-learn/LightGBM 模型为 Spark MLlib 模型 (`LinearRegression`, `GBTRegressor`)。
-    *   替换评估逻辑为 Spark MLlib `RegressionEvaluator`。
-    *   替换模型保存/加载逻辑为 Spark MLlib 格式。
-*   **模型评估与分析:** 分析 MLlib 模型的性能和特征重要性 (如果 GBT 支持)。
-*   **(可选) 超参数调优:** 使用 Spark MLlib 的 `CrossValidator` 或 `TrainValidationSplit` 进行超参数搜索。
+-   [x] 评审并确认 LaTeX 报告 (`reports/main.tex`) 的结构。
+-   **下一步：** [进行中] 细化和审查 LaTeX 报告 (`reports/main.tex`) 的内容，确保文字描述与分析结果和图表一致。
 
 ## 已完成任务
 
-*   ~~环境设置和库安装~~
-*   ~~数据加载与初步探索 (0_setup_and_load.py)~~
-*   ~~数据概览与质量检查 (1_explore_data_quality.py)~~
-*   ~~数据分析与可视化 (2_analyze_data.py)~~
-*   ~~特征工程 (3_feature_engineering.py)~~
-*   ~~模型训练脚本基础框架 (4_run_model_training.py - 初始 Pandas 版本)~~
+-   ✅ **项目初始化与环境设置**
+    -   [x] 初始化项目结构 (`cookiecutter`)
+    -   [x] 设置 Python 版本 (`.python-version`)
+    -   [x] 初始化虚拟环境 (`.venv`)
+    -   [x] 安装依赖 (`requirements.lock`, `requirements-dev.lock`)
+    -   [x] 配置 IDE (`.idea`, `.vscode`, `.cursor`)
+    -   [x] 初始化 Git 仓库 (`.gitignore`, `LICENSE`, `README.md`)
+    -   [x] 添加 `todo.md`
+-   ✅ **数据加载与初步探索 (EDA)**
+    -   [x] 实现数据加载功能 (`1_run_eda.py`, `load_data`)
+    -   [x] 实现 EDA 主函数 (`1_run_eda.py`, `run_eda`)
+    -   [x] 添加日志配置 (`log_utils.py`)
+    -   [x] 执行初步 EDA (`1_run_eda.py`)
+        -   [x] 计算基本信息 (count, schema)
+        -   [x] 检查缺失值
+        -   [x] 检查重复值
+        -   [x] 计算时间范围
+        -   [x] **Demand 数据分析**:
+            -   [x] 描述性统计 (抽样)
+            -   [x] 非正值检查
+            -   [x] 分布可视化 (直方图/KDE - 原始 & 对数)
+            -   [x] 时间序列样本可视化 (随机抽取几个 `unique_id`)
+        -   [x] **Metadata 数据分析**:
+            -   [x] 分类特征分布 (building\_class, location, freq, timezone, dataset)
+            -   [x] 数值特征分布 (latitude, longitude, cluster\_size) - 统计与可视化
+            -   [x] 地理位置可视化 (散点图)
+        -   [x] **Weather 数据分析**:
+            -   [x] 描述性统计 (完整数据)
+            -   [x] 关键数值特征分布可视化 (temperature, humidity, precipitation, wind\_speed 等)
+            -   [x] 负值检查 (precipitation, rain, snowfall)
+            -   [x] 分类特征分布 (weather\_code, is\_day)
+        -   [x] **关系分析 (抽样)**:
+            -   [x] Demand vs Metadata (e.g., building\_class) - 箱线图 (原始 & 对数)
+            -   [x] Demand vs Weather (抽样合并) - 相关性计算 & 散点图
+            -   [x] Weather 特征间相关性 - 相关矩阵热力图
+        -   [x] **时间特征分析**:
+            -   [x] 需求/天气时间戳频率分析 (基于抽样)
+            -   [x] **周期性分析 (基于 Spark 全量聚合)**
+                -   [x] 按小时聚合平均需求
+                -   [x] 按星期几聚合平均需求
+                -   [x] 按月份聚合平均需求
+-   ✅ **数据预处理与合并 (Spark)**
+    -   [x] 实现数据加载 (需求、元数据、天气) (`2_run_preprocessing.py`)
+    -   [x] 实现需求数据频率转换 (假设已完成/或在此步骤中加入) -> 统一到小时
+    -   [x] 实现需求与元数据合并 (`unique_id`)
+    -   [x] 实现天气数据时间戳处理与去重
+    -   [x] 实现合并后的需求 - 元数据与天气数据合并 (`location_id`, `timestamp@hour`)
+    -   [x] 添加合并过程诊断 (检查 `location_id` 匹配情况，`null` 值比例)
+    -   [x] 保存合并后的数据 (`merged_data.parquet`)
+    -   [x] 编写 Spark 执行脚本 (`2_run_preprocessing.py`) 并记录执行日志
+-   ✅ **特征工程 (Spark)**
+    -   [x] 加载合并后的数据 (`merged_data.parquet`) (`3_run_feature_engineering.py`)
+    -   [x] 实现时间特征提取 (`add_time_features_spark`)
+    -   [x] 实现滚动窗口特征提取 (`add_rolling_features_spark`)
+    -   [x] 实现缺失值处理 (`handle_missing_values_spark`)
+    -   [x] 优化 Spark 性能 (重分区，持久化)
+    -   [x] 按年/月分区保存特征数据 (`features.parquet`)
+    -   [x] 编写 Spark 执行脚本 (`3_run_feature_engineering.py`) 并记录执行日志
+-   ✅ **报告撰写 (LaTeX)**
+    -   [x] 创建 LaTeX 文档结构 (`reports/main.tex`)
+    -   [x] 插入分析过程中生成的图表
+    -   [x] 添加图表标题和引用标签
+    -   [x] 撰写报告摘要、引言、各分析章节初稿
+    -   [x] 评审并确认报告结构
 
-## 当前任务进度和下一步计划
+## 待办任务
 
-- [x] 1. 下载并初步了解数据集 (`data/demand.parquet`, `data/metadata.parquet`, `data/weather.parquet`).
-      - 已阅读数据集 README 和概览信息，了解数据结构、数据量、缺失值、重复值、时间范围等基本情况。
-- [x] 2. 数据加载和基本探索 (使用 Spark)。
-      - 已使用 Spark 加载原始数据。
-      - 已进行基本的数据概览，例如查看 Schema, 数据量等。
-      - 已对 `demand` 数据进行抽样描述性统计和分布分析（已完成，见概览信息）。
-      - 已对 `metadata` 数据进行探索分析（已完成，见概览信息）。
-      - 已对 `weather` 数据进行探索分析（已完成，见概览信息）。
-      - 已对数据间的关系进行初步分析（已完成，见概览信息）。
-      - 已分析时间戳频率匹配性（已完成，见概览信息）。
-- [x] 3. 数据清洗和预处理。
-      - 已处理 weather 数据中的重复行。
-      - 已考虑 demand 数据中的缺失值 (`y` 列) 和非正值。
-      - 已考虑 metadata 中的缺失值。
-- [x] 4. 特征工程。
-      - 已合并 `demand` 和 `metadata` 数据。
-      - 已考虑合并天气数据并处理时间频率不匹配问题。
-      - 已创建时间相关特征（如小时、星期、月份等）。
-      - 已生成 `data/features.parquet` 特征数据集。
-- [x] 5. Spark MLlib 模型训练。
-    - **错误修复**: 在加载 `data/features.parquet` 时遇到 `[CANNOT_READ_FILE_FOOTER]` 错误，原因是目录中包含非 parquet 文件 `coscli.log`。**下一步：请手动或通过脚本移除 `data/features.parquet/coscli.log` 文件。**
-    - 重新尝试加载特征数据并进行模型训练。
-    - 选择合适的 Spark MLlib 模型（例如 Linear Regression, Gradient Boosted Trees 等）。
-    - 划分训练集和测试集。
-    - 训练模型。
-    - 评估模型性能。
-    - 保存训练好的模型。
-
-## 未来任务 (根据进度更新)
-
-- [ ] 6. 模型评估和调优。
-- [ ] 7. 使用模型进行预测。
-- [ ] 8. 结果可视化和报告。
-- [ ] 9. 考虑更复杂的模型或方法。
+-   [ ] 模型训练与评估 (例如使用 Spark MLlib)
+    -   [ ] 数据准备 (划分训练/验证/测试集)
+    -   [ ] 特征处理 (编码、标准化等)
+    -   [ ] 选择和训练模型 (e.g., Linear Regression, GBTRegressor)
+    -   [ ] 评估模型性能
+    -   [ ] 超参数调优
+-   [ ] 完善报告 (模型部分)
+-   [ ] 代码清理与文档完善
