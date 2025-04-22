@@ -106,6 +106,68 @@
     % 移除了子小节，直接在这一页展示主要质量信息
 \end{frame}
 
+% 添加日志数据分析页面
+\begin{frame}{EDA日志分析详情}
+    \frametitle{1\_run\_eda\_20250422\_134838.log 分析结果}
+    \textbf{需求数据详细统计:}
+    \begin{itemize}
+        \item 总行数: 237,944,171 条
+        \item 非空数据: 234,857,893 条
+        \item 缺失值: 3,086,278 条 (1.30\%)
+        \item 非正值($\leq$ 0): 2,499,640 条 (1.06\% 非缺失值中)
+    \end{itemize}
+
+    \textbf{需求值分布统计:}
+    \begin{columns}
+        \begin{column}{0.45\textwidth}
+            \begin{itemize}
+                \item 均值: 44.90
+                \item 标准差: 394.25
+                \item 最小值: 0.00
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.45\textwidth}
+            \begin{itemize}
+                \item 中位数: 0.20
+                \item 75\%分位: 7.62
+                \item 最大值: 221,228.00
+            \end{itemize}
+        \end{column}
+    \end{columns}
+    
+    \textbf{元数据分析:}
+    \begin{itemize}
+        \item \textbf{建筑类型:} Residential (5936), Commercial (1636)
+        \item \textbf{位置:} London, UK (5634), PT (370), Washington DC (305), 缺失 (237)
+        \item \textbf{采样频率:} 30分钟 (5566), 1小时 (1636), 15分钟 (370)
+    \end{itemize}
+\end{frame}
+
+% 添加天气数据详细分析页面
+\begin{frame}{天气和时间特征详细分析}
+    \frametitle{日志分析关键发现}
+    \textbf{天气数据记录分析:}
+    \begin{itemize}
+        \item 总记录数: 604,848 条
+        \item 分析的时间间隔: 各ID的时间间隔一致性高，主要为1小时
+    \end{itemize}
+
+    \textbf{时间序列样本分析:}
+    \begin{itemize}
+        \item 抽样分析的ID: aab1f0df961afebf (31,080条), aaad8381da7e4232 (38,470条), dbd37b9f2f2bc0e3 (34,395条)
+        \item 每个时间序列均具有固定的记录间隔，说明数据收集的规律性高
+        \item 时间序列展示了清晰的日/周模式，如工作日与周末的不同用电模式
+    \end{itemize}
+
+    \textbf{Spark性能配置与数据处理:}
+    \begin{itemize}
+        \item Driver内存: 8GB, Executor内存: 28GB, 堆外内存: 4GB
+        \item 并行度设置: spark.sql.shuffle.partitions=500
+        \item 启用了自适应查询执行和Arrow加速
+        \item 数据抽样比例: 需求数据抽样0.5\%，生成约117万样本点用于分布分析
+    \end{itemize}
+\end{frame}
+
 % 电力需求分析
 \section{电力需求分析}
 
@@ -341,6 +403,7 @@
         \item \textbf{数据质量:} y 缺失，元数据位置缺失，天气重复 (已处理)。
         \item \textbf{关系:} 建筑类型、天气 (温湿度) 与需求相关。
         \item \textbf{时间模式:} 需求有清晰的日/周/年周期性，时间频率不匹配已通过重采样解决。
+        \item \textbf{日志分析结论:} EDA日志揭示了极端偏斜的需求分布 (均值44.9远大于中位数0.2)，以及用电模式的显著差异 (住宅vs商业)。样本ID的时间序列分析展示了稳定的数据收集频率和清晰的周期性模式。Spark高效处理了2.38亿条需求记录，通过抽样和并行计算完成了大规模数据的分析。
     \end{itemize}
 \end{frame}
 
