@@ -1,9 +1,17 @@
 \documentclass{beamer} % 使用 beamer 文档类进行幻灯片制作
 
 % 设置主题和颜色等样式 (可选，可以根据喜好选择)
-\usetheme{Darmstadt}
-\usecolortheme{dolphin}
-\usefonttheme{structurebold}
+% \usetheme{Darmstadt} % 原主题
+% \usecolortheme{lily} % 原颜色主题
+% \usetheme{Madrid}      % 尝试 Madrid 主题，带有侧边栏，结构清晰
+% \usecolortheme[named=magenta]{structure}   % 尝试 beaver 颜色主题，颜色相对丰富一些
+
+\definecolor{mycolor}{RGB}{236, 127, 169}
+\usetheme{Madrid}
+\usecolortheme[named=mycolor]{structure}
+\usefonttheme{structurebold} % 保持字体结构加粗
+% 其他可选主题：Boadilla, Montpellier, Singapore, Warsaw
+% 其他可选颜色主题：crane, dolphin, orchid, seahorse, whale
 
 \usepackage{ctex} % 支持中文
 \usepackage[utf8]{inputenc} % 设置输入编码为 UTF-8
@@ -14,12 +22,33 @@
 \usepackage{amsfonts} % 数学字体宏包
 \usepackage{amssymb} % 数学符号宏包
 \usepackage{hyperref} % 添加超链接
+\usepackage{xcolor} % 加载颜色宏包
 
 % 设置标题、作者、日期
 \title{电力需求数据集探索性数据分析与特征工程} % 报告标题作为幻灯片标题
-\author{SakuraPuare} % 作者
-\institute{\href{https://github.com/SakuraPuare/ElectricityDemand}{github.com/SakuraPuare/ElectricityDemand}}
+\subtitle{\href{https://github.com/SakuraPuare/ElectricityDemand}{github.com/SakuraPuare/ElectricityDemand}}
+\author{廖嘉旺} % 作者
+
+\institute{Hubei University of Arts and Science}
 \date{\today} % 使用当前日期
+
+% 自定义页脚，移除 institute
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+  \begin{beamercolorbox}[wd=.1\paperwidth,ht=2.25ex,dp=1ex,center]{author in head/foot}%
+    \usebeamerfont{author in head/foot}\insertshortauthor%
+  \end{beamercolorbox}%
+  \begin{beamercolorbox}[wd=.6\paperwidth,ht=2.25ex,dp=1ex,center]{title in head/foot}%
+    \usebeamerfont{title in head/foot}\insertshorttitle%
+  \end{beamercolorbox}%
+  \begin{beamercolorbox}[wd=.3\paperwidth,ht=2.25ex,dp=1ex,right]{date in head/foot}%
+    \usebeamerfont{date in head/foot}\insertshortdate{}\hspace*{2em}%
+    \insertframenumber{} / \inserttotalframenumber\hspace*{2ex}%
+  \end{beamercolorbox}}%
+  \vskip0pt%
+}
+
 
 \begin{document}
 
@@ -29,6 +58,7 @@
 \frame{\titlepage}
 }
 
+
 % 目录页
 \begin{frame}{目录}
     \begin{columns}[T,onlytextwidth]
@@ -36,14 +66,14 @@
             \tableofcontents[sections={1-4}]
         \end{column}
         \begin{column}{0.5\textwidth}
-            \tableofcontents[sections={5-10}]
+            \tableofcontents[sections={5-7}]
         \end{column}
     \end{columns}
 \end{frame}
 
 % ============== 章节内容 ==============
 
-% 引言
+% 1. 引言
 \section{引言}
 \begin{frame}{引言}
     \frametitle{背景与目标}
@@ -53,31 +83,40 @@
         \begin{itemize}
             \item 数据集理解与探索性分析 (EDA)
             \item 数据质量评估
-            \item 特征工程构建预测特征集
+            \item 数据整合与特征工程构建预测特征集
         \end{itemize}
     \end{itemize}
-    % 更多引言内容...
 \end{frame}
 
-% 数据集概览
-\section{数据集概览}
-\begin{frame}{数据集概览}
-    \frametitle{数据集结构}
-    数据集包含三个主要部分：
+% 2. 数据集概览与质量
+\section{数据集概览与质量}
+
+\begin{frame}{数据集结构}
+    \frametitle{主要数据文件}
+    该数据集包含三个主要文件：
     \begin{itemize}
-        \item \textbf{电力需求数据 (Demand Data)}: unique\_id, timestamp, y (kWh)
-        \item \textbf{元数据 (Metadata)}: unique\_id, location\_id, building\_class, freq, etc.
-        \item \textbf{天气数据 (Weather Data)}: location\_id, timestamp, temperature\_2m, humidity, etc.
+        \item \textbf{电力需求数据 (data/demand.parquet)}:
+        \begin{itemize}
+            \item unique\_id: 仪表的唯一 ID
+            \item timestamp: 本地时间记录周期的开始时间戳
+            \item y: 当前时段的用电量 (kWh)
+        \end{itemize}
+        \item \textbf{元数据 (data/metadata.parquet)}:
+        \begin{itemize}
+            \item 包含仪表信息：unique\_id, dataset, building\_id, location\_id
+            \item 地理信息：latitude, longitude, location, timezone
+            \item 建筑信息：freq, building\_class(住宅/商业), cluster\_size
+        \end{itemize}
+        \item \textbf{天气数据 (data/weather.parquet)}:
+        \begin{itemize}
+            \item 基础信息：location\_id, timestamp
+            \item 主要天气变量：温度、湿度、降水、风速、云量等
+        \end{itemize}
     \end{itemize}
-    % 更多概览信息...
 \end{frame}
 
-% 数据量与数据质量分析
-\section{数据概览与质量} % 合并并简化标题
-
-% 合并数据量、缺失值、重复值、时间范围到同一页
-\begin{frame}{数据概览与质量摘要}
-    \frametitle{核心信息速览}
+\begin{frame}{数据质量摘要}
+    \frametitle{规模、缺失、重复与时间范围}
     \textbf{1. 数据量:}
     \begin{itemize}
         \item Demand: ~2.38 亿条
@@ -94,8 +133,8 @@
 
     \textbf{3. 重复值:}
     \begin{itemize}
-        \item Demand/Metadata: 无重复
-        \item Weather: 极少量重复 (已处理)
+        \item Demand/Metadata: 未发现基于关键列的重复
+        \item Weather: 极少量重复 (基于 location\_id, timestamp，已处理)
     \end{itemize}
 
     \textbf{4. 时间范围:}
@@ -103,137 +142,144 @@
         \item Demand: 2011-01-01 \(\sim\) 2017-12-31
         \item Weather: 2011-01-01 \(\sim\) 2019-01-01 (覆盖需求数据)
     \end{itemize}
-    % 移除了子小节，直接在这一页展示主要质量信息
 \end{frame}
 
-% 添加日志数据分析页面
-\begin{frame}{EDA日志分析详情}
-    \frametitle{1\_run\_eda\_20250422\_134838.log 分析结果}
-    \textbf{需求数据详细统计:}
+% 3. 分析环境与方法
+\section{分析环境与方法}
+\begin{frame}{分析环境与方法}
+    \frametitle{技术栈与计算环境}
+    \textbf{技术栈:}
     \begin{itemize}
-        \item 总行数: 237,944,171 条
-        \item 非空数据: 234,857,893 条
-        \item 缺失值: 3,086,278 条 (1.30\%)
-        \item 非正值($\leq$ 0): 2,499,640 条 (1.06\% 非缺失值中)
+        \item Apache Spark 3.5.0 \& PySpark - 大规模数据处理
+        \item Pandas/NumPy - 数据分析与处理
+        \item Matplotlib/Seaborn - 可视化
+        \item Jupyter Notebook - 交互式开发
+        \item Loguru / Log Utils - 日志记录
     \end{itemize}
 
+    \textbf{计算环境:}
+    \begin{itemize}
+        \item 96 核心 CPU, 196GB RAM
+        \item 腾讯云服务器
+        \item 运行时间：约 10 小时
+    \end{itemize}
+\end{frame}
+
+% 4. 探索性数据分析 (EDA)
+\section{探索性数据分析 (EDA)}
+
+\begin{frame}{需求数据分析}
+    \frametitle{分布特征与统计摘要}
+    \textbf{需求数据详细统计 (基于完整数据):}
+    \begin{itemize}
+        \item 总记录数：237,944,171 条
+        \item y 非空记录：234,857,893 条
+        \item y 缺失记录：3,086,278 条 (1.30\%)
+        \item y 非正值 ($\leq$ 0): 2,499,640 条 (占非缺失值的 1.06\%)
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{需求数据分析}
+    \frametitle{分布特征与统计摘要}
     \textbf{需求值分布统计:}
     \begin{columns}
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.48\textwidth}
             \begin{itemize}
-                \item 均值: 44.90
-                \item 标准差: 394.25
-                \item 最小值: 0.00
+                \item 均值 (Mean)：44.90 kWh
+                \item 标准差 (Std)：394.25 kWh
+                \item 最小值 (Min)：0.00 kWh
             \end{itemize}
         \end{column}
-        \begin{column}{0.45\textwidth}
+        \begin{column}{0.48\textwidth}
             \begin{itemize}
-                \item 中位数: 0.20
-                \item 75\%分位: 7.62
-                \item 最大值: 221,228.00
+                \item 中位数 (Median)：0.20 kWh
+                \item 75\% 分位：7.62 kWh
+                \item 最大值 (Max)：221,228.00 kWh
             \end{itemize}
         \end{column}
     \end{columns}
-    
-    \textbf{元数据分析:}
+
     \begin{itemize}
-        \item \textbf{建筑类型:} Residential (5936), Commercial (1636)
-        \item \textbf{位置:} London, UK (5634), PT (370), Washington DC (305), 缺失 (237)
-        \item \textbf{采样频率:} 30分钟 (5566), 1小时 (1636), 15分钟 (370)
+        \item \textbf{多重周期性:}
+        \begin{itemize}
+        \item 日内周期 (Daily)：白天高，夜间低。
+        \item 周内周期 (Weekly)：工作日与周末模式差异。
+        \item 年度周期 (Annual)：季节性波动 (如冬夏高峰)。
+        \end{itemize}
+        \item \textbf{其他特性:} 波动性、异常值、不同用户模式多样性。
     \end{itemize}
 \end{frame}
 
-% 添加天气数据详细分析页面
-\begin{frame}{天气和时间特征详细分析}
-    \frametitle{日志分析关键发现}
-    \textbf{天气数据记录分析:}
-    \begin{itemize}
-        \item 总记录数: 604,848 条
-        \item 分析的时间间隔: 各ID的时间间隔一致性高，主要为1小时
-    \end{itemize}
+\begin{frame}{需求时间序列特征}
+    \frametitle{分布形态}
 
-    \textbf{时间序列样本分析:}
-    \begin{itemize}
-        \item 抽样分析的ID: aab1f0df961afebf (31,080条), aaad8381da7e4232 (38,470条), dbd37b9f2f2bc0e3 (34,395条)
-        \item 每个时间序列均具有固定的记录间隔，说明数据收集的规律性高
-        \item 时间序列展示了清晰的日/周模式，如工作日与周末的不同用电模式
-    \end{itemize}
-
-    \textbf{Spark性能配置与数据处理:}
-    \begin{itemize}
-        \item Driver内存: 8GB, Executor内存: 28GB, 堆外内存: 4GB
-        \item 并行度设置: spark.sql.shuffle.partitions=500
-        \item 启用了自适应查询执行和Arrow加速
-        \item 数据抽样比例: 需求数据抽样0.5\%，生成约117万样本点用于分布分析
-    \end{itemize}
+    高度右偏，存在极端高值。Log1p 变换有助于改善对称性。
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=\textwidth]{../plots/demand_y_distribution_log1p_scale.png}
+        \caption{需求值 log1p 变换分布}
+    \end{figure}
 \end{frame}
 
-% 电力需求分析
-\section{电力需求分析}
-
-\subsection{分布特征} % 保留分布特征子节
-\begin{frame}{电力需求分布}
-    \frametitle{分布形态与异常值}
-    \begin{itemize}
-        \item \textbf{原始尺度:} 高度右偏 (均值 \(>\)> 中位数)，标准差大，存在极端高值。存在少量非正值。
-        \item \textbf{log1p 变换:} 改善对称性，更接近正态但仍有峰态。
-    \end{itemize}
+\begin{frame}{需求时间序列特征}
+    \frametitle{时间序列样本示例}
+    \textbf{1. 小时周期性:}
     \begin{columns}
-        \begin{column}{0.48\textwidth}
+        \begin{column}{0.9\textwidth}
             \centering
             \begin{figure}
-                \includegraphics[width=\textwidth]{../plots/demand_y_distribution_log1p_scale.png}
-                \caption{log1p 变换分布}
+                \includegraphics[width=\textwidth]{../plots/avg_demand_by_hour_spark.png}
             \end{figure}
         \end{column}
     \end{columns}
 \end{frame}
 
-\subsection{时间序列特征} % 保留时间序列特征子节
-\begin{frame}{电力需求时间序列示例}
-    \frametitle{典型模式与特性}
-    \begin{itemize}
-        \item 多重周期性 (日内，周内，年度)
-        \item 波动性，异常值，趋势性
-        \item 不同用户模式多样性 (Residential vs Commercial)
-    \end{itemize}
-    % 尝试将两个时间序列样本图放在同一页
+\begin{frame}{需求时间序列特征}
+    \textbf{2. 日周期性:}
     \begin{columns}
-        \begin{column}{0.48\textwidth}
+        \begin{column}{0.9\textwidth}
             \centering
             \begin{figure}
-                \includegraphics[width=\textwidth]{../plots/timeseries_sample_aab1f0df961afebf.png}
-                \caption{样本 1 (日内/周内)}
-            \end{figure}
-        \end{column}
-        \begin{column}{0.48\textwidth}
-            \centering
-            \begin{figure}
-                \includegraphics[width=\textwidth]{../plots/timeseries_sample_58aac6a4a032e6af.png}
-                \caption{样本 5 (工作日 vs 周末)}
+                \includegraphics[width=\textwidth]{../plots/avg_demand_by_dayofweek_spark.png}
             \end{figure}
         \end{column}
     \end{columns}
 \end{frame}
 
-% 元数据分析
-\section{元数据分析}
+\begin{frame}{需求时间序列特征}
+    \textbf{3. 月周期性:}
+    \begin{columns}
+        \begin{column}{0.9\textwidth}
+            \centering
+            \begin{figure}
+                \includegraphics[width=\textwidth]{../plots/avg_demand_by_month_spark.png}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+
 \begin{frame}{元数据分析}
-    \frametitle{主要特征分布与地理位置}
+    \frametitle{仪表与位置信息分布}
     \begin{itemize}
-        \item \textbf{分类特征:} Building Class (住宅为主), Location (集中于伦敦), Freq (30T, 1H 为主), Timezone (Europe/London), Dataset Source。
-        \item \textbf{数值/地理特征:} 经纬度集中分布，Cluster Size (多数为单个建筑)，地理位置有缺失记录。
+        \item \textbf{建筑类型 (Building Class):} 以 Residential (住宅) 为主 (~78\%)，Commercial (商业) 占比较少 (~22\%)。
+        \item \textbf{位置 (Location):} 大部分集中在 London, UK (~74\%)，少量分布在葡萄牙 (PT) 和华盛顿特区 (Washington DC)。存在缺失位置信息 (~3.1\%)。
+        \item \textbf{采样频率 (Freq):} 主要频率包括 30 分钟 (30T, ~73\%)，1 小时 (1H, ~21\%) 和 15 分钟 (15T, ~5\%)。
     \end{itemize}
-    % 将两个元数据图放在同一页
+\end{frame}
+
+\begin{frame}{天气数据分析}
+    \frametitle{主要天气特征分布与时间特性}
+    \textbf{主要分类特征分布:}
     \begin{columns}
-        \begin{column}{0.48\textwidth}
+        \begin{column}{0.7\textwidth}
             \centering
             \begin{figure}
                 \includegraphics[width=\textwidth]{../plots/metadata_dist_building_class.png}
                 \caption{建筑类型分布}
             \end{figure}
         \end{column}
-        \begin{column}{0.48\textwidth}
+        \begin{column}{0.3\textwidth}
             \centering
             \begin{figure}
                 \includegraphics[width=\textwidth]{../plots/metadata_location_scatter.png}
@@ -243,24 +289,27 @@
     \end{columns}
 \end{frame}
 
-% 天气数据分析
-\section{天气数据分析}
 \begin{frame}{天气数据分析}
-    \frametitle{主要天气特征分布}
     \begin{itemize}
-        \item \textbf{数值特征:} Temperature (近似正态), Relative Humidity (分布较广), Precipitation (零膨胀), Wind Speed (右偏) 等。
-        \item \textbf{其他特征:} Cloud Cover (U 形), Sunshine Duration (两极), Weather Code (常见类型), Is Day (昼夜平衡)。
+        \item \textbf{数值特征分布:} 温度 (temperature\_2m) 近似正态分布，相对湿度 (relative\_humidity\_2m) 分布较广，降水 (precipitation) 存在大量零值 (零膨胀)，风速 (wind\_speed\_10m) 呈右偏分布。
+        \item \textbf{时间特性:} 天气数据主要以 1 小时为采样频率，记录规整。
     \end{itemize}
-     % 将两个天气图放在同一页
+    \textbf{主要天气特征分布示例:}
     \begin{columns}
-        \begin{column}{0.48\textwidth}
+        \begin{column}{0.95\textwidth}
             \centering
             \begin{figure}
                 \includegraphics[width=\textwidth]{../plots/weather_distribution_temperature_2m.png}
                 \caption{温度分布}
             \end{figure}
         \end{column}
-        \begin{column}{0.48\textwidth}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{天气数据分析}
+    \textbf{主要天气特征分布示例:}
+    \begin{columns}
+        \begin{column}{\textwidth}
             \centering
                 \begin{figure}
                 \includegraphics[width=\textwidth]{../plots/weather_distribution_cloud_cover.png}
@@ -270,172 +319,174 @@
     \end{columns}
 \end{frame}
 
-% 关系分析
-\section{关系分析与数据合并} % 合并标题
-
-\subsection{需求与元数据关系} % 保留子节
-\begin{frame}{需求与元数据关系}
-    \frametitle{建筑类型对需求的影响}
+\begin{frame}{需求与其他数据关系}
+    \frametitle{建筑类型与天气的影响}
+    \textbf{1. 需求与元数据关系 (建筑类型):}
     \begin{itemize}
-        \item Commercial (商业) 建筑的电力需求通常显著高于 Residential (住宅)。
-        \item 不同 Dataset/Location 的需求分布也存在差异。
+        \item Commercial (商业) 建筑的电力需求量级通常显著高于 Residential (住宅)，且波动更大。
     \end{itemize}
     \begin{figure}[H]
         \centering
         \includegraphics[width=0.6\textwidth]{../plots/demand_vs_building_class_boxplot_orig.png}
-        \caption{需求 vs 建筑类型 (原始尺度箱线图)}
+        \caption{需求 vs 建筑类型 (原始尺度)}
     \end{figure}
 \end{frame}
 
-\subsection{需求与天气关系及合并} % 合并子节标题
-\begin{frame}{需求与天气关系 \& 数据合并}
-    \frametitle{相关性与合并流程}
-    \textbf{1. 初步相关性:}
+\begin{frame}{需求与其他数据关系}
+    \textbf{2. 需求与天气关系 (基于抽样合并):}
     \begin{itemize}
-        \item Demand 与 Temperature 弱正相关 (~0.028)
-        \item Demand 与 Apparent Temperature 弱正相关 (~0.038)
-        \item Demand 与 Relative Humidity 中度负相关 (~-0.202)
+        \item 与 Temperature 呈弱正相关 (~0.03)。
+        \item 与 Relative Humidity 呈中度负相关 (~-0.20)。
+        \item 天气特征内部存在相关性，如温度与体感温度、云量特征之间。
     \end{itemize}
+\end{frame}
 
-    \textbf{2. 数据合并流程:}
+% 5. 数据整合与频率匹配
+\section{数据整合与频率匹配}
+
+\begin{frame}{数据整合流程}
+    \frametitle{多源数据合并步骤}
     \begin{enumerate}
-        \item 加载数据 \& 需求重采样到小时。
-        \item 需求 + 元数据 合并 (基于 unique\_id)。
-        \item 天气数据去重 \& 时间戳对齐 (到小时)。
-        \item 需求/元数据数据 + 天气数据 合并 (左连接 using location\_id, hourly timestamp)。
+        \item \textbf{加载与初步处理:} 加载 Demand, Metadata, Weather 数据。对 Demand 进行初步清洗（处理缺失和非正值）。
+        \item \textbf{需求数据频率匹配:} 将不同频率的 Demand 数据重采样并聚合到统一的 \textbf{小时 (1H)} 频率，以匹配 Weather 数据。对于 freq < 1H 的数据，进行求和或平均聚合；对于 freq > 1H 的数据，考虑插值或保持原样（本项目聚合到小时）。
+        \item \textbf{Weather 数据处理:} 清理 Weather 数据中的少量重复记录，确保每个 location\_id 在每个小时点只有一条记录。
+        \item \textbf{数据合并:}
+        \begin{itemize}
+            \item 将重采样后的 Demand 数据与 Metadata 数据通过 unique\_id 进行左连接。
+            \item 将上一步的结果与处理后的 Weather 数据通过 location\_id 和小时级 timestamp 进行左连接。
+        \end{itemize}
     \end{enumerate}
 \end{frame}
 
-% 数据合并结果和天气相关性矩阵放在下一页
-\begin{frame}{数据合并结果与天气相关性}
-    \frametitle{合并诊断与天气特征关联}
+\begin{frame}{数据整合结果诊断}
+    \frametitle{合并成功率与天气特征相关性}
     \begin{itemize}
-        \item \textbf{合并诊断:} 约 1.73\% 记录因 Location ID 缺失/不匹配未能关联天气，其余成功关联。
-        \item \textbf{天气特征相关性:} 如下图所示，天气特征内部存在相关性 (例如温度与体感温度高度相关)。
+        \item \textbf{合并成功率:} 约 1.73\% 的需求记录因元数据中缺少有效的 location\_id 或无法在天气数据中找到匹配的时间点，未能成功关联天气信息。其余数据 (~98.27\%) 成功合并。
+        \item \textbf{天气特征内部相关性:} 合并后的数据集中，天气特征之间存在显著相关性，如下图所示。这在特征选择或模型选择时需要注意（如多重共线性）。
     \end{itemize}
-     \begin{figure}[H]
+\end{frame}
+
+\begin{frame}{数据整合结果诊断}
+    \begin{figure}[H]
         \centering
-        \includegraphics[width=0.8\textwidth]{../plots/weather_correlation_matrix.png}
+        \includegraphics[width=0.7\textwidth]{../plots/weather_correlation_matrix.png}
         \caption{天气特征相关性矩阵}
     \end{figure}
 \end{frame}
 
 
-% 时间特征分析 (与时间频率匹配合并)
-\section{时间特征分析与频率匹配} % 合并标题
-
-% 将时间频率匹配和周期性分析的主要发现合并到同一页，图表放在下一页
-\begin{frame}{时间特征提取与周期性}
-    \frametitle{频率处理与时间模式}
-    \textbf{1. 时间频率匹配:}
-    \begin{itemize}
-        \item Demand 数据频率多样 (15T, 30T, 1H 等)，Weather 主要为 1H。
-        \item \textbf{处理:} 将需求数据重采样并聚合到小时频率，以便与天气数据合并。
-    \end{itemize}
-
-    \textbf{2. 周期性分析:} 需求数据表现出清晰的：
-    \begin{itemize}
-        \item \textbf{日内周期:} 白天高峰，夜间低谷。
-        \item \textbf{周内周期:} 工作日与周末模式差异。
-        \item \textbf{年度周期:} 季节性波动 (通常冬夏高)。
-    \end{itemize}
-\end{frame}
-
-% 将周期性分析的图表放在下一页
-\begin{frame}{电力需求平均周期模式}
-    \frametitle{平均需求随时间变化}
-    % 尝试将三个周期图放在同一页，可能需要缩小或调整布局
-    \begin{columns}[T,onlytextwidth]
-        \begin{column}{0.48\textwidth}
-             \centering
-            \begin{figure}
-                \includegraphics[width=\textwidth]{../plots/avg_demand_by_hour_spark.png}
-                \caption{按小时平均}
-            \end{figure}
-        \end{column}
-        \begin{column}{0.48\textwidth}
-             \centering
-            \begin{figure}
-                \includegraphics[width=\textwidth]{../plots/avg_demand_by_dayofweek_spark.png}
-                \caption{按星期平均}
-            \end{figure}
-        \end{column}
-    \end{columns}
-    \begin{figure}[H] % 年月图单独一行或与上面两图调整布局
-        \centering
-        \begin{figure}
-            \includegraphics[width=0.6\textwidth]{../plots/avg_demand_by_month_spark.png}
-            \caption{按月份平均}
-        \end{figure}
-    \end{figure}
-\end{frame}
-
-% 特征工程
+% 6. 特征工程
 \section{特征工程}
 \begin{frame}{特征工程}
-    \frametitle{构建预测特征与处理}
-    \textbf{1. 特征类型:}
-    \begin{itemize}
-        \item \textbf{时间特征:} 年，月，日，星期几，年内天，小时。
-        \item \textbf{滚动窗口统计特征:} 基于历史需求 (y)，窗口 (3H-168H)，统计量 (均值，标准差，最小值，最大值)。
-        \item \textbf{其他 (来自 Metadata/Weather):} Building Class, Location, Temperature, Humidity 等。
-    \end{itemize}
+    \frametitle{构建预测特征集}
+    基于合并后的数据集，我们构建了以下类型的预测特征：
 
-    \textbf{2. 缺失值处理:}
+    \textbf{1. 时间特征:}
     \begin{itemize}
-        \item 移除目标 y 缺失的行。
-        \item 移除滚动特征计算初期的缺失值。
+        \item 从 timestamp 中提取：年 (year)，月 (month)，日 (day)，星期几 (dayofweek)，年内天 (dayofyear)，小时 (hour)。
+        \item 考虑循环特征编码（如使用 sin/cos 转换小时和星期几）。
     \end{itemize}
-
-    \textbf{3. 特征集输出:} 按年/月分区存储包含原始数据、时间特征、滚动特征的数据集 (`data/features.parquet`)。
-    % 将特征工程的两个页面合并为一个
+    
+    \textbf{2. 滚动窗口统计特征:}
+    
+    \begin{itemize}
+        \item 基于历史电力需求 (y)。
+        \item 在每个 unique\_id 的时间序列上计算。
+        \item 考虑不同窗口大小 (例如，过去 3H, 12H, 24H, 168H)。
+        \item 计算统计量如：均值 (mean\_lag\_Xh), 标准差 (std\_lag\_Xh), 最小值 (min\_lag\_Xh), 最大值 (max\_lag\_Xh)。
+    \end{itemize}
+\end{frame}
+\begin{frame}{特征工程}
+    \textbf{3. 原始/合并特征:}
+    
+    \begin{itemize}
+        \item 来自 Metadata：building\_class, location\_id, freq 等 (需进行编码)。
+        \item 来自 Weather：temperature\_2m, relative\_humidity\_2m, apparent\_temperature 等。
+    \end{itemize}
+    \textbf{缺失值处理:} 移除了目标变量 y 缺失的行；滚动特征计算初期产生的缺失值也需处理（例如，移除或使用插补）。
+    
+    \textbf{输出:} 最终特征集按年/月分区存储为 Parquet 文件 (data/features.parquet)。
 \end{frame}
 
 
-% 总结与后续步骤
-\section{总结与后续步骤}
+% 7. 总结与下一步
+\section{总结与下一步}
 
-% 将总结和后续步骤合并，但后续步骤可以分页面展示以保持清晰
 \begin{frame}{总结}
     \frametitle{主要发现回顾}
     \begin{itemize}
-        \item \textbf{数据特性:} 规模大，异构多源，需求分布高右偏。
-        \item \textbf{数据质量:} y 缺失，元数据位置缺失，天气重复 (已处理)。
-        \item \textbf{关系:} 建筑类型、天气 (温湿度) 与需求相关。
-        \item \textbf{时间模式:} 需求有清晰的日/周/年周期性，时间频率不匹配已通过重采样解决。
-        \item \textbf{日志分析结论:} EDA日志揭示了极端偏斜的需求分布 (均值44.9远大于中位数0.2)，以及用电模式的显著差异 (住宅vs商业)。样本ID的时间序列分析展示了稳定的数据收集频率和清晰的周期性模式。Spark高效处理了2.38亿条需求记录，通过抽样和并行计算完成了大规模数据的分析。
+        \item \textbf{数据特性:} 规模大，包含需求、元数据、天气多源信息；需求分布高度右偏，存在非正值和异常值。
+        \item \textbf{数据质量:} 存在少量 y 缺失和元数据位置信息缺失，天气数据有少量重复（已处理）。
+        \item \textbf{关系:} 建筑类型（商业需求显著高于住宅）和天气（温湿度）与电力需求存在关联。天气特征内部有相关性。
+        \item \textbf{时间模式:} 需求表现出清晰的日、周、年度周期性。不同数据源的时间频率不匹配已通过重采样到小时频率解决。
+        \item \textbf{处理过程:} 利用 Spark 有效处理了大规模数据；通过抽样和可视化进行了深入的 EDA；成功整合了异构数据源并构建了初步的时间、滚动、原始特征集。
     \end{itemize}
 \end{frame}
 
-\begin{frame}{后续步骤}
-    \frametitle{下一步：模型构建准备}
-    \begin{enumerate}
-        \item \textbf{数据清洗/预处理:} 处理合并后天气缺失的约 1.73\% 行 (插补或移除)。
-        \item \textbf{进一步特征工程 (可选):}
-        \begin{itemize}
-            \item 滞后特征 (Lag Features)
-            \item 交互特征 (Interaction Features)
-            \item 分类特征编码 (独热，目标编码等)
-            \item 数值特征变换/归一化
-        \end{itemize}
-    \end{enumerate}
+\begin{frame}{模型训练结果与初步解读}
+    \frametitle{初步模型评估与结论}
+    使用了基于小时频率聚合并进行特征工程的数据集 (data/features.parquet) 训练了两个 Spark MLlib 回归模型，并在测试集上进行了评估 (基于时间分割)。
+
+    \textbf{1. MLlib 线性回归 (Linear Regression)}
+    \begin{itemize}
+        \item 测试集 RMSE: 73.81
+        \item 测试集 MAE: 5.86
+    \end{itemize}
+
+    \textbf{2. MLlib GBT 回归 (Gradient Boosted Trees Regression)}
+    \begin{itemize}
+        \item 测试集 RMSE: 175.40
+        \item 测试集 MAE: 54.04
+    \end{itemize}
 \end{frame}
 
-\begin{frame}{后续步骤}
-    \frametitle{下一步：模型选择与评估}
-    \begin{enumerate}
-        \setcounter{enumi}{2} % 继续编号
-        \item \textbf{模型构建准备:} 合理划分训练/验证/测试集 (时序交叉验证)。
-        \item \textbf{模型选择与评估:}
-        \begin{itemize}
-            \item 选择合适模型 (统计，ML, DL)。
-            \item 建立完整预测流程 (pipeline)。
-            \item 选择评估指标 (RMSE, MAE, MAPE)。
-            \item 在验证集上进行模型调优。
-            \item 在测试集上进行最终评估。
-        \end{itemize}
-    \end{enumerate}
+\begin{frame}{模型训练结果与初步解读}
+    \frametitle{GBT 模型特征重要性 (Top 10):}
+    \begin{itemize}
+        \item y\_rolling\_max\_3h (近期最大需求): 0.1882
+        \item y\_rolling\_stddev\_48h (过去 2 天需求波动): 0.1161
+        \item y\_rolling\_stddev\_6h (近期需求波动): 0.0969
+        \item hour (小时): 0.0946
+        \item y\_rolling\_min\_48h (过去 2 天最小需求): 0.0908
+        \item y\_rolling\_min\_168h (过去 1 周最小需求): 0.0888
+        \item y\_rolling\_stddev\_3h (极近期需求波动): 0.0519
+        \item soil\_temperature\_0\_to\_7cm (土壤温度): 0.0470
+        \item y\_rolling\_stddev\_24h (过去 1 天需求波动): 0.0394
+        \item year (年份): 0.0338
+    \end{itemize}
 \end{frame}
 
+\begin{frame}{模型训练结果与初步解读}
+    \textbf{初步结论与解读:}
+    \begin{itemize}
+        \item \textbf{模型性能对比:} 出乎意料地，简单的线性回归模型在测试集上的表现 (RMSE=73.81, MAE=5.86) 显著优于梯度提升树回归模型 (RMSE=175.40, MAE=54.04)。这表明当前的 GBT 模型可能存在调优不足、过拟合或特征处理等问题，需要进一步检查。
+        \item \textbf{特征重要性:} GBT 模型的结果显示，近期历史用电量相关的滚动统计特征 (特别是过去 3 小时的最大值、不同时间窗口的标准差和最小值) 是最重要的预测因子。时间特征 (小时、年份) 也具有较高的重要性。土壤温度作为一个天气相关特征也进入了 Top 10。
+        \item \textbf{下一步:} 需要深入分析 GBT 模型性能不佳的原因，并考虑优化模型参数或尝试其他模型。线性回归的较好表现可能得益于其简单性或对当前特征集的适应性，但也需警惕其可能无法捕捉复杂的非线性关系。
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{后续步骤 (续)}
+    \frametitle{下一步：模型结果分析与改进}
+    \begin{enumerate}
+        \item \textbf{模型结果分析:}
+        \begin{itemize}
+            \item 分析已训练模型的性能（RMSE, MAE）。
+            \item 检查特征重要性，理解哪些特征对预测贡献最大。
+            \item 进行误差分析，了解模型在哪些情况下表现不佳。
+        \end{itemize}
+        \item \textbf{模型改进或探索其他模型:}
+        \begin{itemize}
+            \item 尝试更复杂的模型架构或算法。
+            \item 探索特征工程的其他方法，如交互特征或更高阶统计量。
+            \item 考虑使用时间序列模型，如 ARIMA, Prophet, LSTM 等。
+        \end{itemize}
+        \item \textbf{模型评估与选择:}
+        \begin{itemize}
+            \item 在验证集上评估不同模型的性能。
+            \item 选择最优模型并在测试集上进行最终评估。
+        \end{itemize}
+        \item \textbf{预测与应用:} 使用最优模型对未来的电力需求进行预测。
+    \end{enumerate}
+\end{frame}
 
 \end{document}
