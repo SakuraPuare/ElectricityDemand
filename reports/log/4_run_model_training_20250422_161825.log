@@ -1,0 +1,66 @@
+2025-04-22 16:18:25.290 | INFO     | electricitydemand.utils.log_utils:setup_logger:145 - 文本日志将写入：/home/ubuntu/ElectricityDemand/logs/4_run_model_training_20250422_161825.log
+2025-04-22 16:18:25.291 | INFO     | electricitydemand.utils.log_utils:setup_logger:184 - 已拦截标准库 logging。
+2025-04-22 16:18:25.291 | INFO     | electricitydemand.utils.log_utils:setup_logger:189 - 已设置全局异常处理钩子 (sys.excepthook)。
+2025-04-22 16:18:25.291 | INFO     | electricitydemand.utils.log_utils:setup_logger:191 - Loguru 初始化完成。默认级别：INFO. 控制台：INFO. 文件：INFO.
+2025-04-22 16:18:25.291 | WARNING  | electricitydemand.utils.log_utils:setup_logger:194 - Diagnose 和 Backtrace 已启用。注意：在生产环境中 'diagnose=True' 可能泄露敏感数据！
+2025-04-22 16:18:25.291 | INFO     | __main__:<module>:39 - 项目根目录：/home/ubuntu/ElectricityDemand
+2025-04-22 16:18:25.291 | INFO     | __main__:<module>:40 - 数据目录：/home/ubuntu/ElectricityDemand/data
+2025-04-22 16:18:25.291 | INFO     | __main__:<module>:41 - 日志目录：/home/ubuntu/ElectricityDemand/logs
+2025-04-22 16:18:25.291 | INFO     | __main__:<module>:42 - 绘图目录：/home/ubuntu/ElectricityDemand/plots
+2025-04-22 16:18:25.292 | INFO     | __main__:<module>:43 - 模型目录：/home/ubuntu/ElectricityDemand/models
+2025-04-22 16:18:25.292 | INFO     | __main__:<module>:56 - 使用全量特征数据：/home/ubuntu/ElectricityDemand/data/features.parquet
+2025-04-22 16:18:25.292 | INFO     | __main__:run_model_training_spark:125 - =====================================================
+2025-04-22 16:18:25.292 | INFO     | __main__:run_model_training_spark:126 - === 开始执行 Spark MLlib 模型训练脚本 ===
+2025-04-22 16:18:25.292 | INFO     | __main__:run_model_training_spark:127 - =====================================================
+2025-04-22 16:18:25.292 | INFO     | __main__:run_model_training_spark:133 - 创建 SparkSession...
+2025-04-22 16:18:25.292 | INFO     | electricitydemand.utils.project_utils:create_spark_session:83 - 创建 SparkSession: ElectricityDemandSparkMLTraining (master: local[*])...
+2025-04-22 16:18:25.292 | INFO     | electricitydemand.utils.project_utils:create_spark_session:84 - 配置 Driver 内存：8g
+2025-04-22 16:18:25.293 | INFO     | electricitydemand.utils.project_utils:create_spark_session:85 - 配置 Executor 内存：28g
+2025-04-22 16:18:25.293 | INFO     | electricitydemand.utils.project_utils:create_spark_session:97 - 配置 Spark 本地临时目录：/tmp
+2025-04-22 16:18:25.293 | INFO     | electricitydemand.utils.project_utils:create_spark_session:124 - 设置 spark.sql.shuffle.partitions 和 spark.default.parallelism 为：500
+2025-04-22 16:18:25.293 | INFO     | electricitydemand.utils.project_utils:create_spark_session:132 - 配置 Executor 堆外内存 (spark.memory.offHeap.size): 4g
+2025-04-22 16:18:28.325 | SUCCESS  | electricitydemand.utils.project_utils:create_spark_session:145 - SparkSession 创建成功 (含性能优化)
+2025-04-22 16:18:28.328 | INFO     | electricitydemand.utils.project_utils:create_spark_session:146 - Spark Web UI: http://172.21.0.6:4040
+2025-04-22 16:18:28.328 | INFO     | electricitydemand.utils.project_utils:create_spark_session:149 - Spark 配置：
+2025-04-22 16:18:28.353 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.app.name = ElectricityDemandSparkMLTraining
+2025-04-22 16:18:28.353 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.master = local[*]
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.driver.memory = 8g
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.executor.memory = 28g
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.enabled = true
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.size = 4g
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.serializer = org.apache.spark.serializer.KryoSerializer
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.kryoserializer.buffer.max = 1024m
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.execution.arrow.pyspark.enabled = true
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.enabled = true
+2025-04-22 16:18:28.354 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.advisoryPartitionSizeInBytes = 2048m
+2025-04-22 16:18:28.355 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.shuffle.partitions = 500
+2025-04-22 16:18:28.355 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.default.parallelism = 500
+2025-04-22 16:18:28.355 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.local.dir = /tmp
+2025-04-22 16:18:28.355 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.network.timeout = 800s
+2025-04-22 16:18:28.355 | INFO     | __main__:run_model_training_spark:136 - SparkSession 创建成功。
+2025-04-22 16:18:28.355 | INFO     | __main__:run_model_training_spark:139 - --- 步骤 1: 加载特征数据 /home/ubuntu/ElectricityDemand/data/features.parquet ---
+2025-04-22 16:18:33.475 | INFO     | __main__:run_model_training_spark:141 - 特征数据加载成功。
+2025-04-22 16:18:33.475 | INFO     | __main__:run_model_training_spark:142 - Schema:
+2025-04-22 16:18:33.491 | INFO     | __main__:run_model_training_spark:148 - --- 步骤 2: 特征准备 (VectorAssembler) ---
+2025-04-22 16:18:33.498 | INFO     | __main__:run_model_training_spark:160 - 识别出的数值特征列 (62): ['cluster_size', 'temperature_2m', 'relative_humidity_2m', 'dew_point_2m', 'apparent_temperature']...['y_rolling_stddev_168h', 'y_rolling_min_168h', 'y_rolling_max_168h', 'year', 'month']
+2025-04-22 16:18:33.498 | INFO     | __main__:run_model_training_spark:162 - 目标列：y
+2025-04-22 16:18:34.387 | INFO     | __main__:run_model_training_spark:172 - 特征已合并到 'features' 列。
+2025-04-22 16:18:34.408 | INFO     | __main__:run_model_training_spark:176 - 已选择 'timestamp', 'features', 'label' 列。
+2025-04-22 16:18:34.409 | INFO     | __main__:run_model_training_spark:179 - --- 步骤 3: 基于时间戳分割数据 ---
+2025-04-22 16:18:34.409 | INFO     | __main__:spark_time_based_split:75 - 开始基于时间戳 'timestamp' 分割 Spark DataFrame，测试集比例：20.0%
+2025-04-22 16:18:34.413 | INFO     | __main__:spark_time_based_split:80 - 计算时间戳范围以确定分割点...
+2025-04-22 16:19:07.243 | INFO     | __main__:spark_time_based_split:96 - 数据时间范围从 2011-01-01 00:45:00 到 2017-12-31 23:00:00
+2025-04-22 16:19:07.243 | INFO     | __main__:spark_time_based_split:97 - 总时间跨度：2556 days, 22:15:00
+2025-04-22 16:19:07.243 | INFO     | __main__:spark_time_based_split:98 - 训练集时间跨度 (估算): 2045 days, 13:00:00
+2025-04-22 16:19:07.243 | INFO     | __main__:spark_time_based_split:99 - 估算的时间分割点：2016-08-07 13:45:00
+2025-04-22 16:19:07.322 | INFO     | __main__:spark_time_based_split:115 - Spark DataFrame 时间分割完成。
+2025-04-22 16:19:07.322 | INFO     | __main__:run_model_training_spark:188 - --- 步骤 4: 训练和评估 Spark MLlib 模型 ---
+2025-04-22 16:19:07.334 | INFO     | __main__:run_model_training_spark:195 - --- 开始训练 MLlib 线性回归 模型 ---
+2025-04-22 16:24:16.323 | INFO     | __main__:run_model_training_spark:200 - MLlib 线性回归训练耗时：308.99 秒
+2025-04-22 16:24:16.323 | INFO     | __main__:run_model_training_spark:203 - 评估 MLlib 线性回归模型...
+2025-04-22 16:49:36.193 | SUCCESS  | __main__:run_model_training_spark:207 - --- MLlib 线性回归 评估结果 ---
+2025-04-22 16:49:36.194 | SUCCESS  | __main__:run_model_training_spark:208 -   均方根误差 (RMSE): 73.8081
+2025-04-22 16:49:36.194 | SUCCESS  | __main__:run_model_training_spark:209 -   平均绝对误差 (MAE): 5.8574
+2025-04-22 16:49:36.194 | SUCCESS  | __main__:run_model_training_spark:210 - ---------------------------------
+2025-04-22 16:49:36.629 | INFO     | __main__:run_model_training_spark:215 - MLlib 线性回归模型已保存到：/home/ubuntu/ElectricityDemand/models/mllib_linear_regression_model
+2025-04-22 16:49:36.629 | INFO     | __main__:run_model_training_spark:218 - --- 开始训练 MLlib GBT 回归 模型 ---

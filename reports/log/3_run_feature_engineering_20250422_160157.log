@@ -1,0 +1,84 @@
+2025-04-22 16:01:57.260 | INFO     | electricitydemand.utils.log_utils:setup_logger:142 - 文本日志将写入：/home/ubuntu/ElectricityDemand/logs/3_run_feature_engineering_20250422_160157.log
+2025-04-22 16:01:57.260 | INFO     | electricitydemand.utils.log_utils:setup_logger:180 - 已拦截标准库 logging。
+2025-04-22 16:01:57.261 | INFO     | electricitydemand.utils.log_utils:setup_logger:185 - 已设置全局异常处理钩子 (sys.excepthook)。
+2025-04-22 16:01:57.261 | INFO     | electricitydemand.utils.log_utils:setup_logger:187 - Loguru 初始化完成。默认级别：INFO. 控制台：INFO. 文件：INFO.
+2025-04-22 16:01:57.261 | WARNING  | electricitydemand.utils.log_utils:setup_logger:190 - Diagnose 和 Backtrace 已启用。注意：在生产环境中 'diagnose=True' 可能泄露敏感数据！
+2025-04-22 16:01:57.261 | INFO     | __main__:<module>:33 - 项目根目录：/home/ubuntu/ElectricityDemand
+2025-04-22 16:01:57.261 | INFO     | __main__:<module>:34 - 数据目录：/home/ubuntu/ElectricityDemand/data
+2025-04-22 16:01:57.262 | INFO     | __main__:<module>:35 - 日志目录：/home/ubuntu/ElectricityDemand/logs
+2025-04-22 16:01:57.262 | INFO     | __main__:<module>:36 - 绘图目录：/home/ubuntu/ElectricityDemand/plots
+2025-04-22 16:01:57.262 | INFO     | __main__:<module>:42 - 输入合并数据路径: /home/ubuntu/ElectricityDemand/data/merged_data.parquet
+2025-04-22 16:01:57.262 | INFO     | __main__:<module>:43 - 输出特征数据路径: /home/ubuntu/ElectricityDemand/data/features.parquet
+2025-04-22 16:01:57.263 | INFO     | __main__:<module>:439 - 项目根目录：/home/ubuntu/ElectricityDemand
+2025-04-22 16:01:57.263 | INFO     | __main__:<module>:440 - 数据目录：/home/ubuntu/ElectricityDemand/data
+2025-04-22 16:01:57.263 | INFO     | __main__:<module>:441 - 日志目录：/home/ubuntu/ElectricityDemand/logs
+2025-04-22 16:01:57.263 | INFO     | __main__:<module>:442 - 绘图目录：/home/ubuntu/ElectricityDemand/plots
+2025-04-22 16:01:57.264 | INFO     | __main__:run_feature_engineering_spark:228 - =====================================================
+2025-04-22 16:01:57.264 | INFO     | __main__:run_feature_engineering_spark:229 - === 开始执行 特征工程脚本 (Spark) ===
+2025-04-22 16:01:57.264 | INFO     | __main__:run_feature_engineering_spark:230 - =====================================================
+2025-04-22 16:01:57.264 | INFO     | __main__:run_feature_engineering_spark:241 - 输入合并数据路径: /home/ubuntu/ElectricityDemand/data/merged_data.parquet
+2025-04-22 16:01:57.264 | INFO     | __main__:run_feature_engineering_spark:242 - 输出特征数据路径: /home/ubuntu/ElectricityDemand/data/features.parquet
+2025-04-22 16:01:57.265 | INFO     | __main__:run_feature_engineering_spark:256 - 创建 SparkSession...
+2025-04-22 16:01:57.265 | INFO     | electricitydemand.utils.project_utils:create_spark_session:83 - 创建 SparkSession: ElectricityDemandFeatureEngineering (master: local[*])...
+2025-04-22 16:01:57.265 | INFO     | electricitydemand.utils.project_utils:create_spark_session:84 - 配置 Driver 内存: 64g
+2025-04-22 16:01:57.265 | INFO     | electricitydemand.utils.project_utils:create_spark_session:85 - 配置 Executor 内存: 64g
+2025-04-22 16:01:57.266 | INFO     | electricitydemand.utils.project_utils:create_spark_session:97 - 配置 Spark 本地临时目录: /home/ubuntu/data/tmp
+2025-04-22 16:01:57.266 | INFO     | electricitydemand.utils.project_utils:create_spark_session:124 - 设置 spark.sql.shuffle.partitions 和 spark.default.parallelism 为: 500
+2025-04-22 16:01:57.266 | INFO     | electricitydemand.utils.project_utils:create_spark_session:132 - 配置 Executor 堆外内存 (spark.memory.offHeap.size): 32g
+2025-04-22 16:01:59.641 | SUCCESS  | electricitydemand.utils.project_utils:create_spark_session:145 - SparkSession 创建成功 (含性能优化)
+2025-04-22 16:01:59.644 | INFO     | electricitydemand.utils.project_utils:create_spark_session:146 - Spark Web UI: http://172.21.0.6:4040
+2025-04-22 16:01:59.644 | INFO     | electricitydemand.utils.project_utils:create_spark_session:149 - Spark 配置:
+2025-04-22 16:01:59.671 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.app.name = ElectricityDemandFeatureEngineering
+2025-04-22 16:01:59.672 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.master = local[*]
+2025-04-22 16:01:59.672 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.driver.memory = 64g
+2025-04-22 16:01:59.672 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.executor.memory = 64g
+2025-04-22 16:01:59.672 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.enabled = true
+2025-04-22 16:01:59.672 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.size = 32g
+2025-04-22 16:01:59.672 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.serializer = org.apache.spark.serializer.KryoSerializer
+2025-04-22 16:01:59.673 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.kryoserializer.buffer.max = 1024m
+2025-04-22 16:01:59.673 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.execution.arrow.pyspark.enabled = true
+2025-04-22 16:01:59.673 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.enabled = true
+2025-04-22 16:01:59.673 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.advisoryPartitionSizeInBytes = 2048m
+2025-04-22 16:01:59.674 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.shuffle.partitions = 500
+2025-04-22 16:01:59.674 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.default.parallelism = 500
+2025-04-22 16:01:59.674 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.local.dir = /home/ubuntu/data/tmp
+2025-04-22 16:01:59.674 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.network.timeout = 800s
+2025-04-22 16:01:59.674 | SUCCESS  | __main__:run_feature_engineering_spark:266 - SparkSession 创建成功。
+2025-04-22 16:01:59.675 | INFO     | __main__:run_feature_engineering_spark:267 - Spark Web UI: http://172.21.0.6:4040
+2025-04-22 16:01:59.675 | INFO     | __main__:run_feature_engineering_spark:270 - --- 步骤 1: 加载合并后的数据 /home/ubuntu/ElectricityDemand/data/merged_data.parquet ---
+2025-04-22 16:02:02.029 | INFO     | __main__:run_feature_engineering_spark:276 - 合并数据加载成功。
+2025-04-22 16:02:02.029 | INFO     | __main__:run_feature_engineering_spark:277 - 原始 Schema:
+2025-04-22 16:02:02.041 | INFO     | __main__:run_feature_engineering_spark:289 - --- 注意: 将在完整数据集上运行特征工程 ---
+2025-04-22 16:02:02.041 | INFO     | __main__:run_feature_engineering_spark:291 - 全量特征数据将保存到: /home/ubuntu/ElectricityDemand/data/features.parquet
+2025-04-22 16:02:02.041 | INFO     | __main__:run_feature_engineering_spark:294 - --- 步骤 2: 执行特征工程 ---
+2025-04-22 16:02:02.042 | INFO     | __main__:add_time_features_spark:52 - 开始添加时间特征...
+2025-04-22 16:02:02.048 | WARNING  | __main__:add_time_features_spark:56 - Input 'timestamp' is not TimestampType. Attempting conversion.
+2025-04-22 16:02:02.156 | INFO     | __main__:add_time_features_spark:66 - 'timestamp' 已转换为 TimestampType.
+2025-04-22 16:02:02.252 | SUCCESS  | __main__:add_time_features_spark:77 - 成功添加时间特征: year, month, day, dayofweek, dayofyear, hour
+2025-04-22 16:02:02.254 | INFO     | __main__:run_feature_engineering_spark:301 - --- 步骤 2.1.5: 重分区数据按 'unique_id' 到 500 个分区，优化滚动计算 ---
+2025-04-22 16:02:02.266 | INFO     | __main__:run_feature_engineering_spark:309 - --- 步骤 2.2: 添加滚动统计特征 (在重分区数据上) ---
+2025-04-22 16:02:02.267 | INFO     | __main__:add_rolling_features_spark:93 - 开始添加 'y' 的滚动统计特征...
+2025-04-22 16:02:02.267 | INFO     | __main__:add_rolling_features_spark:94 - 窗口大小: [3, 6, 12, 24, 48, 168]
+2025-04-22 16:02:02.267 | INFO     | __main__:add_rolling_features_spark:95 - 统计指标: ['mean', 'stddev', 'min', 'max']
+2025-04-22 16:02:02.701 | SUCCESS  | __main__:add_rolling_features_spark:142 - 成功添加滚动统计特征 (指标: ['mean', 'stddev', 'min', 'max'], 窗口: [3, 6, 12, 24, 48, 168]h)
+2025-04-22 16:02:02.702 | INFO     | __main__:run_feature_engineering_spark:328 - --- 步骤 2.3: 处理缺失值 ---
+2025-04-22 16:02:02.702 | INFO     | __main__:run_feature_engineering_spark:330 - 将基于最大历史窗口 168h 来删除初始行并处理缺失值。
+2025-04-22 16:02:02.703 | INFO     | __main__:handle_missing_values_spark:164 - 开始处理缺失值...
+2025-04-22 16:02:02.703 | INFO     | __main__:handle_missing_values_spark:169 - 检查并过滤列 'y' 的缺失值...
+2025-04-22 16:02:02.718 | INFO     | __main__:handle_missing_values_spark:176 - 已过滤 'y' 为 null 的行。
+2025-04-22 16:02:02.720 | INFO     | __main__:handle_missing_values_spark:187 - 检查并过滤列 'y_rolling_mean_168h' 的缺失值以删除初始窗口期...
+2025-04-22 16:02:02.734 | INFO     | __main__:handle_missing_values_spark:196 - 已过滤基于滚动窗口 'y_rolling_mean_168h' 的初始 null 行。
+2025-04-22 16:02:02.735 | INFO     | __main__:handle_missing_values_spark:203 - 持久化处理缺失值后的 DataFrame (MEMORY_AND_DISK)...
+2025-04-22 16:02:03.246 | SUCCESS  | __main__:handle_missing_values_spark:208 - 缺失值处理完成。DataFrame 已持久化。移除 count 操作以提高性能。
+2025-04-22 16:02:03.246 | INFO     | __main__:run_feature_engineering_spark:348 - --- 步骤 3: 显示最终 Schema ---
+2025-04-22 16:02:03.246 | INFO     | __main__:run_feature_engineering_spark:349 - 最终特征 Schema:
+2025-04-22 16:02:03.248 | INFO     | __main__:run_feature_engineering_spark:358 - --- 步骤 4: 保存特征数据到 /home/ubuntu/ElectricityDemand/data/features.parquet ---
+2025-04-22 16:02:03.248 | INFO     | __main__:run_feature_engineering_spark:362 - 确保最终 DataFrame 有 500 个分区进行写入...
+2025-04-22 16:13:27.319 | SUCCESS  | __main__:run_feature_engineering_spark:373 - 特征数据成功保存到 /home/ubuntu/ElectricityDemand/data/features.parquet (耗时: 684.07 秒)
+2025-04-22 16:13:27.319 | INFO     | __main__:run_feature_engineering_spark:375 - 验证写入的数据并获取最终行数...
+2025-04-22 16:13:34.587 | INFO     | __main__:run_feature_engineering_spark:379 - 成功读取已保存的特征数据，最终总行数: 234857893
+2025-04-22 16:13:34.587 | INFO     | __main__:run_feature_engineering_spark:396 - --- 开始清理持久化的 DataFrame ---
+2025-04-22 16:13:34.598 | INFO     | __main__:run_feature_engineering_spark:420 - 在 finally 块中成功取消持久化的 sdf_processed。
+2025-04-22 16:13:34.598 | INFO     | electricitydemand.utils.project_utils:stop_spark_session:177 - Stopping SparkSession...
+2025-04-22 16:13:44.884 | SUCCESS  | electricitydemand.utils.project_utils:stop_spark_session:179 - SparkSession stopped.
+2025-04-22 16:13:44.884 | INFO     | __main__:run_feature_engineering_spark:433 - --- Spark 特征工程脚本总执行时间: 707.62 秒 ---
