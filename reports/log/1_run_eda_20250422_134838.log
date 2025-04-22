@@ -1,0 +1,642 @@
+2025-04-22 13:48:38.530 | INFO     | electricitydemand.utils.log_utils:setup_logger:145 - 文本日志将写入：/home/sakurapuare/Desktop/ElectricityDemand/logs/1_run_eda_20250422_134838.log
+2025-04-22 13:48:38.531 | INFO     | electricitydemand.utils.log_utils:setup_logger:184 - 已拦截标准库 logging。
+2025-04-22 13:48:38.531 | INFO     | electricitydemand.utils.log_utils:setup_logger:189 - 已设置全局异常处理钩子 (sys.excepthook)。
+2025-04-22 13:48:38.531 | INFO     | electricitydemand.utils.log_utils:setup_logger:191 - Loguru 初始化完成。默认级别：INFO. 控制台：INFO. 文件：INFO.
+2025-04-22 13:48:38.531 | WARNING  | electricitydemand.utils.log_utils:setup_logger:194 - Diagnose 和 Backtrace 已启用。注意：在生产环境中 'diagnose=True' 可能泄露敏感数据！
+2025-04-22 13:48:38.532 | INFO     | __main__:<module>:36 - 项目根目录: /home/sakurapuare/Desktop/ElectricityDemand
+2025-04-22 13:48:38.532 | INFO     | __main__:<module>:37 - 数据目录: /home/sakurapuare/Desktop/ElectricityDemand/data
+2025-04-22 13:48:38.532 | INFO     | __main__:<module>:38 - 日志目录: /home/sakurapuare/Desktop/ElectricityDemand/logs
+2025-04-22 13:48:38.532 | INFO     | __main__:<module>:39 - 图表目录: /home/sakurapuare/Desktop/ElectricityDemand/plots
+2025-04-22 13:48:39.607 | INFO     | __main__:run_all_eda:86 - =========================================
+2025-04-22 13:48:39.607 | INFO     | __main__:run_all_eda:87 - ===     开始执行 Spark EDA 脚本       ===
+2025-04-22 13:48:39.607 | INFO     | __main__:run_all_eda:88 - =========================================
+2025-04-22 13:48:39.607 | INFO     | __main__:run_all_eda:95 - 创建 SparkSession...
+2025-04-22 13:48:39.607 | INFO     | electricitydemand.utils.project_utils:create_spark_session:83 - 创建 SparkSession: ElectricityDemandEDA (master: local[*])...
+2025-04-22 13:48:39.607 | INFO     | electricitydemand.utils.project_utils:create_spark_session:84 - 配置 Driver 内存：8g
+2025-04-22 13:48:39.608 | INFO     | electricitydemand.utils.project_utils:create_spark_session:85 - 配置 Executor 内存：28g
+2025-04-22 13:48:39.608 | INFO     | electricitydemand.utils.project_utils:create_spark_session:97 - 配置 Spark 本地临时目录：/tmp
+2025-04-22 13:48:39.608 | INFO     | electricitydemand.utils.project_utils:create_spark_session:124 - 设置 spark.sql.shuffle.partitions 和 spark.default.parallelism 为：500
+2025-04-22 13:48:39.608 | INFO     | electricitydemand.utils.project_utils:create_spark_session:132 - 配置 Executor 堆外内存 (spark.memory.offHeap.size): 4g
+2025-04-22 13:48:42.434 | SUCCESS  | electricitydemand.utils.project_utils:create_spark_session:145 - SparkSession 创建成功 (含性能优化)
+2025-04-22 13:48:42.436 | INFO     | electricitydemand.utils.project_utils:create_spark_session:146 - Spark Web UI: http://192.168.100.5:4040
+2025-04-22 13:48:42.436 | INFO     | electricitydemand.utils.project_utils:create_spark_session:149 - Spark 配置：
+2025-04-22 13:48:42.465 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.app.name = ElectricityDemandEDA
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.master = local[*]
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.driver.memory = 8g
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.executor.memory = 28g
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.enabled = true
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.size = 4g
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.serializer = org.apache.spark.serializer.KryoSerializer
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.kryoserializer.buffer.max = 1024m
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.execution.arrow.pyspark.enabled = true
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.enabled = true
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.advisoryPartitionSizeInBytes = 2048m
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.shuffle.partitions = 500
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.default.parallelism = 500
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.local.dir = /tmp
+2025-04-22 13:48:42.466 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.network.timeout = 800s
+2025-04-22 13:48:42.466 | INFO     | __main__:run_all_eda:100 - SparkSession 创建成功。
+2025-04-22 13:48:42.467 | INFO     | __main__:run_all_eda:101 - Spark Web UI: http://192.168.100.5:4040
+2025-04-22 13:48:42.467 | INFO     | __main__:run_all_eda:104 - --- 步骤 1: 加载数据 (Spark) ---
+2025-04-22 13:48:42.467 | INFO     | electricitydemand.eda.load_data:load_datasets:37 - --- 开始使用 Spark 加载数据集 ---
+2025-04-22 13:48:42.467 | INFO     | electricitydemand.eda.load_data:load_datasets:45 - Demand path: /home/sakurapuare/Desktop/ElectricityDemand/data/demand_converted.parquet
+2025-04-22 13:48:42.467 | INFO     | electricitydemand.eda.load_data:load_datasets:46 - Metadata path: /home/sakurapuare/Desktop/ElectricityDemand/data/metadata.parquet
+2025-04-22 13:48:42.467 | INFO     | electricitydemand.eda.load_data:load_datasets:47 - Weather path: /home/sakurapuare/Desktop/ElectricityDemand/data/weather_converted.parquet
+2025-04-22 13:48:42.467 | INFO     | electricitydemand.eda.load_data:load_datasets:50 - 加载 Demand 数据: /home/sakurapuare/Desktop/ElectricityDemand/data/demand_converted.parquet
+2025-04-22 13:48:44.584 | WARNING  | electricitydemand.eda.load_data:load_datasets:56 - Demand 'timestamp' 列不是 TimestampType，尝试转换...
+2025-04-22 13:48:44.660 | INFO     | electricitydemand.eda.load_data:load_datasets:60 - Demand 'timestamp' 转换后类型: TimestampType()
+2025-04-22 13:48:44.660 | INFO     | electricitydemand.eda.load_data:log_sdf_info:24 - Demand DataFrame - Schema:
+2025-04-22 13:48:46.454 | INFO     | electricitydemand.eda.load_data:log_sdf_info:27 - Demand DataFrame - Count: 237,944,171
+2025-04-22 13:48:46.454 | INFO     | electricitydemand.eda.load_data:load_datasets:69 - 加载 Metadata 数据: /home/sakurapuare/Desktop/ElectricityDemand/data/metadata.parquet
+2025-04-22 13:48:46.532 | INFO     | electricitydemand.eda.load_data:log_sdf_info:24 - Metadata DataFrame - Schema:
+2025-04-22 13:48:46.663 | INFO     | electricitydemand.eda.load_data:log_sdf_info:27 - Metadata DataFrame - Count: 7,572
+2025-04-22 13:48:46.664 | INFO     | electricitydemand.eda.load_data:load_datasets:79 - 加载 Weather 数据: /home/sakurapuare/Desktop/ElectricityDemand/data/weather_converted.parquet
+2025-04-22 13:48:46.775 | WARNING  | electricitydemand.eda.load_data:load_datasets:85 - Weather 'timestamp' 列不是 TimestampType，尝试转换...
+2025-04-22 13:48:46.805 | INFO     | electricitydemand.eda.load_data:load_datasets:88 - Weather 'timestamp' 转换后类型: TimestampType()
+2025-04-22 13:48:46.806 | INFO     | electricitydemand.eda.load_data:log_sdf_info:24 - Weather DataFrame - Schema:
+2025-04-22 13:48:46.964 | INFO     | electricitydemand.eda.load_data:log_sdf_info:27 - Weather DataFrame - Count: 604,848
+2025-04-22 13:48:46.965 | INFO     | electricitydemand.eda.load_data:load_datasets:95 - --- Spark 数据集加载完成 ---
+2025-04-22 13:48:46.965 | INFO     | __main__:run_all_eda:109 - 数据集加载成功。
+2025-04-22 13:48:47.057 | INFO     | __main__:run_all_eda:115 - Demand Schema:
+2025-04-22 13:49:19.882 | INFO     | __main__:run_all_eda:117 - Demand Count: 237,944,171
+2025-04-22 13:49:19.883 | INFO     | __main__:run_all_eda:118 - Metadata Schema:
+2025-04-22 13:49:20.114 | INFO     | __main__:run_all_eda:120 - Metadata Count: 7,572
+2025-04-22 13:49:20.114 | INFO     | __main__:run_all_eda:121 - Weather Schema:
+2025-04-22 13:49:22.037 | INFO     | __main__:run_all_eda:123 - Weather Count: 604,848
+2025-04-22 13:49:22.037 | INFO     | __main__:run_all_eda:126 - --- 步骤 2: 单变量分析 ---
+2025-04-22 13:49:22.037 | INFO     | __main__:run_all_eda:127 - --- 开始 Demand 分析 (Spark) ---
+2025-04-22 13:49:22.037 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:406 - --- 开始使用 Spark 分析 Demand 'y' 列分布 (抽样比例：0.500%) ---
+2025-04-22 13:49:22.037 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:420 - 使用 Spark 计算 'y' 列的描述性统计...
+2025-04-22 13:52:15.602 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:439 - 'y' 列 (Spark 全量统计) 描述性统计:
+count     2.348579e+08
+mean      4.490447e+01
+stddev    3.942504e+02
+min       0.000000e+00
+25%       7.700000e-02
+50%       1.990000e-01
+75%       7.623888e+00
+max       2.212280e+05
+2025-04-22 13:52:16.460 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:451 - 全量数据中 'y' 的总行数：237,944,171
+2025-04-22 13:52:16.460 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:452 - 全量数据中 'y' 非空数量：234,857,893
+2025-04-22 13:52:16.460 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:455 - 全量数据中 'y' 缺失数量：3,086,278 (1.30%)
+2025-04-22 13:52:16.461 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:460 - 使用 Spark 检查 'y' 列中的非正值 (<= 0)...
+2025-04-22 13:52:18.641 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:465 - 全量数据中 'y' 缺失的数量：3,086,278
+2025-04-22 13:52:18.642 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:468 - 全量数据中 'y' <= 0 的数量 (在非缺失值中): 2,499,640 (1.06%)
+2025-04-22 13:52:18.642 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:476 - 对 'y' 列进行 Spark 抽样 (比例：0.5%) 以便绘图...
+2025-04-22 13:52:18.672 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:483 - 将抽样结果收集到 Pandas Series...
+2025-04-22 13:52:20.279 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_y_distribution:496 - 抽样并收集完成，得到 1,172,262 个非空样本 (Pandas)。
+2025-04-22 13:52:20.280 | INFO     | electricitydemand.eda.analyze_demand:plot_demand_y_distribution:535 - 绘制 'y' 分布图 (样本比例：0.5%)...
+2025-04-22 13:52:20.295 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'y' (Sample size: 1,172,262)...
+2025-04-22 13:54:20.490 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/Demand Value (y) Distribution (Original Scale, Sample).png
+2025-04-22 13:54:20.508 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'y (log1p)' (Sample size: 1,172,262)...
+2025-04-22 13:54:25.370 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/Demand Value (y) Distribution (Log1p Scale, Sample).png
+2025-04-22 13:54:25.370 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_timeseries_sample:565 - --- Starting analysis of Demand time series (sampling 3 unique_id) ---
+2025-04-22 13:54:25.375 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:508 - Starting Spark ID sampling and collection for column 'unique_id'...
+2025-04-22 13:54:25.375 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:533 - Getting distinct 'unique_id' values from Spark DataFrame...
+2025-04-22 13:54:28.535 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:552 - Randomly sampling 3 'unique_id' values using Spark RDD takeSample...
+2025-04-22 13:54:31.800 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:563 - Selected 3 IDs (first 5): ['aab1f0df961afebf', 'aaad8381da7e4232', 'dbd37b9f2f2bc0e3']
+2025-04-22 13:54:31.800 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:567 - Filtering Spark DataFrame for selected IDs in 'unique_id'...
+2025-04-22 13:54:31.823 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:573 - Selecting columns ['unique_id', 'timestamp', 'y'] and collecting filtered data to Pandas...
+2025-04-22 13:54:33.578 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:582 - Pandas DataFrame collected, containing 103,948 rows for 3 IDs.
+2025-04-22 13:54:33.579 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:608 - Sorting Pandas DataFrame by ['unique_id', 'timestamp']...
+2025-04-22 13:54:33.599 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:633 - Spark ID sampling, collection, and initial Pandas processing complete.
+2025-04-22 13:54:33.600 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_timeseries_sample:602 - Starting to plot time series for each sample (in Pandas) and analyze frequency...
+2025-04-22 13:54:33.776 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/timeseries_sample_aaad8381da7e4232.png
+2025-04-22 13:54:33.907 | INFO     | electricitydemand.utils.eda_utils:analyze_timestamp_frequency_pandas:341 - --- unique_id: aaad8381da7e4232 Timestamp Interval Frequency (Pandas Sample) ---
+2025-04-22 13:54:33.907 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：ID aaad8381da7e4232 Interval 值分布 ---
+2025-04-22 13:54:33.914 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+count             
+38470   1    100.0
+2025-04-22 13:54:33.915 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 'ID aaad8381da7e4232 Interval' 值计数中未发现 NaN。
+2025-04-22 13:54:33.915 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 'ID aaad8381da7e4232 Interval' 唯一值数量 (含 NaN): 1
+2025-04-22 13:54:33.915 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:54:34.087 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/timeseries_sample_aab1f0df961afebf.png
+2025-04-22 13:54:34.192 | INFO     | electricitydemand.utils.eda_utils:analyze_timestamp_frequency_pandas:341 - --- unique_id: aab1f0df961afebf Timestamp Interval Frequency (Pandas Sample) ---
+2025-04-22 13:54:34.192 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：ID aab1f0df961afebf Interval 值分布 ---
+2025-04-22 13:54:34.193 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+count             
+31080   1    100.0
+2025-04-22 13:54:34.194 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 'ID aab1f0df961afebf Interval' 值计数中未发现 NaN。
+2025-04-22 13:54:34.194 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 'ID aab1f0df961afebf Interval' 唯一值数量 (含 NaN): 1
+2025-04-22 13:54:34.194 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:54:34.392 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/timeseries_sample_dbd37b9f2f2bc0e3.png
+2025-04-22 13:54:34.505 | INFO     | electricitydemand.utils.eda_utils:analyze_timestamp_frequency_pandas:341 - --- unique_id: dbd37b9f2f2bc0e3 Timestamp Interval Frequency (Pandas Sample) ---
+2025-04-22 13:54:34.506 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：ID dbd37b9f2f2bc0e3 Interval 值分布 ---
+2025-04-22 13:54:34.507 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+count             
+34395   1    100.0
+2025-04-22 13:54:34.507 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 'ID dbd37b9f2f2bc0e3 Interval' 值计数中未发现 NaN。
+2025-04-22 13:54:34.507 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 'ID dbd37b9f2f2bc0e3 Interval' 唯一值数量 (含 NaN): 1
+2025-04-22 13:54:34.508 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:54:34.508 | INFO     | electricitydemand.eda.analyze_demand:analyze_demand_timeseries_sample:640 - Demand time series sample analysis complete.
+2025-04-22 13:54:34.508 | INFO     | __main__:run_all_eda:132 - --- 完成 Demand 分析 (Spark) ---
+2025-04-22 13:54:34.508 | INFO     | __main__:run_all_eda:135 - --- 开始 Metadata 分析 (Spark DF -> Pandas DF) ---
+2025-04-22 13:54:34.508 | INFO     | __main__:run_all_eda:136 - 将 Metadata Spark DataFrame 转换为 Pandas DataFrame...
+2025-04-22 13:54:34.597 | INFO     | __main__:run_all_eda:140 - Metadata Pandas DataFrame 转换成功，形状: (7572, 11)
+2025-04-22 13:54:34.599 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:25 - --- 分析 Metadata 分类特征 ---
+2025-04-22 13:54:34.600 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:32 - --- 分析列: dataset ---
+2025-04-22 13:54:34.601 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:36 - 值分布 (Top 10):
+dataset
+London Smart Meter Data      5566
+Building Data Genome 2       1636
+Electricity Load Diagrams     370
+2025-04-22 13:54:34.602 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:32 - --- 分析列: location ---
+2025-04-22 13:54:34.604 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:36 - 值分布 (Top 10):
+location
+London, UK                     5634
+PT                              370
+Washington DC, USA              305
+None                            237
+Minneapolis, Minnesota, USA     163
+Cardiff, UK                     147
+Phoenix, Arizona, USA           137
+Orlando, Florida, USA           136
+Ithaca, New York, USA           124
+Austin, Texas, USA              124
+2025-04-22 13:54:34.604 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:38 - ... (共 14 个唯一值)
+2025-04-22 13:54:34.605 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:32 - --- 分析列: timezone ---
+2025-04-22 13:54:34.606 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:36 - 值分布 (Top 10):
+timezone
+Europe/London    5781
+US/Eastern        812
+Europe/Lisbon     370
+US/Central        287
+US/Mountain       173
+US/Pacific        113
+Europe/Dublin      36
+2025-04-22 13:54:34.606 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:32 - --- 分析列: freq ---
+2025-04-22 13:54:34.607 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:36 - 值分布 (Top 10):
+freq
+30T    5566
+1H     1636
+15T     370
+2025-04-22 13:54:34.608 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:32 - --- 分析列: building_class ---
+2025-04-22 13:54:34.610 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:36 - 值分布 (Top 10):
+building_class
+Residential    5936
+Commercial     1636
+2025-04-22 13:54:34.611 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_categorical:41 - --- 完成 Metadata 分类特征分析 ---
+2025-04-22 13:54:34.611 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:52 - --- 绘制 Metadata 分类特征分布图 ---
+2025-04-22 13:54:34.612 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:65 - 绘制 'dataset' 的分布图 (共 3 个唯一值)...
+2025-04-22 13:54:34.722 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:99 - 图表已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_dist_dataset.png
+2025-04-22 13:54:34.722 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:65 - 绘制 'location' 的分布图 (共 14 个唯一值)...
+2025-04-22 13:54:34.908 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:99 - 图表已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_dist_location.png
+2025-04-22 13:54:34.908 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:65 - 绘制 'timezone' 的分布图 (共 7 个唯一值)...
+2025-04-22 13:54:35.011 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:99 - 图表已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_dist_timezone.png
+2025-04-22 13:54:35.011 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:65 - 绘制 'freq' 的分布图 (共 3 个唯一值)...
+2025-04-22 13:54:35.017 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:54:35.021 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:54:35.101 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:99 - 图表已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_dist_freq.png
+2025-04-22 13:54:35.101 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:65 - 绘制 'building_class' 的分布图 (共 2 个唯一值)...
+2025-04-22 13:54:35.182 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:99 - 图表已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_dist_building_class.png
+2025-04-22 13:54:35.182 | INFO     | electricitydemand.eda.analyze_metadata:plot_metadata_categorical:104 - --- 完成 Metadata 分类特征分布图绘制 ---
+2025-04-22 13:54:35.182 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_numerical:115 - --- 分析 Metadata 数值特征 ---
+2025-04-22 13:54:35.187 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_numerical:128 - 数值特征描述性统计:
+          latitude    longitude  cluster_size
+count  7335.000000  7335.000000        7572.0
+mean     48.755646   -14.083789           1.0
+std       5.873737    33.140486           0.0
+min      28.520000  -122.260000           1.0
+25%      51.520000    -0.130000           1.0
+50%      51.520000    -0.130000           1.0
+75%      51.520000    -0.130000           1.0
+max      53.350000     6.260000           1.0
+2025-04-22 13:54:35.354 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_numerical:147 - 'latitude' 直方图已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_hist_latitude.png
+2025-04-22 13:54:35.518 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_numerical:147 - 'longitude' 直方图已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_hist_longitude.png
+2025-04-22 13:54:35.621 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_numerical:147 - 'cluster_size' 直方图已保存: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_hist_cluster_size.png
+2025-04-22 13:54:35.707 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/metadata_location_scatter.png
+2025-04-22 13:54:35.707 | INFO     | electricitydemand.eda.analyze_metadata:analyze_metadata_numerical:177 - --- 完成 Metadata 数值特征分析 ---
+2025-04-22 13:54:35.708 | INFO     | electricitydemand.eda.analyze_metadata:analyze_missing_locations:189 - --- 开始分析 Metadata 中缺失的位置信息 ---
+2025-04-22 13:54:35.709 | INFO     | electricitydemand.eda.analyze_metadata:analyze_missing_locations:207 - 发现 237 行的所有位置信息 (location_id, latitude, longitude, location) 均为缺失。
+2025-04-22 13:54:35.711 | INFO     | electricitydemand.eda.analyze_metadata:analyze_missing_locations:214 - 缺失位置信息的行 (前 5 行):
+                                 dataset             building_id location_id  latitude  longitude location    timezone building_class  cluster_size freq
+unique_id                                                                                                                                               
+af7d0992308ddcbf  Building Data Genome 2     Gator_office_Carrie        None       NaN        NaN     None  US/Eastern     Commercial             1   1H
+647d0556e538682a  Building Data Genome 2       Gator_office_Lucy        None       NaN        NaN     None  US/Eastern     Commercial             1   1H
+84be3f18f01d3ddb  Building Data Genome 2    Gator_assembly_Lelia        None       NaN        NaN     None  US/Eastern     Commercial             1   1H
+0bafabde1547223b  Building Data Genome 2    Gator_other_Elfriede        None       NaN        NaN     None  US/Eastern     Commercial             1   1H
+e2cae95c19389c9d  Building Data Genome 2  Gator_assembly_Maurine        None       NaN        NaN     None  US/Eastern     Commercial             1   1H
+2025-04-22 13:54:35.711 | INFO     | electricitydemand.eda.analyze_metadata:analyze_missing_locations:215 - 分析缺失位置信息行的其他特征分布:
+2025-04-22 13:54:35.711 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：(缺失位置) dataset 值分布 ---
+2025-04-22 13:54:35.712 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+                         计数  百分比 (%)
+dataset                             
+Building Data Genome 2  237    100.0
+2025-04-22 13:54:35.712 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 '(缺失位置) dataset' 值计数中未发现 NaN。
+2025-04-22 13:54:35.712 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 '(缺失位置) dataset' 唯一值数量 (含 NaN): 1
+2025-04-22 13:54:35.713 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:54:35.713 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：(缺失位置) building_class 值分布 ---
+2025-04-22 13:54:35.714 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+                 计数  百分比 (%)
+building_class              
+Commercial      237    100.0
+2025-04-22 13:54:35.714 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 '(缺失位置) building_class' 值计数中未发现 NaN。
+2025-04-22 13:54:35.714 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 '(缺失位置) building_class' 唯一值数量 (含 NaN): 1
+2025-04-22 13:54:35.714 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:54:35.715 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：(缺失位置) freq 值分布 ---
+2025-04-22 13:54:35.716 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+freq              
+1H    237    100.0
+2025-04-22 13:54:35.716 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 '(缺失位置) freq' 值计数中未发现 NaN。
+2025-04-22 13:54:35.716 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 '(缺失位置) freq' 唯一值数量 (含 NaN): 1
+2025-04-22 13:54:35.716 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:54:35.716 | INFO     | electricitydemand.eda.analyze_metadata:analyze_missing_locations:232 - 缺失位置信息分析完成。
+2025-04-22 13:54:35.716 | INFO     | __main__:run_all_eda:163 - --- 完成 Metadata 分析 ---
+2025-04-22 13:54:35.716 | INFO     | __main__:run_all_eda:170 - --- 开始 Weather 分析 (Spark) ---
+2025-04-22 13:54:35.717 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:59 - --- 开始分析 Weather 数值特征分布 (Spark) ---
+2025-04-22 13:54:35.717 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:87 - 使用 Spark 计算数值特征的描述性统计...
+2025-04-22 13:54:54.594 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:125 - Spark 计算的描述性统计:
+        temperature_2m  relative_humidity_2m   dew_point_2m  apparent_temperature  precipitation           rain       snowfall     snow_depth   pressure_msl  surface_pressure    cloud_cover  cloud_cover_low  cloud_cover_mid  cloud_cover_high  et0_fao_evapotranspiration  vapour_pressure_deficit  wind_speed_10m  wind_direction_10m  wind_gusts_10m  soil_temperature_0_to_7cm  soil_temperature_7_to_28cm  soil_moisture_0_to_7cm  soil_moisture_7_to_28cm  sunshine_duration  shortwave_radiation  direct_radiation  diffuse_radiation  direct_normal_irradiance  terrestrial_radiation
+count    604848.000000         604848.000000  604848.000000         604848.000000  604848.000000  604848.000000  604848.000000  604848.000000  604848.000000     604848.000000  604848.000000    604848.000000    604848.000000     604848.000000               604848.000000            604848.000000   604848.000000       604848.000000   604848.000000              604848.000000               604848.000000           604848.000000            604848.000000      604848.000000        604848.000000     604848.000000      604848.000000             604848.000000          604848.000000
+mean         13.043232             72.994254       7.469432             11.199999       0.104439       0.098115       0.004602       0.016962    1016.344055       1005.593240      47.802610        31.496008        26.783263         35.679511                    0.110859                 0.575833       12.791896          197.332483       26.637381                  14.073293                   14.007569                0.312330                 0.320900        1230.290619           160.496367        103.807467          56.688900                186.054919             314.664655
+stddev        9.862261             19.791132       9.148833             11.900755       0.483059       0.476445       0.055332       0.068546       8.433961         14.500265      37.891868        38.231071        35.325166         41.178399                    0.156858                 0.831642        6.774915           96.776903       13.148384                   9.628982                    8.727776                0.123079                 0.108136        1646.818797           241.076100        188.234869          77.751038                279.753732             398.050797
+min         -32.200001              2.582063     -36.099998            -37.681385       0.000000       0.000000       0.000000       0.000000     970.599976        952.082153       0.000000         0.000000         0.000000          0.000000                    0.000000                 0.000000        0.000000            0.440730        1.440000                 -20.711000                  -15.361000                0.000000                 0.027000           0.000000             0.000000          0.000000           0.000000                  0.000000               0.000000
+25%           6.997500             61.176437       2.283000              3.391027       0.000000       0.000000       0.000000       0.000000    1011.700012        997.936157      10.200001         0.000000         0.000000          0.000000                    0.006063                 0.125121        7.787991          120.256355       16.559999                   7.226500                    7.603000                0.238000                 0.244000           0.000000             0.000000          0.000000           0.000000                  0.000000               0.000000
+50%          13.326500             77.333199       8.600000             11.259665       0.000000       0.000000       0.000000       0.000000    1016.500000       1008.601440      41.099998        10.000000         6.000000          9.000000                    0.038774                 0.285856       11.585320          211.660706       24.480000                  13.926500                   14.176500                0.341000                 0.340000           0.000000             7.000000          0.000000           6.000000                  0.000000              51.724712
+75%          19.592499             88.814079      13.576500             19.278246       0.000000       0.000000       0.000000       0.000000    1021.400024       1015.447266      89.999992        64.000000        47.000000         84.000000                    0.151983                 0.671277       16.595179          273.012726       34.379997                  20.217499                   19.839500                0.400000                 0.400000        3600.000000           262.000000        122.000000         100.000000                333.468933             620.696228
+max          47.613499            100.000000      27.320002             48.003006      33.000000      33.000000       4.270000       0.790000    1051.000000       1044.969727     100.000000       100.000000       100.000000        100.000000                    1.109937                10.356438       66.794312          360.000000      128.159988                  61.289501                   43.089500                0.520000                 0.520000        3600.000000          1079.000000        952.000000         488.000000               1017.039001            1318.578247
+2025-04-22 13:54:54.594 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:138 - 使用 Spark 检查列 ['precipitation', 'rain', 'snowfall', 'snow_depth', 'et0_fao_evapotranspiration', 'sunshine_duration', 'direct_radiation', 'diffuse_radiation'] 中的负值...
+2025-04-22 13:54:54.799 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'precipitation' 未检测到负值。
+2025-04-22 13:54:54.977 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'rain' 未检测到负值。
+2025-04-22 13:54:55.140 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'snowfall' 未检测到负值。
+2025-04-22 13:54:55.269 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'snow_depth' 未检测到负值。
+2025-04-22 13:54:55.399 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'et0_fao_evapotranspiration' 未检测到负值。
+2025-04-22 13:54:55.577 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'sunshine_duration' 未检测到负值。
+2025-04-22 13:54:55.708 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'direct_radiation' 未检测到负值。
+2025-04-22 13:54:55.832 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:147 - 列 'diffuse_radiation' 未检测到负值。
+2025-04-22 13:54:55.832 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:153 - 开始绘制 Weather 特征分布图 (抽样比例：5.0%)...
+2025-04-22 13:54:55.832 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：temperature_2m
+2025-04-22 13:54:55.963 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'temperature_2m' (Sample size: 30,210)...
+2025-04-22 13:54:56.303 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_temperature_2m.png
+2025-04-22 13:54:56.304 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：relative_humidity_2m
+2025-04-22 13:54:56.449 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'relative_humidity_2m' (Sample size: 30,210)...
+2025-04-22 13:54:56.755 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_relative_humidity_2m.png
+2025-04-22 13:54:56.755 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：dew_point_2m
+2025-04-22 13:54:56.886 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'dew_point_2m' (Sample size: 30,210)...
+2025-04-22 13:54:57.247 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_dew_point_2m.png
+2025-04-22 13:54:57.248 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：apparent_temperature
+2025-04-22 13:54:57.370 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'apparent_temperature' (Sample size: 30,210)...
+2025-04-22 13:54:57.709 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_apparent_temperature.png
+2025-04-22 13:54:57.709 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：precipitation
+2025-04-22 13:54:57.818 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'precipitation' (Sample size: 30,210)...
+2025-04-22 13:54:58.143 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_precipitation.png
+2025-04-22 13:54:58.143 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：rain
+2025-04-22 13:54:58.248 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'rain' (Sample size: 30,210)...
+2025-04-22 13:54:58.541 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_rain.png
+2025-04-22 13:54:58.542 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：snowfall
+2025-04-22 13:54:58.650 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'snowfall' (Sample size: 30,210)...
+2025-04-22 13:54:58.915 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_snowfall.png
+2025-04-22 13:54:58.915 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：snow_depth
+2025-04-22 13:54:59.022 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'snow_depth' (Sample size: 30,210)...
+2025-04-22 13:54:59.356 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_snow_depth.png
+2025-04-22 13:54:59.357 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：pressure_msl
+2025-04-22 13:54:59.463 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'pressure_msl' (Sample size: 30,210)...
+2025-04-22 13:54:59.867 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_pressure_msl.png
+2025-04-22 13:54:59.867 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：surface_pressure
+2025-04-22 13:54:59.972 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'surface_pressure' (Sample size: 30,210)...
+2025-04-22 13:55:00.296 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_surface_pressure.png
+2025-04-22 13:55:00.296 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：cloud_cover
+2025-04-22 13:55:00.399 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'cloud_cover' (Sample size: 30,210)...
+2025-04-22 13:55:00.683 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_cloud_cover.png
+2025-04-22 13:55:00.683 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：cloud_cover_low
+2025-04-22 13:55:00.791 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'cloud_cover_low' (Sample size: 30,210)...
+2025-04-22 13:55:01.090 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_cloud_cover_low.png
+2025-04-22 13:55:01.090 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：cloud_cover_mid
+2025-04-22 13:55:01.200 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'cloud_cover_mid' (Sample size: 30,210)...
+2025-04-22 13:55:01.505 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_cloud_cover_mid.png
+2025-04-22 13:55:01.505 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：cloud_cover_high
+2025-04-22 13:55:01.599 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'cloud_cover_high' (Sample size: 30,210)...
+2025-04-22 13:55:01.869 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_cloud_cover_high.png
+2025-04-22 13:55:01.869 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：et0_fao_evapotranspiration
+2025-04-22 13:55:01.969 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'et0_fao_evapotranspiration' (Sample size: 30,210)...
+2025-04-22 13:55:02.296 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_et0_fao_evapotranspiration.png
+2025-04-22 13:55:02.296 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：vapour_pressure_deficit
+2025-04-22 13:55:02.398 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'vapour_pressure_deficit' (Sample size: 30,210)...
+2025-04-22 13:55:02.793 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_vapour_pressure_deficit.png
+2025-04-22 13:55:02.793 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：wind_speed_10m
+2025-04-22 13:55:02.898 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'wind_speed_10m' (Sample size: 30,210)...
+2025-04-22 13:55:03.256 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_wind_speed_10m.png
+2025-04-22 13:55:03.256 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：wind_direction_10m
+2025-04-22 13:55:03.365 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'wind_direction_10m' (Sample size: 30,210)...
+2025-04-22 13:55:03.676 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_wind_direction_10m.png
+2025-04-22 13:55:03.676 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：wind_gusts_10m
+2025-04-22 13:55:03.786 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'wind_gusts_10m' (Sample size: 30,210)...
+2025-04-22 13:55:04.140 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_wind_gusts_10m.png
+2025-04-22 13:55:04.140 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：soil_temperature_0_to_7cm
+2025-04-22 13:55:04.303 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'soil_temperature_0_to_7cm' (Sample size: 30,210)...
+2025-04-22 13:55:04.659 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_soil_temperature_0_to_7cm.png
+2025-04-22 13:55:04.659 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：soil_temperature_7_to_28cm
+2025-04-22 13:55:04.765 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'soil_temperature_7_to_28cm' (Sample size: 30,210)...
+2025-04-22 13:55:05.087 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_soil_temperature_7_to_28cm.png
+2025-04-22 13:55:05.087 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：soil_moisture_0_to_7cm
+2025-04-22 13:55:05.190 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'soil_moisture_0_to_7cm' (Sample size: 30,210)...
+2025-04-22 13:55:05.510 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_soil_moisture_0_to_7cm.png
+2025-04-22 13:55:05.510 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：soil_moisture_7_to_28cm
+2025-04-22 13:55:05.611 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'soil_moisture_7_to_28cm' (Sample size: 30,210)...
+2025-04-22 13:55:05.947 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_soil_moisture_7_to_28cm.png
+2025-04-22 13:55:05.947 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：sunshine_duration
+2025-04-22 13:55:06.047 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'sunshine_duration' (Sample size: 30,210)...
+2025-04-22 13:55:06.335 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_sunshine_duration.png
+2025-04-22 13:55:06.336 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：shortwave_radiation
+2025-04-22 13:55:06.441 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'shortwave_radiation' (Sample size: 30,210)...
+2025-04-22 13:55:06.774 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_shortwave_radiation.png
+2025-04-22 13:55:06.774 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：direct_radiation
+2025-04-22 13:55:06.883 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'direct_radiation' (Sample size: 30,210)...
+2025-04-22 13:55:07.273 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_direct_radiation.png
+2025-04-22 13:55:07.273 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：diffuse_radiation
+2025-04-22 13:55:07.376 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'diffuse_radiation' (Sample size: 30,210)...
+2025-04-22 13:55:07.727 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_diffuse_radiation.png
+2025-04-22 13:55:07.727 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：direct_normal_irradiance
+2025-04-22 13:55:07.832 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'direct_normal_irradiance' (Sample size: 30,210)...
+2025-04-22 13:55:08.135 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_direct_normal_irradiance.png
+2025-04-22 13:55:08.135 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:155 - 绘制列：terrestrial_radiation
+2025-04-22 13:55:08.239 | INFO     | electricitydemand.utils.eda_utils:plot_numerical_distribution:56 - Plotting distribution for column 'terrestrial_radiation' (Sample size: 30,210)...
+2025-04-22 13:55:08.554 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_distribution_terrestrial_radiation.png
+2025-04-22 13:55:08.554 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_numerical:181 - Weather 数值特征分析完成。
+2025-04-22 13:55:08.555 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:192 - --- 分析 Weather 分类特征 (Spark) ---
+2025-04-22 13:55:08.555 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:198 - --- 分析列：is_day ---
+2025-04-22 13:55:08.856 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:205 - 'is_day' 值分布 (Top 20):
+ is_day  count
+    1.0 307957
+    0.0 296672
+    0.5    219
+2025-04-22 13:55:08.863 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:55:08.870 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:55:08.954 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:244 - 'is_day' 分布图已保存：/home/sakurapuare/Desktop/ElectricityDemand/plots/weather_dist_is_day.png
+2025-04-22 13:55:08.954 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:198 - --- 分析列：weather_code ---
+2025-04-22 13:55:09.198 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:205 - 'weather_code' 值分布 (Top 20):
+ weather_code  count
+          0.0 189824
+          1.0 123921
+          3.0 117225
+          2.0  66923
+         51.0  44892
+         53.0  14586
+         61.0   7727
+         71.0   6788
+          0.5   5861
+         55.0   4226
+         63.0   3884
+         73.0   3729
+          1.5   3656
+          2.5   1701
+         27.0   1515
+         26.0   1491
+         26.5   1384
+         75.0    638
+         52.0    621
+         25.5    590
+2025-04-22 13:55:09.199 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:208 - ... (共 41 个唯一值)
+2025-04-22 13:55:09.398 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:244 - 'weather_code' 分布图已保存：/home/sakurapuare/Desktop/ElectricityDemand/plots/weather_dist_weather_code.png
+2025-04-22 13:55:09.399 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_categorical:250 - --- 完成 Weather 分类特征分析 ---
+2025-04-22 13:55:09.399 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_timeseries_sample:348 - --- Starting analysis of Weather time series frequency (sampling 3 location_id) ---
+2025-04-22 13:55:09.402 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:508 - Starting Spark ID sampling and collection for column 'location_id'...
+2025-04-22 13:55:09.403 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:533 - Getting distinct 'location_id' values from Spark DataFrame...
+2025-04-22 13:55:09.568 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:552 - Randomly sampling 3 'location_id' values using Spark RDD takeSample...
+2025-04-22 13:55:09.809 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:563 - Selected 3 IDs (first 5): ['dqcjr9e0bvw4', '9tbqhgzj9gwc', 'dr99e3temvdj']
+2025-04-22 13:55:09.810 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:567 - Filtering Spark DataFrame for selected IDs in 'location_id'...
+2025-04-22 13:55:09.816 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:573 - Selecting columns ['location_id', 'timestamp'] and collecting filtered data to Pandas...
+2025-04-22 13:55:10.009 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:582 - Pandas DataFrame collected, containing 105,192 rows for 3 IDs.
+2025-04-22 13:55:10.009 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:608 - Sorting Pandas DataFrame by ['location_id', 'timestamp']...
+2025-04-22 13:55:10.024 | INFO     | electricitydemand.utils.eda_utils:sample_spark_ids_and_collect:633 - Spark ID sampling, collection, and initial Pandas processing complete.
+2025-04-22 13:55:10.024 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_timeseries_sample:381 - Starting to analyze weather timestamp frequency for each sample (in Pandas)...
+2025-04-22 13:55:10.165 | INFO     | electricitydemand.utils.eda_utils:analyze_timestamp_frequency_pandas:341 - --- location_id: 9tbqhgzj9gwc Timestamp Interval Frequency (Pandas Sample) ---
+2025-04-22 13:55:10.165 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：ID 9tbqhgzj9gwc Interval 值分布 ---
+2025-04-22 13:55:10.168 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+count             
+35063   1    100.0
+2025-04-22 13:55:10.168 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 'ID 9tbqhgzj9gwc Interval' 值计数中未发现 NaN。
+2025-04-22 13:55:10.168 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 'ID 9tbqhgzj9gwc Interval' 唯一值数量 (含 NaN): 1
+2025-04-22 13:55:10.168 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:55:10.293 | INFO     | electricitydemand.utils.eda_utils:analyze_timestamp_frequency_pandas:341 - --- location_id: dqcjr9e0bvw4 Timestamp Interval Frequency (Pandas Sample) ---
+2025-04-22 13:55:10.293 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：ID dqcjr9e0bvw4 Interval 值分布 ---
+2025-04-22 13:55:10.295 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+count             
+35063   1    100.0
+2025-04-22 13:55:10.295 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 'ID dqcjr9e0bvw4 Interval' 值计数中未发现 NaN。
+2025-04-22 13:55:10.295 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 'ID dqcjr9e0bvw4 Interval' 唯一值数量 (含 NaN): 1
+2025-04-22 13:55:10.295 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:55:10.413 | INFO     | electricitydemand.utils.eda_utils:analyze_timestamp_frequency_pandas:341 - --- location_id: dr99e3temvdj Timestamp Interval Frequency (Pandas Sample) ---
+2025-04-22 13:55:10.413 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:186 - --- 分析列：ID dr99e3temvdj Interval 值分布 ---
+2025-04-22 13:55:10.415 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:264 - 值分布 (含 NaN):
+       计数  百分比 (%)
+count             
+35063   1    100.0
+2025-04-22 13:55:10.415 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:290 - 列 'ID dr99e3temvdj Interval' 值计数中未发现 NaN。
+2025-04-22 13:55:10.415 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:293 - 列 'ID dr99e3temvdj Interval' 唯一值数量 (含 NaN): 1
+2025-04-22 13:55:10.415 | INFO     | electricitydemand.utils.eda_utils:log_value_counts:294 - --------------------
+2025-04-22 13:55:10.416 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_timeseries_sample:400 - Weather time series frequency sample analysis complete.
+2025-04-22 13:55:10.416 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_correlation:261 - --- 分析 Weather 数值特征相关性 (Spark) ---
+2025-04-22 13:55:10.416 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_correlation:286 - 计算以下列的相关性：temperature_2m, relative_humidity_2m, dew_point_2m, apparent_temperature, precipitation, rain, snowfall, snow_depth, pressure_msl, surface_pressure, cloud_cover, cloud_cover_low, cloud_cover_mid, cloud_cover_high, et0_fao_evapotranspiration, vapour_pressure_deficit, wind_speed_10m, wind_direction_10m, wind_gusts_10m, soil_temperature_0_to_7cm, soil_moisture_0_to_7cm, sunshine_duration, shortwave_radiation, direct_radiation, diffuse_radiation, direct_normal_irradiance, terrestrial_radiation
+2025-04-22 13:55:16.121 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_correlation:320 - Weather Feature Correlation Matrix saved: /home/sakurapuare/Desktop/ElectricityDemand/plots/weather_correlation_matrix.png
+2025-04-22 13:55:16.132 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_correlation:332 - --- Strong Correlations (|corr| > 0.8) ---
+2025-04-22 13:55:16.133 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_correlation:333 - apparent_temperature        temperature_2m                0.988910
+precipitation               rain                          0.986577
+direct_radiation            shortwave_radiation           0.964157
+soil_temperature_0_to_7cm   temperature_2m                0.956536
+                            apparent_temperature          0.948871
+shortwave_radiation         et0_fao_evapotranspiration    0.944134
+direct_radiation            direct_normal_irradiance      0.922058
+et0_fao_evapotranspiration  direct_radiation              0.920355
+wind_speed_10m              wind_gusts_10m                0.910252
+shortwave_radiation         terrestrial_radiation         0.909390
+terrestrial_radiation       diffuse_radiation             0.902464
+direct_normal_irradiance    shortwave_radiation           0.893868
+sunshine_duration           direct_normal_irradiance      0.891042
+apparent_temperature        dew_point_2m                  0.858306
+terrestrial_radiation       et0_fao_evapotranspiration    0.857942
+cloud_cover                 cloud_cover_low               0.817122
+shortwave_radiation         sunshine_duration             0.815321
+direct_normal_irradiance    et0_fao_evapotranspiration    0.813937
+temperature_2m              dew_point_2m                  0.813515
+2025-04-22 13:55:16.134 | INFO     | electricitydemand.eda.analyze_weather:analyze_weather_correlation:339 - --- 完成 Weather 数值特征相关性分析 ---
+2025-04-22 13:55:16.134 | INFO     | __main__:run_all_eda:178 - --- 完成 Weather 分析 (Spark) ---
+2025-04-22 13:55:16.134 | INFO     | __main__:run_all_eda:181 - --- 步骤 3: 关系分析 ---
+2025-04-22 13:55:16.134 | INFO     | __main__:run_all_eda:184 - --- 开始 Demand vs building_class 分析 (Spark->Pandas) ---
+2025-04-22 13:55:16.134 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_metadata:170 - --- 开始分析 Demand vs building_class 关系 (抽样比例: 0.1%) ---
+2025-04-22 13:55:16.135 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:52 - Merging Spark demand sample (frac=0.001) with Pandas metadata columns: ['building_class']
+2025-04-22 13:55:16.135 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:81 - Sampling Spark DataFrame (fraction=0.001)...
+2025-04-22 13:55:16.142 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:88 - Converting Spark sample to Pandas...
+2025-04-22 13:55:18.226 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:91 - Pandas sample size: 237810
+2025-04-22 13:55:18.264 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:138 - Demand sample merge took 2.13 seconds. Result shape: (237810, 3)
+2025-04-22 13:55:18.281 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_metadata:196 - 绘制 Demand (y) vs building_class 对比箱线图...
+2025-04-22 13:55:18.750 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/demand_vs_building_class_boxplot_orig.png
+2025-04-22 13:55:19.247 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/demand_vs_building_class_boxplot_log1p.png
+2025-04-22 13:55:19.248 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_metadata:211 - Demand vs building_class 分析完成。
+2025-04-22 13:55:19.250 | INFO     | __main__:run_all_eda:188 - --- 完成 Demand vs building_class 分析 ---
+2025-04-22 13:55:19.250 | INFO     | __main__:run_all_eda:191 - --- 开始 Demand vs location 分析 (Spark->Pandas) ---
+2025-04-22 13:55:19.250 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_location:235 - --- 开始分析 Demand vs location 关系 (Top 5, 抽样比例: 0.1%) ---
+2025-04-22 13:55:19.252 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:52 - Merging Spark demand sample (frac=0.001) with Pandas metadata columns: ['location']
+2025-04-22 13:55:19.252 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:81 - Sampling Spark DataFrame (fraction=0.001)...
+2025-04-22 13:55:19.259 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:88 - Converting Spark sample to Pandas...
+2025-04-22 13:55:20.586 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:91 - Pandas sample size: 237810
+2025-04-22 13:55:20.619 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:138 - Demand sample merge took 1.37 seconds. Result shape: (237810, 3)
+2025-04-22 13:55:20.627 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_location:272 - Top 5 locations (by data points in sample): ['London, UK', 'PT', 'Washington DC, USA', 'Missing', 'Minneapolis, Minnesota, USA']
+2025-04-22 13:55:20.640 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_location:282 - 绘制 Demand (y) vs Top 5 location 对比箱线图...
+2025-04-22 13:55:21.043 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/demand_vs_top5_location_boxplot_orig.png
+2025-04-22 13:55:21.495 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/demand_vs_top5_location_boxplot_log1p.png
+2025-04-22 13:55:21.496 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_location:297 - Demand vs location analysis complete.
+2025-04-22 13:55:21.498 | INFO     | __main__:run_all_eda:194 - --- 完成 Demand vs location 分析 ---
+2025-04-22 13:55:21.498 | INFO     | __main__:run_all_eda:197 - --- 开始 Demand vs dataset 分析 (Spark->Pandas) ---
+2025-04-22 13:55:21.498 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_dataset:487 - --- Starting analysis of Demand vs dataset relationship (sample fraction: 0.1%) ---
+2025-04-22 13:55:21.498 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:52 - Merging Spark demand sample (frac=0.001) with Pandas metadata columns: ['dataset']
+2025-04-22 13:55:21.498 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:81 - Sampling Spark DataFrame (fraction=0.001)...
+2025-04-22 13:55:21.503 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:88 - Converting Spark sample to Pandas...
+2025-04-22 13:55:22.765 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:91 - Pandas sample size: 237810
+2025-04-22 13:55:22.802 | INFO     | electricitydemand.eda.analyze_relationships:merge_demand_metadata_sample:138 - Demand sample merge took 1.30 seconds. Result shape: (237810, 3)
+2025-04-22 13:55:22.834 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_dataset:518 - 'y' descriptive statistics grouped by dataset (based on 0.1% sample):
+2025-04-22 13:55:22.836 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_dataset:522 - 
+                              count        mean         std     min        25%        50%         75%        max
+dataset                                                                                                         
+Building Data Genome 2      25278.0  149.738836  283.261446  0.0001  19.470000  60.170000  159.198075   7373.600
+Electricity Load Diagrams   41924.0  165.365317  926.686196  0.0000  15.471763  35.363389   89.328767  37575.000
+London Smart Meter Data    167502.0    0.211137    0.293608  0.0000   0.058000   0.117000    0.240000      7.507
+2025-04-22 13:55:22.837 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_dataset:529 - Plotting Demand (y) vs dataset comparison box plot...
+2025-04-22 13:55:23.317 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/demand_vs_dataset_boxplot_orig.png
+2025-04-22 13:55:23.829 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/demand_vs_dataset_boxplot_log1p.png
+2025-04-22 13:55:23.830 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_dataset:545 - --- Demand vs dataset analysis took 2.33 seconds ---
+2025-04-22 13:55:23.831 | INFO     | __main__:run_all_eda:200 - --- 完成 Demand vs dataset 分析 ---
+2025-04-22 13:55:23.831 | INFO     | __main__:run_all_eda:203 - --- 开始 Demand vs Weather 分析 (Spark Join -> Pandas Collect) ---
+2025-04-22 13:55:23.832 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:326 - --- Starting analysis of Demand vs Weather relationship (sampling 50 unique_ids) ---
+2025-04-22 13:55:23.832 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:332 - Selecting random sample of unique IDs...
+2025-04-22 13:55:23.832 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:341 - Selected 50 unique IDs for analysis.
+2025-04-22 13:55:23.832 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:344 - Filtering demand data for selected IDs...
+2025-04-22 13:55:23.879 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:350 - Aligning demand timestamps to the hour...
+2025-04-22 13:55:23.887 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:357 - Joining sampled demand data with metadata to get location_id...
+2025-04-22 13:55:23.981 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:371 - Aligning weather timestamps to the hour and selecting relevant columns...
+2025-04-22 13:55:24.008 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:403 - Joining aligned demand+location with aligned weather data using Spark...
+2025-04-22 13:55:24.022 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:414 - Collecting the merged data (50 IDs) to Pandas DataFrame for correlation analysis...
+2025-04-22 13:55:28.830 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:419 - Collected 1,971,788 rows into Pandas.
+2025-04-22 13:55:29.126 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:448 - Correlation matrix between demand (y) and weather features:
+y                       1.000000
+temperature_2m          0.334429
+relative_humidity_2m   -0.164550
+apparent_temperature    0.328307
+precipitation           0.013213
+wind_speed_10m          0.027666
+cloud_cover            -0.224891
+2025-04-22 13:55:29.126 | INFO     | electricitydemand.eda.analyze_relationships:analyze_demand_vs_weather:464 - --- Demand vs Weather analysis took 5.29 seconds ---
+2025-04-22 13:55:29.126 | INFO     | __main__:run_all_eda:212 - --- 完成 Demand vs Weather 分析 ---
+2025-04-22 13:55:29.126 | INFO     | __main__:run_all_eda:218 - --- 步骤 4: 时间特征分析 (Spark) ---
+2025-04-22 13:55:29.126 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:25 - --- 开始分析时间戳一致性 (Spark) ---
+2025-04-22 13:55:29.126 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:29 - 分析 Demand 数据时间戳间隔...
+2025-04-22 13:55:29.196 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:43 - 对 Demand 时间差进行抽样 (比例: 0.001) 以统计频率...
+2025-04-22 13:55:50.706 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:61 - Demand 数据中最常见的 10 个时间间隔 (秒):
+2025-04-22 13:55:50.706 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:62 - 
+ diff_seconds  count
+         1800 168251
+          900  41750
+         3600  27644
+2025-04-22 13:55:50.707 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:67 - Demand 数据中最常见的 10 个时间间隔 (易读格式):
+2025-04-22 13:55:50.708 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:68 - 
+       interval  count
+0 days 00:30:00 168251
+0 days 00:15:00  41750
+0 days 01:00:00  27644
+2025-04-22 13:55:50.708 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:84 - 分析 Weather 数据时间戳间隔...
+2025-04-22 13:55:50.740 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:99 - 对 Weather 时间差进行抽样 (比例: 0.001) 以统计频率...
+2025-04-22 13:55:51.527 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:115 - Weather 数据中最常见的 10 个时间间隔 (秒):
+2025-04-22 13:55:51.528 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:116 - 
+ diff_seconds  count
+         3600    606
+2025-04-22 13:55:51.528 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:121 - Weather 数据中最常见的 10 个时间间隔 (易读格式):
+2025-04-22 13:55:51.529 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:122 - 
+       interval  count
+0 days 01:00:00    606
+2025-04-22 13:55:51.530 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:127 - Weather 数据的主要时间间隔确认为 1 小时。
+2025-04-22 13:55:51.530 | INFO     | electricitydemand.eda.analyze_time:analyze_timestamp_consistency:145 - --- 完成分析时间戳一致性 ---
+2025-04-22 13:55:51.530 | INFO     | electricitydemand.eda.analyze_time:analyze_datetime_features_spark:156 - --- 开始分析日期时间特征 (Spark) ---
+2025-04-22 13:55:51.565 | INFO     | electricitydemand.eda.analyze_time:analyze_datetime_features_spark:177 - 计算每小时的平均电力需求...
+2025-04-22 13:55:54.783 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:55:54.787 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:55:54.978 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/avg_demand_by_hour_spark.png
+2025-04-22 13:55:54.978 | INFO     | electricitydemand.eda.analyze_time:analyze_datetime_features_spark:199 - 计算每周中每天的平均电力需求...
+2025-04-22 13:55:58.773 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:55:58.777 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:55:58.864 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/avg_demand_by_dayofweek_spark.png
+2025-04-22 13:55:58.864 | INFO     | electricitydemand.eda.analyze_time:analyze_datetime_features_spark:232 - 计算每月平均电力需求...
+2025-04-22 13:56:02.042 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:56:02.045 | INFO     | logging:callHandlers:1762 - Using categorical units to plot a list of strings that are all parsable as floats or dates. If these strings should be plotted as numbers, cast to the appropriate data type before plotting.
+2025-04-22 13:56:02.163 | INFO     | electricitydemand.utils.eda_utils:save_plot:30 - Plot saved to: /home/sakurapuare/Desktop/ElectricityDemand/plots/avg_demand_by_month_spark.png
+2025-04-22 13:56:02.163 | INFO     | electricitydemand.eda.analyze_time:analyze_datetime_features_spark:269 - --- 完成分析日期时间特征 ---
+2025-04-22 13:56:02.163 | INFO     | __main__:run_all_eda:221 - --- 完成 时间特征分析 ---
+2025-04-22 13:56:02.164 | INFO     | __main__:run_all_eda:224 - --- 步骤 5: 数据质量检查总结 (Spark) ---
+2025-04-22 13:56:02.164 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:42 - --- 开始检查 Demand DataFrame 缺失值 (Spark) ---
+2025-04-22 13:56:02.933 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:44 - Demand 总行数: 237,944,171
+2025-04-22 13:56:04.684 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Demand - 列 'unique_id' 无缺失值
+2025-04-22 13:56:04.685 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Demand - 列 'timestamp' 无缺失值
+2025-04-22 13:56:04.685 | WARNING  | electricitydemand.eda.data_quality:check_missing_values_spark:104 - Demand - 列 'y' 缺失值数量: 3,086,278 (1.30%)
+2025-04-22 13:56:04.685 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:42 - --- 开始检查 Metadata DataFrame 缺失值 (Spark) ---
+2025-04-22 13:56:04.718 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:44 - Metadata 总行数: 7,572
+2025-04-22 13:56:04.874 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'unique_id' 无缺失值
+2025-04-22 13:56:04.874 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'dataset' 无缺失值
+2025-04-22 13:56:04.875 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'building_id' 无缺失值
+2025-04-22 13:56:04.875 | WARNING  | electricitydemand.eda.data_quality:check_missing_values_spark:104 - Metadata - 列 'location_id' 缺失值数量: 237 (3.13%)
+2025-04-22 13:56:04.875 | WARNING  | electricitydemand.eda.data_quality:check_missing_values_spark:104 - Metadata - 列 'latitude' 缺失值数量: 237 (3.13%)
+2025-04-22 13:56:04.875 | WARNING  | electricitydemand.eda.data_quality:check_missing_values_spark:104 - Metadata - 列 'longitude' 缺失值数量: 237 (3.13%)
+2025-04-22 13:56:04.876 | WARNING  | electricitydemand.eda.data_quality:check_missing_values_spark:104 - Metadata - 列 'location' 缺失值数量: 237 (3.13%)
+2025-04-22 13:56:04.876 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'timezone' 无缺失值
+2025-04-22 13:56:04.876 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'building_class' 无缺失值
+2025-04-22 13:56:04.876 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'cluster_size' 无缺失值
+2025-04-22 13:56:04.877 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Metadata - 列 'freq' 无缺失值
+2025-04-22 13:56:04.877 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:42 - --- 开始检查 Weather DataFrame 缺失值 (Spark) ---
+2025-04-22 13:56:04.984 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:44 - Weather 总行数: 604,848
+2025-04-22 13:56:05.917 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'timestamp' 无缺失值
+2025-04-22 13:56:05.917 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'temperature_2m' 无缺失值
+2025-04-22 13:56:05.917 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'relative_humidity_2m' 无缺失值
+2025-04-22 13:56:05.917 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'dew_point_2m' 无缺失值
+2025-04-22 13:56:05.918 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'apparent_temperature' 无缺失值
+2025-04-22 13:56:05.918 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'precipitation' 无缺失值
+2025-04-22 13:56:05.918 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'rain' 无缺失值
+2025-04-22 13:56:05.918 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'snowfall' 无缺失值
+2025-04-22 13:56:05.919 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'snow_depth' 无缺失值
+2025-04-22 13:56:05.919 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'weather_code' 无缺失值
+2025-04-22 13:56:05.919 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'pressure_msl' 无缺失值
+2025-04-22 13:56:05.919 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'surface_pressure' 无缺失值
+2025-04-22 13:56:05.920 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'cloud_cover' 无缺失值
+2025-04-22 13:56:05.920 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'cloud_cover_low' 无缺失值
+2025-04-22 13:56:05.920 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'cloud_cover_mid' 无缺失值
+2025-04-22 13:56:05.920 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'cloud_cover_high' 无缺失值
+2025-04-22 13:56:05.920 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'et0_fao_evapotranspiration' 无缺失值
+2025-04-22 13:56:05.921 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'vapour_pressure_deficit' 无缺失值
+2025-04-22 13:56:05.921 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'wind_speed_10m' 无缺失值
+2025-04-22 13:56:05.921 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'wind_direction_10m' 无缺失值
+2025-04-22 13:56:05.921 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'wind_gusts_10m' 无缺失值
+2025-04-22 13:56:05.921 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'soil_temperature_0_to_7cm' 无缺失值
+2025-04-22 13:56:05.922 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'soil_temperature_7_to_28cm' 无缺失值
+2025-04-22 13:56:05.922 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'soil_moisture_0_to_7cm' 无缺失值
+2025-04-22 13:56:05.922 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'soil_moisture_7_to_28cm' 无缺失值
+2025-04-22 13:56:05.922 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'is_day' 无缺失值
+2025-04-22 13:56:05.922 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'sunshine_duration' 无缺失值
+2025-04-22 13:56:05.923 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'shortwave_radiation' 无缺失值
+2025-04-22 13:56:05.923 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'direct_radiation' 无缺失值
+2025-04-22 13:56:05.923 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'diffuse_radiation' 无缺失值
+2025-04-22 13:56:05.923 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'direct_normal_irradiance' 无缺失值
+2025-04-22 13:56:05.923 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'terrestrial_radiation' 无缺失值
+2025-04-22 13:56:05.924 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:109 - Weather - 列 'location_id' 无缺失值
+2025-04-22 13:56:05.924 | INFO     | electricitydemand.eda.data_quality:check_missing_values_spark:119 - Weather 中未发现缺失值。
+2025-04-22 13:56:05.924 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:137 - --- 开始检查 Demand DataFrame 中基于 ['unique_id', 'timestamp'] 的重复行 (Spark) ---
+2025-04-22 13:56:35.286 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:188 - 在 Demand 中未发现基于 ['unique_id', 'timestamp'] 的重复行。
+2025-04-22 13:56:35.300 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:203 - --- 完成 Demand DataFrame 重复行检查 ---
+2025-04-22 13:56:35.301 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:137 - --- 开始检查 Metadata DataFrame 中基于 ['unique_id'] 的重复行 (Spark) ---
+2025-04-22 13:56:35.821 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:188 - 在 Metadata 中未发现基于 ['unique_id'] 的重复行。
+2025-04-22 13:56:35.824 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:203 - --- 完成 Metadata DataFrame 重复行检查 ---
+2025-04-22 13:56:35.824 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:137 - --- 开始检查 Weather DataFrame 中基于 ['location_id', 'timestamp'] 的重复行 (Spark) ---
+2025-04-22 13:56:37.625 | WARNING  | electricitydemand.eda.data_quality:check_duplicates_spark:176 - 在 Weather 中发现基于 ['location_id', 'timestamp'] 的重复数据:
+2025-04-22 13:56:37.625 | WARNING  | electricitydemand.eda.data_quality:check_duplicates_spark:177 -   - 唯一重复组合的数量: 6
+2025-04-22 13:56:37.625 | WARNING  | electricitydemand.eda.data_quality:check_duplicates_spark:178 -   - 涉及的总行数（包括首次出现）: 12
+2025-04-22 13:56:37.625 | WARNING  | electricitydemand.eda.data_quality:check_duplicates_spark:179 -   - '额外'的重复行数（需移除）: 6
+2025-04-22 13:56:37.628 | INFO     | electricitydemand.eda.data_quality:check_duplicates_spark:203 - --- 完成 Weather DataFrame 重复行检查 ---
+2025-04-22 13:56:37.629 | INFO     | __main__:run_all_eda:233 - --- 完成 数据质量检查 ---
+2025-04-22 13:56:37.629 | INFO     | __main__:run_all_eda:235 - ========================================
+2025-04-22 13:56:37.629 | INFO     | __main__:run_all_eda:236 - === EDA (包含补充分析) 执行成功完成 ===
+2025-04-22 13:56:37.629 | INFO     | __main__:run_all_eda:237 - ========================================
+2025-04-22 13:56:37.633 | INFO     | electricitydemand.utils.project_utils:stop_spark_session:178 - Stopping SparkSession...
+2025-04-22 13:56:37.943 | SUCCESS  | electricitydemand.utils.project_utils:stop_spark_session:180 - SparkSession stopped.
+2025-04-22 13:56:37.943 | INFO     | __main__:run_all_eda:253 - --- EDA 脚本总执行时间: 478.34 秒 ---

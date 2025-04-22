@@ -1,0 +1,112 @@
+2025-04-22 14:00:20.252 | INFO     | electricitydemand.utils.log_utils:setup_logger:145 - 文本日志将写入：/home/sakurapuare/Desktop/ElectricityDemand/logs/2_run_preprocessing_20250422_140020.log
+2025-04-22 14:00:20.252 | INFO     | electricitydemand.utils.log_utils:setup_logger:184 - 已拦截标准库 logging。
+2025-04-22 14:00:20.252 | INFO     | electricitydemand.utils.log_utils:setup_logger:189 - 已设置全局异常处理钩子 (sys.excepthook)。
+2025-04-22 14:00:20.253 | INFO     | electricitydemand.utils.log_utils:setup_logger:191 - Loguru 初始化完成。默认级别：INFO. 控制台：INFO. 文件：INFO.
+2025-04-22 14:00:20.253 | WARNING  | electricitydemand.utils.log_utils:setup_logger:194 - Diagnose 和 Backtrace 已启用。注意：在生产环境中 'diagnose=True' 可能泄露敏感数据！
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:34 - 项目根目录：/home/sakurapuare/Desktop/ElectricityDemand
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:35 - 数据目录：/home/sakurapuare/Desktop/ElectricityDemand/data
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:36 - 日志目录：/home/sakurapuare/Desktop/ElectricityDemand/logs
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:44 - 小时 Demand 数据路径：/home/sakurapuare/Desktop/ElectricityDemand/data/demand_converted.parquet
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:45 - Metadata 数据路径：/home/sakurapuare/Desktop/ElectricityDemand/data/metadata.parquet
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:46 - Weather 数据路径：/home/sakurapuare/Desktop/ElectricityDemand/data/weather_converted.parquet
+2025-04-22 14:00:20.253 | INFO     | __main__:<module>:47 - 合并后数据输出路径：/home/sakurapuare/Desktop/ElectricityDemand/data/merged_data.parquet
+2025-04-22 14:00:20.256 | INFO     | __main__:<module>:581 - 运行数据合并...
+2025-04-22 14:00:20.256 | INFO     | __main__:run_merge_data_spark:150 - =========================================
+2025-04-22 14:00:20.257 | INFO     | __main__:run_merge_data_spark:151 - === 开始执行 数据合并脚本 (Spark) ===
+2025-04-22 14:00:20.257 | INFO     | __main__:run_merge_data_spark:152 - =========================================
+2025-04-22 14:00:20.257 | INFO     | __main__:run_merge_data_spark:158 - 创建 SparkSession...
+2025-04-22 14:00:20.257 | INFO     | electricitydemand.utils.project_utils:create_spark_session:83 - 创建 SparkSession: SparkApplication (master: local[*])...
+2025-04-22 14:00:20.258 | INFO     | electricitydemand.utils.project_utils:create_spark_session:84 - 配置 Driver 内存：8g
+2025-04-22 14:00:20.258 | INFO     | electricitydemand.utils.project_utils:create_spark_session:85 - 配置 Executor 内存：28g
+2025-04-22 14:00:20.258 | INFO     | electricitydemand.utils.project_utils:create_spark_session:97 - 配置 Spark 本地临时目录：/tmp
+2025-04-22 14:00:20.258 | INFO     | electricitydemand.utils.project_utils:create_spark_session:124 - 设置 spark.sql.shuffle.partitions 和 spark.default.parallelism 为：500
+2025-04-22 14:00:20.259 | INFO     | electricitydemand.utils.project_utils:create_spark_session:132 - 配置 Executor 堆外内存 (spark.memory.offHeap.size): 4g
+2025-04-22 14:00:23.178 | SUCCESS  | electricitydemand.utils.project_utils:create_spark_session:145 - SparkSession 创建成功 (含性能优化)
+2025-04-22 14:00:23.182 | INFO     | electricitydemand.utils.project_utils:create_spark_session:146 - Spark Web UI: http://192.168.100.5:4040
+2025-04-22 14:00:23.182 | INFO     | electricitydemand.utils.project_utils:create_spark_session:149 - Spark 配置：
+2025-04-22 14:00:23.207 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.app.name = SparkApplication
+2025-04-22 14:00:23.208 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.master = local[*]
+2025-04-22 14:00:23.208 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.driver.memory = 8g
+2025-04-22 14:00:23.208 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.executor.memory = 28g
+2025-04-22 14:00:23.208 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.enabled = true
+2025-04-22 14:00:23.208 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.memory.offHeap.size = 4g
+2025-04-22 14:00:23.209 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.serializer = org.apache.spark.serializer.KryoSerializer
+2025-04-22 14:00:23.209 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.kryoserializer.buffer.max = 1024m
+2025-04-22 14:00:23.209 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.execution.arrow.pyspark.enabled = true
+2025-04-22 14:00:23.209 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.enabled = true
+2025-04-22 14:00:23.209 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.adaptive.advisoryPartitionSizeInBytes = 2048m
+2025-04-22 14:00:23.210 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.sql.shuffle.partitions = 500
+2025-04-22 14:00:23.210 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.default.parallelism = 500
+2025-04-22 14:00:23.210 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.local.dir = /tmp
+2025-04-22 14:00:23.210 | INFO     | electricitydemand.utils.project_utils:create_spark_session:163 -   spark.network.timeout = 800s
+2025-04-22 14:00:23.210 | INFO     | __main__:run_merge_data_spark:166 - SparkSession 创建成功。
+2025-04-22 14:00:23.211 | INFO     | __main__:run_merge_data_spark:167 - Spark Web UI: http://192.168.100.5:4040
+2025-04-22 14:00:23.211 | INFO     | __main__:run_merge_data_spark:170 - --- 步骤 1: 加载所需数据 (Spark) ---
+2025-04-22 14:00:23.211 | INFO     | __main__:run_merge_data_spark:172 - 加载小时 Demand 数据：/home/sakurapuare/Desktop/ElectricityDemand/data/demand_converted.parquet
+2025-04-22 14:00:25.362 | INFO     | __main__:run_merge_data_spark:174 - 小时 Demand 数据加载成功。
+2025-04-22 14:00:25.362 | INFO     | __main__:run_merge_data_spark:177 - 加载 Metadata 数据：/home/sakurapuare/Desktop/ElectricityDemand/data/metadata.parquet
+2025-04-22 14:00:25.530 | INFO     | __main__:run_merge_data_spark:187 - Metadata 数据加载成功。
+2025-04-22 14:00:25.530 | INFO     | __main__:run_merge_data_spark:190 - 加载 Weather 数据：/home/sakurapuare/Desktop/ElectricityDemand/data/weather_converted.parquet
+2025-04-22 14:00:25.642 | WARNING  | __main__:run_merge_data_spark:201 - Weather 'timestamp' is TimestampNTZType, converting to TimestampType...
+2025-04-22 14:00:25.688 | INFO     | __main__:run_merge_data_spark:205 - Weather 'timestamp' converted to TimestampType.
+2025-04-22 14:00:25.688 | INFO     | __main__:run_merge_data_spark:211 - Weather 数据加载成功。
+2025-04-22 14:00:25.688 | INFO     | __main__:run_merge_data_spark:219 - --- 步骤 2: 合并 Demand, Metadata, 和 Weather 数据 ---
+2025-04-22 14:00:25.689 | INFO     | __main__:run_merge_data_spark:222 - 合并 Demand 和 Metadata (left join on unique_id)...
+2025-04-22 14:00:25.726 | INFO     | __main__:run_merge_data_spark:231 - Demand 和 Metadata 合并完成。
+2025-04-22 14:01:03.912 | INFO     | __main__:run_merge_data_spark:236 - 合并后 (Demand+Meta) 中间行数：237,944,171
+2025-04-22 14:01:03.912 | INFO     | __main__:run_merge_data_spark:239 - 将 Demand+Meta 合并结果中的 'timestamp' 向下取整到小时...
+2025-04-22 14:01:03.948 | INFO     | __main__:run_merge_data_spark:254 - Demand+Meta 时间戳已处理为小时级别 (timestamp_join_key)。
+2025-04-22 14:01:03.949 | INFO     | __main__:run_merge_data_spark:260 - 对 Weather 数据按 (location_id, timestamp) 去重...
+2025-04-22 14:01:05.088 | WARNING  | __main__:run_merge_data_spark:267 - Weather 数据中存在重复的 (location_id, timestamp) 记录，已去重。原始：604,848, 去重后：604,842
+2025-04-22 14:01:05.127 | INFO     | __main__:run_merge_data_spark:276 - --- [诊断] 开始分析 location_id 覆盖情况 ---
+2025-04-22 14:01:08.838 | INFO     | __main__:run_merge_data_spark:282 - [诊断] Demand+Meta 中唯一的 location_id 数量：17
+2025-04-22 14:01:15.418 | INFO     | __main__:run_merge_data_spark:290 - [诊断] 去重后 Weather 中唯一的 location_id 数量：16
+2025-04-22 14:01:16.271 | INFO     | __main__:run_merge_data_spark:296 - [诊断] Demand+Meta 与 Weather 共有的 location_id 数量：16
+2025-04-22 14:01:16.916 | WARNING  | __main__:run_merge_data_spark:302 - [诊断] 只存在于 Demand+Meta 中的 location_id 数量 (无法匹配天气): 1
+2025-04-22 14:01:16.917 | WARNING  | __main__:run_merge_data_spark:307 - [诊断] 这占 Demand+Meta 总 location_id 的 5.88%
+2025-04-22 14:01:16.943 | INFO     | __main__:run_merge_data_spark:313 - --- [诊断] location_id 覆盖情况分析完毕 ---
+2025-04-22 14:01:16.944 | INFO     | __main__:run_merge_data_spark:319 - --- [诊断] 开始分析 Timestamp 范围对齐情况 (按 location_id, 基于原始时间戳) ---
+2025-04-22 14:01:16.944 | INFO     | __main__:run_merge_data_spark:323 - [诊断] 计算 Demand+Meta 时间范围 (原始)...
+2025-04-22 14:01:16.971 | INFO     | __main__:run_merge_data_spark:329 - [诊断] 计算 Weather 时间范围...
+2025-04-22 14:01:16.991 | INFO     | __main__:run_merge_data_spark:336 - [诊断] 合并时间范围信息...
+2025-04-22 14:01:17.011 | INFO     | __main__:run_merge_data_spark:345 - [诊断] 分析每个 location_id 的时间范围...
+2025-04-22 14:01:20.472 | INFO     | __main__:run_merge_data_spark:430 - Location '9q9p3yhbxx8t': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 07:00:00 to 2019-01-01 06:00:00)
+2025-04-22 14:01:20.472 | INFO     | __main__:run_merge_data_spark:430 - Location '9tbqhgzj9gwc': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 07:00:00 to 2019-01-01 06:00:00)
+2025-04-22 14:01:20.473 | INFO     | __main__:run_merge_data_spark:430 - Location '9v6kpy7zsbvx': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 05:00:00 to 2019-01-01 04:00:00)
+2025-04-22 14:01:20.473 | INFO     | __main__:run_merge_data_spark:430 - Location '9zvxvu65krxz': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 05:00:00 to 2019-01-01 04:00:00)
+2025-04-22 14:01:20.473 | INFO     | __main__:run_merge_data_spark:430 - Location 'djn4hpuvh93f': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 04:00:00 to 2019-01-01 03:00:00)
+2025-04-22 14:01:20.473 | INFO     | __main__:run_merge_data_spark:430 - Location 'dqcjr9e0bvw4': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 04:00:00 to 2019-01-01 03:00:00)
+2025-04-22 14:01:20.473 | INFO     | __main__:run_merge_data_spark:430 - Location 'dr4vs1mpgc4v': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 04:00:00 to 2019-01-01 03:00:00)
+2025-04-22 14:01:20.473 | INFO     | __main__:run_merge_data_spark:430 - Location 'dr99e3temvdj': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 04:00:00 to 2019-01-01 03:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'f244jquzyjkb': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 04:00:00 to 2019-01-01 03:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'f244mkkywjsv': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2015-01-01 04:00:00 to 2019-01-01 03:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'gcjszrm15xgd': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2014-12-31 23:00:00 to 2018-12-31 22:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'gcpuvr295zcd': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2014-12-31 23:00:00 to 2018-12-31 22:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'gcpvj4cmfb0f': Demand(2011-11-23 09:00:00 to 2017-12-31 23:00:00) Weather(2011-01-01 00:00:00 to 2018-12-31 22:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'gcpvj6btgb1d': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2014-12-31 23:00:00 to 2018-12-31 22:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'sp1jpqedrbm7': Demand(2011-01-01 00:30:00 to 2015-01-01 00:00:00) Weather(2011-01-01 00:00:00 to 2015-12-31 23:00:00)
+2025-04-22 14:01:20.474 | INFO     | __main__:run_merge_data_spark:430 - Location 'u1krw2n6k8f6': Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(2014-12-31 22:00:00 to 2018-12-31 21:00:00)
+2025-04-22 14:01:20.474 | WARNING  | __main__:run_merge_data_spark:380 - Location ID is NULL/None: Demand(2016-01-01 00:00:00 to 2017-12-31 23:00:00) Weather(N/A) -> ISSUES: NULL location_id detected
+2025-04-22 14:01:20.474 | ERROR    | __main__:run_merge_data_spark:433 - [诊断] 检测到 NULL location_id，这通常是数据问题，可能导致部分数据无法 Join 天气。
+2025-04-22 14:01:20.474 | WARNING  | __main__:run_merge_data_spark:440 - [诊断] 时间戳范围基本对齐，但存在 NULL location_id 的问题。
+2025-04-22 14:01:20.475 | INFO     | __main__:run_merge_data_spark:449 - --- [诊断] Timestamp 范围对齐情况分析完毕 ---
+2025-04-22 14:01:20.475 | INFO     | __main__:run_merge_data_spark:453 - 合并结果与 Weather (left join on location_id and timestamp_hour)...
+2025-04-22 14:01:20.534 | INFO     | __main__:run_merge_data_spark:472 - 与 Weather 数据合并完成。
+2025-04-22 14:01:20.535 | INFO     | __main__:run_merge_data_spark:473 - 最终合并数据的 Schema:
+2025-04-22 14:01:20.539 | INFO     | __main__:run_merge_data_spark:477 - --- [诊断] 开始检查合并后天气列 Null 比例 ---
+2025-04-22 14:01:50.750 | INFO     | __main__:run_merge_data_spark:482 - [诊断] 最终合并后总行数：237,944,171
+2025-04-22 14:02:19.166 | INFO     | __main__:run_merge_data_spark:489 - [诊断] 其中 location_id 非 Null 的行数：233,838,875
+2025-04-22 14:02:46.138 | INFO     | __main__:run_merge_data_spark:499 - [诊断] 在 location_id 非 Null 的行中，'temperature_2m' 为 Null 的行数：0
+2025-04-22 14:02:46.138 | INFO     | __main__:run_merge_data_spark:507 - [诊断] 天气数据 Join 成功率 (基于 'temperature_2m', 排除 Null location_id): 100.00% (缺失率：0.00%)
+2025-04-22 14:03:12.708 | INFO     | __main__:run_merge_data_spark:516 - [诊断] 最终合并数据中 'temperature_2m' 总 Null 行数 (包括 Null location_id): 4,105,296
+2025-04-22 14:03:12.709 | INFO     | __main__:run_merge_data_spark:521 - [诊断] 占总行数的比例：1.73%
+2025-04-22 14:03:12.709 | INFO     | __main__:run_merge_data_spark:530 - --- [诊断] 天气列 Null 比例检查完毕 ---
+2025-04-22 14:03:12.712 | INFO     | __main__:run_merge_data_spark:547 - --- 步骤 3: 保存合并后的数据到 /home/sakurapuare/Desktop/ElectricityDemand/data/merged_data.parquet ---
+2025-04-22 14:03:12.712 | INFO     | __main__:run_merge_data_spark:549 - 开始写入 Parquet 文件...
+2025-04-22 14:05:14.976 | SUCCESS  | __main__:run_merge_data_spark:555 - 成功保存合并后的数据到：/home/sakurapuare/Desktop/ElectricityDemand/data/merged_data.parquet
+2025-04-22 14:05:14.977 | INFO     | __main__:run_merge_data_spark:560 - =========================================
+2025-04-22 14:05:14.977 | INFO     | __main__:run_merge_data_spark:561 - ===     数据合并脚本 (Spark) 执行完毕    ===
+2025-04-22 14:05:14.977 | INFO     | __main__:run_merge_data_spark:562 - =========================================
+2025-04-22 14:05:14.978 | INFO     | electricitydemand.utils.project_utils:stop_spark_session:178 - Stopping SparkSession...
+2025-04-22 14:05:15.561 | SUCCESS  | electricitydemand.utils.project_utils:stop_spark_session:180 - SparkSession stopped.
+2025-04-22 14:05:15.561 | INFO     | __main__:run_merge_data_spark:576 - --- Spark 数据合并脚本总执行时间：295.30 秒 ---
