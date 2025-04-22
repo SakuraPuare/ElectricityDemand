@@ -1,13 +1,16 @@
 import sys
-import os
+from pathlib import Path
+
 import pandas as pd
 from loguru import logger
-from pathlib import Path
 
 # --- 项目根目录和日志设置 ---
 try:
-    from electricitydemand.utils.project_utils import get_project_root, setup_project_paths
     from electricitydemand.utils.log_utils import setup_logger
+    from electricitydemand.utils.project_utils import (
+        get_project_root,
+        setup_project_paths,
+    )
 except ImportError as e:
     print(f"Error importing project utils: {e}", file=sys.stderr)
     sys.exit(1)
@@ -23,22 +26,23 @@ except NameError:
     logger.add(sys.stderr, level="INFO")
     logger.warning("setup_logger not found, using basic stderr logging.")
 
-logger.info(f"项目根目录: {project_root}")
-logger.info(f"日志目录: {logs_dir}")
+logger.info(f"项目根目录：{project_root}")
+logger.info(f"日志目录：{logs_dir}")
 
 # --- 文件路径定义 ---
-logger.info(f"数据目录: {data_dir}")
+logger.info(f"数据目录：{data_dir}")
 
 files_to_convert = [
     {"input": "demand.parquet", "output": "demand_converted.parquet",
-        "timestamp_col": "timestamp"},
+     "timestamp_col": "timestamp"},
     {"input": "weather.parquet", "output": "weather_converted.parquet",
-        "timestamp_col": "timestamp"},
+     "timestamp_col": "timestamp"},
     # {"input": "metadata.parquet", "output": "metadata_converted.parquet", "timestamp_col": None}, # Metadata 可能不需要转换
 ]
 
 
-def convert_parquet_file(input_filepath: Path, output_filepath: Path, timestamp_col: str | None = 'timestamp', engine_preference: list = ['pyarrow', 'fastparquet']):
+def convert_parquet_file(input_filepath: Path, output_filepath: Path, timestamp_col: str | None = 'timestamp',
+                         engine_preference: list = ['pyarrow', 'fastparquet']):
     """
     Reads a Parquet file using preferred engines, adjusts timestamp,
     and writes it back using pyarrow with compatible settings.
@@ -49,7 +53,7 @@ def convert_parquet_file(input_filepath: Path, output_filepath: Path, timestamp_
         timestamp_col: Name of the timestamp column to convert, or None.
         engine_preference: List of engines to try for reading ('pyarrow', 'fastparquet').
     """
-    logger.info(f"--- 开始转换: {input_filepath.name} ---")
+    logger.info(f"--- 开始转换：{input_filepath.name} ---")
     df = None
     read_success = False
 
@@ -58,15 +62,15 @@ def convert_parquet_file(input_filepath: Path, output_filepath: Path, timestamp_
         logger.info(f"尝试使用引擎 '{engine}' 读取...")
         try:
             df = pd.read_parquet(input_filepath, engine=engine)
-            logger.success(f"成功使用引擎 '{engine}' 读取文件: {input_filepath}")
+            logger.success(f"成功使用引擎 '{engine}' 读取文件：{input_filepath}")
             read_success = True
             break  # 读取成功，跳出循环
         except Exception as e:
-            logger.warning(f"使用引擎 '{engine}' 读取失败: {e}")
+            logger.warning(f"使用引擎 '{engine}' 读取失败：{e}")
             continue  # 尝试下一个引擎
 
     if not read_success:
-        logger.error(f"无法使用任何指定引擎读取文件: {input_filepath}")
+        logger.error(f"无法使用任何指定引擎读取文件：{input_filepath}")
         return False  # 返回失败状态
 
     # 2. (可选) 调整时间戳类型
@@ -76,13 +80,13 @@ def convert_parquet_file(input_filepath: Path, output_filepath: Path, timestamp_
             df[timestamp_col] = pd.to_datetime(df[timestamp_col])
             logger.info(f"列 '{timestamp_col}' 转换成功。")
         except Exception as e:
-            logger.error(f"转换列 '{timestamp_col}' 时出错: {e}")
+            logger.error(f"转换列 '{timestamp_col}' 时出错：{e}")
             logger.warning("将继续尝试写入，但时间戳可能不是预期类型。")
     elif timestamp_col:
         logger.warning(f"指定的时间戳列 '{timestamp_col}' 不在 DataFrame 中。")
 
     # 3. 写回 Parquet 文件 (使用 pyarrow)
-    logger.info(f"尝试将转换后的数据写入: {output_filepath}")
+    logger.info(f"尝试将转换后的数据写入：{output_filepath}")
     try:
         df.to_parquet(
             output_filepath,
@@ -90,13 +94,13 @@ def convert_parquet_file(input_filepath: Path, output_filepath: Path, timestamp_
             index=False,
             coerce_timestamps='ms',  # 写入毫秒级时间戳，提高兼容性
             allow_truncated_timestamps=False,  # 不允许截断
-            # use_deprecated_int96_timestamps=False # 明确不使用旧的int96 (如果需要写给旧系统可以设为True)
+            # use_deprecated_int96_timestamps=False # 明确不使用旧的 int96 (如果需要写给旧系统可以设为 True)
             # compression='snappy' # 可以指定压缩方式
         )
-        logger.success(f"成功转换并保存文件: {output_filepath}")
+        logger.success(f"成功转换并保存文件：{output_filepath}")
         return True  # 返回成功状态
     except Exception as e:
-        logger.exception(f"写入 Parquet 文件 '{output_filepath}' 时发生错误")
+        logger.exception(f"写入 Parquet 文件 '{output_filepath}' 时发生错误 {e}")
         return False  # 返回失败状态
 
 
@@ -113,7 +117,7 @@ def main():
         timestamp_col = file_info.get("timestamp_col")  # 使用 .get() 以防 key 不存在
 
         if not input_path.exists():
-            logger.error(f"输入文件未找到，跳过: {input_path}")
+            logger.error(f"输入文件未找到，跳过：{input_path}")
             all_successful = False
             continue
 

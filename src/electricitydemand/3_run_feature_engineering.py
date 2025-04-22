@@ -3,18 +3,22 @@ import time
 from pathlib import Path
 
 from loguru import logger
-from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import NumericType, StringType, TimestampType, DoubleType, IntegerType, LongType, FloatType  # 用于检查列类型
-from pyspark.sql.window import Window
 from pyspark.sql.dataframe import DataFrame
+from pyspark.sql.types import TimestampType  # 用于检查列类型
+from pyspark.sql.window import Window
 from pyspark.storagelevel import StorageLevel  # 显式导入
 
 # --- 项目设置 ---
 # 使用工具函数
 try:
-    from electricitydemand.utils.project_utils import get_project_root, setup_project_paths, create_spark_session, stop_spark_session
     from electricitydemand.utils.log_utils import setup_logger  # 仍然直接导入 setup_logger
+    from electricitydemand.utils.project_utils import (
+        create_spark_session,
+        get_project_root,
+        setup_project_paths,
+        stop_spark_session,
+    )
 except ImportError as e:
     print(f"Error importing project utils: {e}", file=sys.stderr)
     sys.exit(1)
@@ -39,8 +43,8 @@ logger.info(f"绘图目录：{plots_dir}")
 merged_data_path = data_dir / "merged_data.parquet"  # 输入：合并后的数据
 features_output_path = data_dir / "features.parquet"  # 输出：特征工程后的数据
 
-logger.info(f"输入合并数据路径: {merged_data_path}")
-logger.info(f"输出特征数据路径: {features_output_path}")
+logger.info(f"输入合并数据路径：{merged_data_path}")
+logger.info(f"输出特征数据路径：{features_output_path}")
 
 
 # ======================================================================
@@ -56,8 +60,8 @@ def add_time_features_spark(sdf):
         logger.warning(
             "Input 'timestamp' is not TimestampType. Attempting conversion.")
         sdf = sdf.withColumn("timestamp_temp", F.to_timestamp("timestamp")) \
-                 .drop("timestamp") \
-                 .withColumnRenamed("timestamp_temp", "timestamp")
+            .drop("timestamp") \
+            .withColumnRenamed("timestamp_temp", "timestamp")
         if not isinstance(sdf.schema["timestamp"].dataType, TimestampType):
             logger.error(
                 "Failed to convert 'timestamp' column to TimestampType.")
@@ -66,20 +70,21 @@ def add_time_features_spark(sdf):
         logger.info("'timestamp' 已转换为 TimestampType.")
 
     sdf_with_features = sdf.withColumn("year", F.year("timestamp")) \
-                           .withColumn("month", F.month("timestamp")) \
-                           .withColumn("day", F.dayofmonth("timestamp")) \
-                           .withColumn("dayofweek", F.dayofweek("timestamp")) \
-                           .withColumn("dayofyear", F.dayofyear("timestamp")) \
-                           .withColumn("hour", F.hour("timestamp"))
+        .withColumn("month", F.month("timestamp")) \
+        .withColumn("day", F.dayofmonth("timestamp")) \
+        .withColumn("dayofweek", F.dayofweek("timestamp")) \
+        .withColumn("dayofyear", F.dayofyear("timestamp")) \
+        .withColumn("hour", F.hour("timestamp"))
     # 可以添加更多特征，如 weekofyear 等
     # .withColumn("weekofyear", F.weekofyear("timestamp"))
 
-    logger.success("成功添加时间特征: year, month, day, dayofweek, dayofyear, hour")
+    logger.success("成功添加时间特征：year, month, day, dayofweek, dayofyear, hour")
     sdf_with_features.printSchema()  # 显示添加特征后的 schema
     return sdf_with_features
 
 
-def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 168], stats=["mean", "stddev", "min", "max"]):
+def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 168],
+                               stats=["mean", "stddev", "min", "max"]):
     """Adds rolling window statistics for a target column using Spark Window functions."""
     if not window_sizes or not stats:
         logger.info(
@@ -91,8 +96,8 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
         return sdf
 
     logger.info(f"开始添加 '{target_col}' 的滚动统计特征...")
-    logger.info(f"窗口大小: {window_sizes}")
-    logger.info(f"统计指标: {stats}")
+    logger.info(f"窗口大小：{window_sizes}")
+    logger.info(f"统计指标：{stats}")
 
     # 基础窗口定义：按 unique_id 分区，按 timestamp 升序排序
     if not isinstance(sdf.schema["timestamp"].dataType, TimestampType):
@@ -122,11 +127,11 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
         logger.warning(f"Ignoring unsupported statistics: {ignored_stats}")
 
     for window_size in window_sizes:
-        # 定义滚动窗口框架: 包括当前行在内的前 window_size 行
+        # 定义滚动窗口框架：包括当前行在内的前 window_size 行
         # 对于预测 t 时刻的值，使用 t 时刻及之前的 window_size-1 行数据是合理的
         # 如果要严格预测 t 时刻，仅使用 t-1 及之前的数据，则用 rowsBetween(-window_size, -1)
         # 这里我们包含当前行：rowsBetween(-(window_size - 1), 0)
-        # 注意: 这假设了每个 unique_id 的时间序列是连续的（每小时都有记录）
+        # 注意：这假设了每个 unique_id 的时间序列是连续的（每小时都有记录）
         rolling_window_spec = base_window_spec.rowsBetween(
             -(window_size - 1), 0)
 
@@ -139,13 +144,13 @@ def add_rolling_features_spark(sdf, target_col="y", window_sizes=[3, 6, 12, 24, 
                 stat_func(target_col).over(rolling_window_spec)
             )
 
-    logger.success(f"成功添加滚动统计特征 (指标: {valid_stats}, 窗口: {window_sizes}h)")
+    logger.success(f"成功添加滚动统计特征 (指标：{valid_stats}, 窗口：{window_sizes}h)")
     sdf_with_rolling.printSchema()  # 显示添加特征后的 schema
     return sdf_with_rolling
 
 
 def handle_missing_values_spark(
-    sdf: DataFrame, max_window: int, target_col: str = "y"
+        sdf: DataFrame, max_window: int, target_col: str = "y"
 ) -> DataFrame:
     """
     处理 Spark DataFrame 中的缺失值：
@@ -174,7 +179,6 @@ def handle_missing_values_spark(
     #     f"删除 '{target_col}' 为 null 的行后，剩余行数 (粗略估计): {count_after_y_drop} (删除了 {deleted_y_null} 行)"
     # ) # Removed for performance
     logger.info(f"已过滤 '{target_col}' 为 null 的行。")
-
 
     # 2. 基于最大滚动窗口删除初始行为 null 的行
     rolling_feature_col = f"{target_col}_rolling_mean_{max_window}h"
@@ -208,6 +212,7 @@ def handle_missing_values_spark(
     logger.success("缺失值处理完成。DataFrame 已持久化。移除 count 操作以提高性能。")
     return sdf_filled
 
+
 # --- 其他特征工程函数将在此处添加 ---
 # def add_lag_features_spark(sdf, lags=[1, 2, 3, 24]): ...
 # def encode_categorical_features_spark(sdf): ...
@@ -234,18 +239,18 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
     merged_data_path = data_dir / "merged_data.parquet"
     if use_sampling:
         output_feature_path = data_dir / \
-            f"features_sampled_{sample_fraction}.parquet"
+                              f"features_sampled_{sample_fraction}.parquet"
     else:
         output_feature_path = data_dir / "features.parquet"
 
-    logger.info(f"输入合并数据路径: {merged_data_path}")
-    logger.info(f"输出特征数据路径: {output_feature_path}")
+    logger.info(f"输入合并数据路径：{merged_data_path}")
+    logger.info(f"输出特征数据路径：{output_feature_path}")
 
     spark = None
     # Initialize variables for finally block
     sdf_merged = None
     sdf = None
-    sdf_repartitioned_for_rolling = None # New intermediate DF
+    sdf_repartitioned_for_rolling = None  # New intermediate DF
     sdf_with_time = None
     sdf_with_rolling = None
     sdf_processed = None
@@ -257,7 +262,7 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         # Use optimized memory and off-heap settings from project_utils
         spark = create_spark_session(
             app_name="ElectricityDemandFeatureEngineering",
-            driver_memory="64g",    # Keep increased driver memory
+            driver_memory="64g",  # Keep increased driver memory
             executor_memory="64g"  # Keep increased executor memory
         )
         if not spark:
@@ -269,7 +274,7 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         # --- 步骤 1: 加载合并后的数据 ---
         logger.info(f"--- 步骤 1: 加载合并后的数据 {merged_data_path} ---")
         if not merged_data_path.exists():
-            logger.error(f"错误: 合并后的数据文件未找到于 {merged_data_path}")
+            logger.error(f"错误：合并后的数据文件未找到于 {merged_data_path}")
             raise FileNotFoundError(f"合并后的数据文件未找到于 {merged_data_path}")
 
         sdf_merged = spark.read.parquet(str(merged_data_path))
@@ -278,17 +283,18 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         sdf_merged.printSchema()
 
         if use_sampling:
-            logger.warning(f"--- 注意: 将在 {sample_fraction*100:.4f}% 的抽样数据上运行特征工程 ---")
+            logger.warning(f"--- 注意：将在 {sample_fraction * 100:.4f}% 的抽样数据上运行特征工程 ---")
             row_count = sdf_merged.count()
-            logger.info(f"原始数据行数: {row_count}")
+            logger.info(f"原始数据行数：{row_count}")
             sdf = sdf_merged.sample(fraction=sample_fraction, seed=42)
             sampled_count = sdf.count()
-            logger.info(f"抽样后数据行数: {sampled_count} (目标比例: {sample_fraction}, 实际比例: {sampled_count/row_count if row_count > 0 else 0:.6f})")
-            logger.info(f"抽样特征数据将保存到: {output_feature_path}")
+            logger.info(
+                f"抽样后数据行数：{sampled_count} (目标比例：{sample_fraction}, 实际比例：{sampled_count / row_count if row_count > 0 else 0:.6f})")
+            logger.info(f"抽样特征数据将保存到：{output_feature_path}")
         else:
-            logger.info("--- 注意: 将在完整数据集上运行特征工程 ---")
+            logger.info("--- 注意：将在完整数据集上运行特征工程 ---")
             sdf = sdf_merged
-            logger.info(f"全量特征数据将保存到: {output_feature_path}")
+            logger.info(f"全量特征数据将保存到：{output_feature_path}")
 
         # --- 步骤 2: 执行特征工程 ---
         logger.info("--- 步骤 2: 执行特征工程 ---")
@@ -310,7 +316,7 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         window_sizes_hours = [3, 6, 12, 24, 48, 168]
         stats_to_compute = ["mean", "stddev", "min", "max"]
         sdf_with_rolling = add_rolling_features_spark(
-            sdf_repartitioned_for_rolling, # Use repartitioned data
+            sdf_repartitioned_for_rolling,  # Use repartitioned data
             target_col="y",
             window_sizes=window_sizes_hours,
             stats=stats_to_compute
@@ -321,14 +327,13 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         #         sdf_repartitioned_for_rolling.unpersist()
         #         logger.info("已取消持久化的 sdf_repartitioned_for_rolling。")
         #     except Exception as unpersist_e:
-        #         logger.warning(f"取消持久化 sdf_repartitioned_for_rolling 时出错: {unpersist_e}")
-
+        #         logger.warning(f"取消持久化 sdf_repartitioned_for_rolling 时出错：{unpersist_e}")
 
         # --- 步骤 2.3: 处理缺失值 (并持久化结果) ---
         logger.info("--- 步骤 2.3: 处理缺失值 ---")
         max_window = max(window_sizes_hours)
         logger.info(f"将基于最大历史窗口 {max_window}h 来删除初始行并处理缺失值。")
-        sdf_processed = handle_missing_values_spark( # sdf_processed is persisted inside the function
+        sdf_processed = handle_missing_values_spark(  # sdf_processed is persisted inside the function
             sdf_with_rolling, max_window=max_window, target_col="y"
         )
         # Unpersist previous step
@@ -337,8 +342,7 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         #          sdf_with_rolling.unpersist()
         #          logger.info("已取消持久化的 sdf_with_rolling。")
         #      except Exception as unpersist_e:
-        #          logger.warning(f"取消持久化 sdf_with_rolling 时出错: {unpersist_e}")
-
+        #          logger.warning(f"取消持久化 sdf_with_rolling 时出错：{unpersist_e}")
 
         # --- 步骤 2.4 & 2.5: (可选) 滞后/其他特征 ---
         # ... (保持注释) ...
@@ -370,26 +374,26 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
                 .parquet(str(output_feature_path))
             )
             write_time = time.time() - start_write
-            logger.success(f"特征数据成功保存到 {output_feature_path} (耗时: {write_time:.2f} 秒)")
+            logger.success(f"特征数据成功保存到 {output_feature_path} (耗时：{write_time:.2f} 秒)")
 
             logger.info("验证写入的数据并获取最终行数...")
             try:
                 df_check = spark.read.parquet(str(output_feature_path))
                 final_count = df_check.count()
-                logger.info(f"成功读取已保存的特征数据，最终总行数: {final_count}")
+                logger.info(f"成功读取已保存的特征数据，最终总行数：{final_count}")
             except Exception as e:
-                logger.error(f"验证写入数据或计数时出错: {e}")
+                logger.error(f"验证写入数据或计数时出错：{e}")
 
         except Exception as write_e:
-             logger.error(f"写入或 Repartition 数据时发生错误: {write_e}")
-             logger.exception("详细写入错误信息:")
-             raise write_e
+            logger.error(f"写入或 Repartition 数据时发生错误：{write_e}")
+            logger.exception("详细写入错误信息：")
+            raise write_e
 
     except Exception as e:
-        logger.error(f"特征工程步骤中发生错误: {e}")
-        logger.exception("详细错误信息:")
+        logger.error(f"特征工程步骤中发生错误：{e}")
+        logger.exception("详细错误信息：")
         # Unpersist logic handled in finally block
-        raise # 重新抛出异常
+        raise  # 重新抛出异常
 
     finally:
         # --- 清理持久化的数据 ---
@@ -397,40 +401,39 @@ def run_feature_engineering_spark(use_sampling: bool = False, sample_fraction: f
         # Use a list to manage potentially cached DFs
         dfs_to_unpersist = [
             sdf_processed,
-            sdf_repartitioned_for_rolling, # If you decide to persist it
+            sdf_repartitioned_for_rolling,  # If you decide to persist it
             sdf_with_rolling,
             sdf_with_time,
             sdf,
             sdf_merged,
-            sdf_final_repartitioned # Although write should consume it, good practice
+            sdf_final_repartitioned  # Although write should consume it, good practice
         ]
         for i, df_to_unpersist in enumerate(dfs_to_unpersist):
-            df_name = f"DataFrame_{i}" # Generic name for logging
+            df_name = f"DataFrame_{i}"  # Generic name for logging
             # Try to get a more meaningful name if possible (difficult reliably)
             # Example: Check locals() - fragile approach
             local_vars = locals()
             for name, var in local_vars.items():
-                 if var is df_to_unpersist and isinstance(var, DataFrame):
-                      df_name = name
-                      break
+                if var is df_to_unpersist and isinstance(var, DataFrame):
+                    df_name = name
+                    break
 
             if df_to_unpersist is not None and isinstance(df_to_unpersist, DataFrame) and df_to_unpersist.is_cached:
                 try:
                     df_to_unpersist.unpersist()
                     logger.info(f"在 finally 块中成功取消持久化的 {df_name}。")
                 except Exception as final_unpersist_e:
-                    logger.warning(f"在 finally 块中取消持久化 {df_name} 时出错: {final_unpersist_e}")
+                    logger.warning(f"在 finally 块中取消持久化 {df_name} 时出错：{final_unpersist_e}")
             # else: # Reduce log verbosity
             #     logger.debug(f"{df_name} 未持久化或不存在，无需取消持久化。")
 
-
         # --- 停止 SparkSession ---
         if spark:
-            stop_spark_session(spark) # Use the utility function for safe stopping
+            stop_spark_session(spark)  # Use the utility function for safe stopping
 
         end_time = time.time()
         total_time = end_time - start_time
-        logger.info(f"--- Spark 特征工程脚本总执行时间: {total_time:.2f} 秒 ---")
+        logger.info(f"--- Spark 特征工程脚本总执行时间：{total_time:.2f} 秒 ---")
 
 
 if __name__ == "__main__":

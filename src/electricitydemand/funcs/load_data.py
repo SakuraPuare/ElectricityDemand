@@ -1,11 +1,13 @@
-import sys
 import os
+import sys
+
 from loguru import logger  # 提前导入 logger
+
 # 引入 Spark 相关库
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.types import DoubleType, FloatType
 from pyspark.sql.utils import AnalysisException  # 用于捕获 Spark SQL 错误
-from pyspark.sql.types import FloatType, DoubleType
 
 # --- 项目设置 (路径和日志) ---
 project_root = None
@@ -51,6 +53,7 @@ metadata_path = os.path.join(data_dir, "metadata.parquet")
 weather_path = os.path.join(data_dir, "weather_converted.parquet")
 logger.info(f"数据目录：{data_dir}")
 
+
 # 修改函数以使用 SparkSession 加载数据
 
 
@@ -76,6 +79,7 @@ def load_datasets(spark: SparkSession):
         logger.exception(f"加载 Spark 数据集时发生错误：{e}")
         sys.exit(1)
 
+
 # 修改函数以使用 Spark DataFrame API
 
 
@@ -99,14 +103,14 @@ def log_basic_info(ddf_demand, ddf_metadata, ddf_weather):
     num_demand_rows = ddf_demand.count()
     num_metadata_rows = ddf_metadata.count()
     num_weather_rows = ddf_weather.count()
-    logger.info(f"Demand 数据行数: {num_demand_rows:,}")
+    logger.info(f"Demand 数据行数：{num_demand_rows:,}")
     logger.info(f"Metadata 数据行数：{num_metadata_rows:,}")
     logger.info(f"Weather 数据行数：{num_weather_rows:,}")
 
     # 查看数据样本 (使用 show)
     logger.info("--- 查看数据样本 (前 5 行) ---")
     logger.info("Demand head:")
-    ddf_demand.show(5, truncate=False)  # 显示前5行，不截断列内容
+    ddf_demand.show(5, truncate=False)  # 显示前 5 行，不截断列内容
     logger.info("Metadata head:")
     ddf_metadata.show(5, truncate=False)
     logger.info("Weather head:")
@@ -123,6 +127,7 @@ def log_basic_info(ddf_demand, ddf_metadata, ddf_weather):
 
     return num_demand_rows, num_metadata_rows, num_weather_rows  # 返回行数供后续使用
 
+
 # 修改函数以使用 Spark API
 
 
@@ -134,7 +139,7 @@ def check_missing_values(ddf_demand, ddf_metadata, ddf_weather, num_demand_rows,
         if total_rows == 0:
             logger.warning(f"{df_name} 行数为 0，跳过缺失值检查。")
             return
-        logger.info(f"{df_name} 缺失值统计:")
+        logger.info(f"{df_name} 缺失值统计：")
         # 构建聚合表达式列表
         missing_exprs = []
         # 获取 DataFrame 的 schema 以便检查类型
@@ -181,7 +186,8 @@ def check_missing_values(ddf_demand, ddf_metadata, ddf_weather, num_demand_rows,
     calculate_missing(ddf_metadata, num_metadata_rows, "Metadata")
     calculate_missing(ddf_weather, num_weather_rows, "Weather")
 
-# 修改函数以使用 Spark API (注意: 精确计数在 Spark 中可能很昂贵)
+
+# 修改函数以使用 Spark API (注意：精确计数在 Spark 中可能很昂贵)
 
 
 def check_duplicates(ddf_demand, ddf_metadata, ddf_weather):
@@ -210,15 +216,15 @@ def check_duplicates(ddf_demand, ddf_metadata, ddf_weather):
                     total_duplicate_rows = total_duplicate_rows_result[0]
                     logger.warning(
                         f"{df_name} 数据中发现 {num_duplicate_groups} 组基于 {key_columns} 的重复记录。")
-                    logger.warning(f"重复组的总行数约为: {total_duplicate_rows}")
-                    logger.warning(f"重复组样本 (前 5 组):")
+                    logger.warning(f"重复组的总行数约为：{total_duplicate_rows}")
+                    logger.warning("重复组样本 (前 5 组):")
                     duplicate_counts.show(5, truncate=False)
                 else:
                     # This might happen if duplicate_counts becomes empty after the initial count due to race conditions or complex plans
                     logger.info(
                         f"{df_name} 数据中未发现基于 {key_columns} 的重复记录 (聚合结果为空)。")
             except Exception as e:
-                logger.error(f"计算 {df_name} 重复总行数时出错: {e}")
+                logger.error(f"计算 {df_name} 重复总行数时出错：{e}")
         else:
             logger.info(f"{df_name} 数据中未发现基于 {key_columns} 的重复记录。")
 
@@ -279,6 +285,7 @@ def log_time_ranges(ddf_demand, ddf_weather):
             logger.warning("Weather DataFrame 缺少 'timestamp' 列，无法计算时间范围。")
     except Exception as e:
         logger.exception(f"计算 Weather 时间范围时出错：{e}")
+
 
 # 修改 main 函数以创建 SparkSession
 

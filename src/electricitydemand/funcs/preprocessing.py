@@ -1,6 +1,3 @@
-# 移除 dask.dataframe 的导入
-# import dask.dataframe as dd
-import pandas as pd
 from loguru import logger
 from pyspark.sql import DataFrame as SparkDataFrame  # 使用 Spark DataFrame
 from pyspark.sql import functions as F
@@ -52,7 +49,7 @@ def resample_demand_to_hourly_spark(sdf_demand: SparkDataFrame) -> SparkDataFram
 
         # 使用窗口函数进行重采样
         # 按 unique_id 和 1 小时的时间窗口分组
-        # F.window 参数: timeColumn, windowDuration, [slideDuration, startTime]
+        # F.window 参数：timeColumn, windowDuration, [slideDuration, startTime]
         # 这里我们只需要 windowDuration 为 "1 hour"
         logger.info("按 unique_id 和小时窗口进行分组聚合 (sum)...")
         sdf_resampled = sdf_demand.groupBy(
@@ -104,7 +101,7 @@ def validate_resampling_spark(sdf_resampled: SparkDataFrame | None, n_check: int
         # 检查时间戳是否都是整点小时
         logger.info(f"获取前 {n_check} 条记录的时间戳进行检查...")
         # 使用 limit 获取少量数据，然后 collect 到 Driver 端进行检查
-        # 注意: collect() 会将数据拉到 Driver 内存，只适用于小量数据检查
+        # 注意：collect() 会将数据拉到 Driver 内存，只适用于小量数据检查
         sample_df_pd = sdf_resampled.select(
             "timestamp", "unique_id").limit(n_check).toPandas()
 

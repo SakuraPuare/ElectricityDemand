@@ -7,11 +7,11 @@ import seaborn as sns
 from loguru import logger
 
 # 使用相对导入
+from ..utils.eda_utils import save_plot  # Import save_plot
 from ..utils.eda_utils import (
     log_value_counts,
     plot_categorical_distribution,
     plot_numerical_distribution,
-    save_plot  # Import save_plot
 )
 
 

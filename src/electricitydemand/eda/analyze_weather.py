@@ -17,12 +17,12 @@ from tqdm import tqdm  # For timeseries sample progress
 
 # 使用相对导入
 from ..utils.eda_utils import (
+    analyze_timestamp_frequency_pandas,
     log_value_counts,
     plot_categorical_distribution,
     plot_numerical_distribution,
+    sample_spark_ids_and_collect,
     save_plot,
-    analyze_timestamp_frequency_pandas,
-    sample_spark_ids_and_collect
 )
 
 # 移除 dask_compute_context
@@ -57,7 +57,7 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
             "diffuse_radiation", "direct_normal_irradiance", "terrestrial_radiation"
         ]
     logger.info(f"--- 开始分析 Weather 数值特征分布 (Spark) ---")
-    logger.debug(f"分析的列: {', '.join(columns_to_analyze)}")
+    logger.debug(f"分析的列：{', '.join(columns_to_analyze)}")
 
     # 1. 过滤出实际存在且为数值类型的列
     numerical_cols = []
@@ -127,7 +127,7 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
             logger.error("未能计算描述性统计。")
 
     except Exception as e:
-        logger.exception(f"使用 Spark 计算描述性统计时出错: {e}")
+        logger.exception(f"使用 Spark 计算描述性统计时出错：{e}")
 
     # 3. 检查负值 (Spark)
     precipitation_cols = ['precipitation', 'rain', 'snowfall', 'snow_depth', 'et0_fao_evapotranspiration',
@@ -146,13 +146,13 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
                 else:
                     logger.info(f"列 '{col}' 未检测到负值。")
         except Exception as e:
-            logger.exception(f"使用 Spark 检查负值时出错: {e}")
+            logger.exception(f"使用 Spark 检查负值时出错：{e}")
 
     # 4. 绘图 (Spark 抽样 -> Pandas 绘图)
     if plot and numerical_cols:
-        logger.info(f"开始绘制 Weather 特征分布图 (抽样比例: {plot_sample_frac:.1%})...")
+        logger.info(f"开始绘制 Weather 特征分布图 (抽样比例：{plot_sample_frac:.1%})...")
         for col in numerical_cols:
-            logger.info(f"绘制列: {col}")
+            logger.info(f"绘制列：{col}")
             try:
                 # Spark 抽样
                 logger.debug(f"对列 '{col}' 进行 Spark 抽样...")
@@ -164,7 +164,7 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
                 logger.debug(f"将列 '{col}' 的抽样结果收集到 Pandas...")
                 col_sample_pd = col_sample_sdf.toPandas()[
                     col]  # 获取 Pandas Series
-                logger.debug(f"列 '{col}' 抽样完成，样本大小: {len(col_sample_pd):,}")
+                logger.debug(f"列 '{col}' 抽样完成，样本大小：{len(col_sample_pd):,}")
 
                 if col_sample_pd is None or col_sample_pd.empty:
                     logger.warning(f"列 '{col}' 的抽样结果为空或收集失败，跳过绘图。")
@@ -173,10 +173,10 @@ def analyze_weather_numerical(sdf_weather: DataFrame, columns_to_analyze=None, p
                 # 使用辅助函数绘图 (接收 Pandas Series)
                 plot_numerical_distribution(col_sample_pd, col,
                                             f'weather_distribution_{col}', plots_dir,
-                                            title_prefix="Weather ", kde=True,  # Use KDE for weather features
+                                            title=f"Weather {col}", kde=True,  # Changed title_prefix to title
                                             showfliers=False)  # Hide outliers for potentially wide ranges
             except Exception as e:
-                logger.exception(f"绘制列 '{col}' 的分布图时出错: {e}")
+                logger.exception(f"绘制列 '{col}' 的分布图时出错：{e}")
 
     logger.info("Weather 数值特征分析完成。")
 
@@ -195,7 +195,7 @@ def analyze_weather_categorical(sdf_weather: DataFrame, plots_dir: str):
 
     for col in categorical_cols:
         if col in sdf_weather.columns:
-            logger.info(f"--- 分析列: {col} ---")
+            logger.info(f"--- 分析列：{col} ---")
             try:
                 # Get value counts using Spark
                 value_counts_sdf = sdf_weather.groupBy(
@@ -241,12 +241,12 @@ def analyze_weather_categorical(sdf_weather: DataFrame, plots_dir: str):
                 plot_filename = plots_dir / f"weather_dist_{col}.png"
                 plt.savefig(plot_filename)
                 plt.close()
-                logger.info(f"'{col}' 分布图已保存: {plot_filename}")
+                logger.info(f"'{col}' 分布图已保存：{plot_filename}")
 
             except Exception as e:
-                logger.exception(f"分析或绘制 Weather 分类列 '{col}' 时出错: {e}")
+                logger.exception(f"分析或绘制 Weather 分类列 '{col}' 时出错：{e}")
         else:
-            logger.warning(f"在 Weather 数据中未找到分类列: {col}")
+            logger.warning(f"在 Weather 数据中未找到分类列：{col}")
     logger.info("--- 完成 Weather 分类特征分析 ---")
 
 
@@ -283,7 +283,7 @@ def analyze_weather_correlation(sdf_weather: DataFrame, plots_dir: str):
             logger.warning("数值列不足 (<2)，无法计算相关性矩阵。")
             return
 
-        logger.info(f"计算以下列的相关性: {', '.join(available_numerical_cols)}")
+        logger.info(f"计算以下列的相关性：{', '.join(available_numerical_cols)}")
 
         # Assemble features into a vector column needed for Spark's Correlation
         # skip rows with nulls in any column
@@ -335,11 +335,11 @@ def analyze_weather_correlation(sdf_weather: DataFrame, plots_dir: str):
             logger.info(f"未发现绝对值大于 {threshold} 的强相关性。")
 
     except Exception as e:
-        logger.exception(f"分析 Weather 特征相关性时出错: {e}")
+        logger.exception(f"分析 Weather 特征相关性时出错：{e}")
     logger.info("--- 完成 Weather 数值特征相关性分析 ---")
 
 
-# --- 新增: analyze_weather_timeseries_sample ---
+# --- 新增：analyze_weather_timeseries_sample ---
 def analyze_weather_timeseries_sample(sdf_weather: DataFrame, n_samples=5, plots_dir=None, random_state=42):
     """
     使用 Spark 抽取 n_samples 个 location_id 的天气时间序列数据到 Pandas，

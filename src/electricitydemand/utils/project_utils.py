@@ -1,12 +1,11 @@
 import os
 import sys
 from pathlib import Path
-from typing import Tuple, Optional, Dict
+from typing import Optional, Tuple
 
 from loguru import logger
-from pyspark.sql import SparkSession
-import psutil
 from pyspark import SparkConf
+from pyspark.sql import SparkSession
 
 
 def get_project_root() -> Path:
@@ -56,12 +55,13 @@ def setup_project_paths(project_root: Path) -> Tuple[Path, Path, Path, Path]:
 
     return src_path, data_dir, logs_dir, plots_dir
 
+
 def create_spark_session(
-    app_name="SparkApplication",
-    master="local[*]",
-    log_level="WARN",
-    driver_memory="8g",
-    executor_memory="16g"
+        app_name="SparkApplication",
+        master="local[*]",
+        log_level="WARN",
+        driver_memory="8g",
+        executor_memory="28g"
 ):
     """
     创建并配置一个基本的 SparkSession 实例，包含一些性能优化配置。
@@ -81,8 +81,8 @@ def create_spark_session(
         SparkSession: 配置好的 SparkSession 实例，如果出错则返回 None。
     """
     logger.info(f"创建 SparkSession: {app_name} (master: {master})...")
-    logger.info(f"配置 Driver 内存: {driver_memory}")
-    logger.info(f"配置 Executor 内存: {executor_memory}")
+    logger.info(f"配置 Driver 内存：{driver_memory}")
+    logger.info(f"配置 Executor 内存：{executor_memory}")
 
     try:
         # --- 构建 SparkConf ---
@@ -93,8 +93,8 @@ def create_spark_session(
         conf.set("spark.executor.memory", executor_memory)
 
         # 配置 Spark 本地临时目录
-        local_tmp_dir = "/home/ubuntu/data/tmp"
-        logger.info(f"配置 Spark 本地临时目录: {local_tmp_dir}")
+        local_tmp_dir = "/tmp"
+        logger.info(f"配置 Spark 本地临时目录：{local_tmp_dir}")
         try:
             os.makedirs(local_tmp_dir, exist_ok=True)
             logger.debug(f"确认本地临时目录 {local_tmp_dir} 已存在或已创建。")
@@ -121,13 +121,13 @@ def create_spark_session(
         shuffle_partitions = 500
         conf.set("spark.sql.shuffle.partitions", str(shuffle_partitions))
         conf.set("spark.default.parallelism", str(shuffle_partitions))
-        logger.info(f"设置 spark.sql.shuffle.partitions 和 spark.default.parallelism 为: {shuffle_partitions}")
+        logger.info(f"设置 spark.sql.shuffle.partitions 和 spark.default.parallelism 为：{shuffle_partitions}")
 
         # --- 启用并配置堆外内存 ---
         conf.set("spark.memory.offHeap.enabled", "true")
         # Estimate based on cores; adjust if needed. Example: 2GB per executor regardless of core count.
         # Or calculate based on typical core count, e.g., 4 cores * 1g = 4g
-        off_heap_size = "32g" # Example: Allocate 4GB off-heap per executor
+        off_heap_size = "4g"  # Example: Allocate 4GB off-heap per executor
         conf.set("spark.memory.offHeap.size", off_heap_size)
         logger.info(f"配置 Executor 堆外内存 (spark.memory.offHeap.size): {off_heap_size}")
 
@@ -140,13 +140,13 @@ def create_spark_session(
 
         # --- 创建 SparkSession ---
         spark_session = SparkSession.builder.config(conf=conf).getOrCreate()
-        spark_session.sparkContext.setLogLevel(log_level) # 设置 PySpark Driver 日志级别
+        spark_session.sparkContext.setLogLevel(log_level)  # 设置 PySpark Driver 日志级别
 
         logger.success("SparkSession 创建成功 (含性能优化)")
         logger.info(f"Spark Web UI: {spark_session.sparkContext.uiWebUrl}")
 
         # 打印关键配置信息
-        logger.info("Spark 配置:")
+        logger.info("Spark 配置：")
         key_configs = [
             "spark.app.name", "spark.master", "spark.driver.memory", "spark.executor.memory",
             "spark.memory.offHeap.enabled", "spark.memory.offHeap.size",
@@ -165,9 +165,10 @@ def create_spark_session(
         return spark_session
 
     except Exception as e:
-        logger.error(f"创建 SparkSession 失败: {e}")
-        logger.exception("详细错误信息:")
+        logger.error(f"创建 SparkSession 失败：{e}")
+        logger.exception("详细错误信息：")
         return None
+
 
 def stop_spark_session(spark: Optional[SparkSession]):
     """Safely stops the given SparkSession if it's active."""

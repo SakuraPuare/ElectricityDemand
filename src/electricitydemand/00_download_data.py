@@ -1,16 +1,15 @@
-import sys
-from datetime import datetime
+from pathlib import Path
 
 import dask.dataframe as dd  # Dask 用于验证
 import pyarrow as pa  # PyArrow 用于捕获特定错误类型
 from datasets import load_dataset
 from loguru import logger  # 提前导入 logger
-from pathlib import Path
+
+from electricitydemand.utils.log_utils import setup_logger
 
 # --- 项目设置 (使用工具函数) ---
 # project_utils 应该可以被导入，因为它在 src 目录下，而 setup_project_paths 会将 src 加入 sys.path
 from electricitydemand.utils.project_utils import get_project_root, setup_project_paths
-from electricitydemand.utils.log_utils import setup_logger  # 仍然直接导入 setup_logger
 
 project_root = get_project_root()
 src_path, data_dir, logs_dir, plots_dir = setup_project_paths(
@@ -108,7 +107,7 @@ def download_and_save_config(config_name: str, dataset_id: str, output_dir: Path
         logger.info(f"配置 '{config_name}' 保存成功。")
 
     except Exception as e:
-        logger.exception(f"下载或保存配置 '{config_name}' 失败")
+        logger.exception(f"下载或保存配置 '{config_name}' 失败 {e}")
 
 
 # --- Main Execution ---
@@ -132,7 +131,7 @@ def main():
         logger.info("--- 数据集下载流程结束 ---")
 
     except Exception as e:
-        logger.exception("主下载流程中发生错误")
+        logger.exception(f"主下载流程中发生错误 {e}")
 
 
 if __name__ == "__main__":

@@ -3,15 +3,18 @@ import time
 from pathlib import Path
 
 from loguru import logger
-from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.window import Window
 from pyspark.storagelevel import StorageLevel
 
 # --- 项目设置 ---
 try:
-    from electricitydemand.utils.project_utils import get_project_root, setup_project_paths, create_spark_session, stop_spark_session
     from electricitydemand.utils.log_utils import setup_logger
+    from electricitydemand.utils.project_utils import (
+        create_spark_session,
+        get_project_root,
+        setup_project_paths,
+        stop_spark_session,
+    )
 except ImportError as e:
     print(f"Error importing project utils: {e}", file=sys.stderr)
     sys.exit(1)
@@ -35,8 +38,9 @@ logger.info(f"日志目录：{logs_dir}")
 weather_path = data_dir / "weather_converted.parquet"
 merged_data_path = data_dir / "merged_data.parquet"  # 用于抽样检查
 
-logger.info(f"待分析 Weather 数据路径: {weather_path}")
-logger.info(f"用于抽样检查的合并数据路径: {merged_data_path}")
+logger.info(f"待分析 Weather 数据路径：{weather_path}")
+logger.info(f"用于抽样检查的合并数据路径：{merged_data_path}")
+
 
 # ======================================================================
 # ==                  Analysis Function                             ==
@@ -67,7 +71,7 @@ def analyze_weather_completeness_spark():
             sdf_weather = spark.read.parquet(str(weather_path))
             # 确保 timestamp 类型正确，如果需要转换则转换
             if "TimestampNTZType" in str(sdf_weather.schema["timestamp"].dataType) or \
-               "StringType" in str(sdf_weather.schema["timestamp"].dataType):
+                    "StringType" in str(sdf_weather.schema["timestamp"].dataType):
                 logger.warning(
                     f"Weather timestamp type is {sdf_weather.schema['timestamp'].dataType}. Converting to standard TimestampType.")
                 sdf_weather = sdf_weather.withColumn(
@@ -93,7 +97,7 @@ def analyze_weather_completeness_spark():
             sdf_weather_dedup.persist(StorageLevel.MEMORY_AND_DISK)
 
         except Exception as load_e:
-            logger.exception(f"加载 Weather Parquet 文件失败: {load_e}")
+            logger.exception(f"加载 Weather Parquet 文件失败：{load_e}")
             raise
 
         # --- 步骤 2: 分析每个 location_id 的完整性 ---
@@ -139,7 +143,7 @@ def analyze_weather_completeness_spark():
 
             if total_expected_hours > 0:
                 overall_completeness = (
-                    total_actual_records / total_expected_hours) * 100
+                                               total_actual_records / total_expected_hours) * 100
                 logger.info("--- Overall Weather Data Completeness ---")
                 logger.info(
                     f"Total Expected Hours (Sum across locations): {total_expected_hours:,}")
@@ -152,12 +156,12 @@ def analyze_weather_completeness_spark():
                     "Could not calculate overall completeness (no expected hours).")
 
         except Exception as analysis_e:
-            logger.exception(f"分析 Weather 完整性时出错: {analysis_e}")
+            logger.exception(f"分析 Weather 完整性时出错：{analysis_e}")
 
         # --- 步骤 3: 抽样检查合并数据中的缺失 Weather ---
         logger.info("--- 步骤 3: 抽样检查合并数据中的缺失 Weather 记录 ---")
         try:
-            logger.info(f"加载合并后的数据: {merged_data_path}")
+            logger.info(f"加载合并后的数据：{merged_data_path}")
             sdf_merged = spark.read.parquet(str(merged_data_path))
 
             # 筛选出天气信息缺失的行 (检查 temperature_2m)
@@ -189,7 +193,7 @@ def analyze_weather_completeness_spark():
                     "location_id", "timestamp").limit(sample_size).collect()
 
                 logger.info(
-                    "检查这些 (location_id, timestamp) 是否存在于原始 Weather 数据中:")
+                    "检查这些 (location_id, timestamp) 是否存在于原始 Weather 数据中：")
                 missing_found_in_weather = 0
                 for i, row in enumerate(sampled_missing):
                     loc_id = row["location_id"]
@@ -197,15 +201,15 @@ def analyze_weather_completeness_spark():
                     # 在去重后的 weather data 中查找
                     exists = sdf_weather_dedup.filter(
                         (F.col("location_id") == loc_id) & (
-                            F.col("timestamp") == ts)
+                                F.col("timestamp") == ts)
                     ).count() > 0
                     if exists:
                         logger.error(
-                            f"  - [{i+1}/{sample_size}] 错误! ({loc_id}, {ts}) 存在于 Weather 数据中，但不应在缺失列表中！")
+                            f"  - [{i + 1}/{sample_size}] 错误！({loc_id}, {ts}) 存在于 Weather 数据中，但不应在缺失列表中！")
                         missing_found_in_weather += 1
                     else:
                         logger.info(
-                            f"  - [{i+1}/{sample_size}] OK. ({loc_id}, {ts}) 确实不存在于 Weather 数据中。")
+                            f"  - [{i + 1}/{sample_size}] OK. ({loc_id}, {ts}) 确实不存在于 Weather 数据中。")
 
                 if missing_found_in_weather == 0:
                     logger.success(
@@ -220,7 +224,7 @@ def analyze_weather_completeness_spark():
                 missing_weather_rows.unpersist()
 
         except Exception as sample_check_e:
-            logger.exception(f"抽样检查时出错: {sample_check_e}")
+            logger.exception(f"抽样检查时出错：{sample_check_e}")
 
         if sdf_weather_dedup.is_cached:
             sdf_weather_dedup.unpersist()
@@ -229,7 +233,7 @@ def analyze_weather_completeness_spark():
         logger.info("==============================================")
 
     except Exception as e:
-        logger.critical(f"分析过程中发生严重错误: {e}")
+        logger.critical(f"分析过程中发生严重错误：{e}")
         logger.exception("Traceback:")
     finally:
         if spark:
@@ -241,17 +245,14 @@ def analyze_weather_completeness_spark():
                 else:
                     logger.info("SparkSession 已停止。")
             except Exception as stop_e:
-                logger.error(f"停止 SparkSession 时发生错误: {stop_e}")
+                logger.error(f"停止 SparkSession 时发生错误：{stop_e}")
         else:
             logger.info("SparkSession 未成功初始化或已停止。")
 
         end_run_time = time.time()
         logger.info(
-            f"--- Spark Weather 完整性分析脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+            f"--- Spark Weather 完整性分析脚本总执行时间：{end_run_time - start_run_time:.2f} 秒 ---")
 
 
 if __name__ == "__main__":
-    try:
-        analyze_weather_completeness_spark()
-    except Exception as e:
-        sys.exit(1)
+    analyze_weather_completeness_spark()

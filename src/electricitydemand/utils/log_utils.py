@@ -6,6 +6,7 @@ from datetime import datetime, UTC
 from loguru import logger
 from tqdm import tqdm  # <--- 导入 tqdm
 
+
 # --- 全局异常处理钩子 ---
 
 
@@ -22,6 +23,7 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     # 无需显式传递 exc_info=(exc_type, exc_value, exc_traceback)
     # 这可以避免传递不可序列化的 traceback 对象给 enqueue=True 的处理器
     logger.exception("未捕获的异常")
+
 
 # --- 标准 logging 拦截器 ---
 
@@ -51,6 +53,7 @@ class InterceptHandler(logging.Handler):
         logger.opt(depth=depth, exception=record.exc_info).log(
             level, record.getMessage())
 
+
 # --- 安全文件打开器 ---
 
 
@@ -65,16 +68,16 @@ def secure_opener(file, flags):
 
 # --- 日志设置函数 ---
 def setup_logger(
-    log_file_prefix: str = "app",
-    logs_dir: str = "logs",
-    level: str = "INFO",
-    console_level: str | None = None,  # 允许为控制台设置不同级别
-    file_level: str | None = None,    # 允许为文件设置不同级别
-    json_log_path: str | None = None,  # 可选：JSON 日志文件路径
-    secure_permissions: bool = False,  # 可选：是否设置安全文件权限
-    intercept_standard_logging: bool = True,  # 是否拦截标准 logging
-    enable_global_exception_hook: bool = True,  # 是否启用全局异常捕获
-    diagnose_backtrace: bool = True  # 控制 diagnose 和 backtrace (生产环境建议 False)
+        log_file_prefix: str = "app",
+        logs_dir: str = "logs",
+        level: str = "INFO",
+        console_level: str | None = None,  # 允许为控制台设置不同级别
+        file_level: str | None = None,  # 允许为文件设置不同级别
+        json_log_path: str | None = None,  # 可选：JSON 日志文件路径
+        secure_permissions: bool = False,  # 可选：是否设置安全文件权限
+        intercept_standard_logging: bool = True,  # 是否拦截标准 logging
+        enable_global_exception_hook: bool = True,  # 是否启用全局异常捕获
+        diagnose_backtrace: bool = True  # 控制 diagnose 和 backtrace (生产环境建议 False)
 ):
     """
     配置 Loguru 日志记录器，集成多种高级特性。
@@ -172,6 +175,7 @@ def setup_logger(
     if not hasattr(logger, 'trace'):
         def trace(message, *args, **kwargs):
             logger.log("TRACE", message, *args, **kwargs)
+
         logger.trace = trace
 
     # --- 拦截标准库 logging ---
@@ -256,11 +260,13 @@ if __name__ == '__main__':
     # 6. 测试惰性求值 (opt(lazy=True))
     print("-" * 20 + " 测试 opt(lazy=True) " + "-" * 20)
 
+
     def expensive_calculation(n):
         logger.debug(f"--- 正在执行昂贵的计算 for {n} ---")
         # 模拟耗时操作
         time.sleep(0.1)
         return n * n
+
 
     # 因为我们设置了文件级别为 TRACE/DEBUG，这个 lambda 会被执行
     logger.opt(lazy=True).debug(

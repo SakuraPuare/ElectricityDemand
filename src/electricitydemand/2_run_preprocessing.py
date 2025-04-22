@@ -3,18 +3,19 @@ import time
 from pathlib import Path  # 使用 Pathlib
 
 from loguru import logger
-
-# 移除 Dask 导入
-# import dask.dataframe as dd
-from pyspark.sql import SparkSession
 from pyspark.sql import functions as F  # 导入 SparkSession 和 functions
 from pyspark.storagelevel import StorageLevel
 
 # --- 项目设置 ---
 # 使用工具函数
 try:
-    from electricitydemand.utils.project_utils import get_project_root, setup_project_paths, create_spark_session, stop_spark_session
     from electricitydemand.utils.log_utils import setup_logger  # 仍然直接导入 setup_logger
+    from electricitydemand.utils.project_utils import (
+        create_spark_session,
+        get_project_root,
+        setup_project_paths,
+        stop_spark_session,
+    )
 except ImportError as e:
     print(f"Error importing project utils: {e}", file=sys.stderr)
     sys.exit(1)
@@ -40,11 +41,10 @@ metadata_path = data_dir / "metadata.parquet"  # 元数据
 weather_path = data_dir / "weather_converted.parquet"  # 天气数据
 merged_output_path = data_dir / "merged_data.parquet"  # 合并后数据输出路径
 
-logger.info(f"小时 Demand 数据路径: {demand_hourly_path}")
-logger.info(f"Metadata 数据路径: {metadata_path}")
-logger.info(f"Weather 数据路径: {weather_path}")
-logger.info(f"合并后数据输出路径: {merged_output_path}")
-
+logger.info(f"小时 Demand 数据路径：{demand_hourly_path}")
+logger.info(f"Metadata 数据路径：{metadata_path}")
+logger.info(f"Weather 数据路径：{weather_path}")
+logger.info(f"合并后数据输出路径：{merged_output_path}")
 
 # --- 导入所需函数 ---
 try:
@@ -60,6 +60,7 @@ try:
 except ImportError as e:
     logger.exception(f"Failed to import necessary modules: {e}")
     sys.exit(1)
+
 
 # ======================================================================
 # ==                  Demand Resampling Function                      ==
@@ -94,7 +95,7 @@ def run_demand_resampling_spark():
             sdf_demand.printSchema()
             # logger.info(f"Demand Count (可能触发计算): {sdf_demand.count():,}") # Count can be slow
         except Exception as load_e:
-            logger.exception(f"加载 Demand Parquet 文件失败: {load_e}")
+            logger.exception(f"加载 Demand Parquet 文件失败：{load_e}")
             raise  # 重新抛出异常以停止执行
 
         # --- 数据预处理：重采样 (使用 Spark) ---
@@ -126,7 +127,7 @@ def run_demand_resampling_spark():
         logger.info("=========================================")
 
     except Exception as e:
-        logger.critical(f"执行过程中发生严重错误: {e}")
+        logger.critical(f"执行过程中发生严重错误：{e}")
         logger.exception("Traceback:")
     finally:
         # Unpersist cached data if exists
@@ -136,7 +137,8 @@ def run_demand_resampling_spark():
 
         end_run_time = time.time()
         logger.info(
-            f"--- Spark 重采样脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+            f"--- Spark 重采样脚本总执行时间：{end_run_time - start_run_time:.2f} 秒 ---")
+
 
 # ======================================================================
 # ==                      Merge Data Function                       ==
@@ -167,12 +169,12 @@ def run_merge_data_spark():
         # --- 步骤 1: 加载数据 (Spark) ---
         logger.info("--- 步骤 1: 加载所需数据 (Spark) ---")
         try:
-            logger.info(f"加载小时 Demand 数据: {demand_hourly_path}")
+            logger.info(f"加载小时 Demand 数据：{demand_hourly_path}")
             sdf_demand = spark.read.parquet(str(demand_hourly_path))
             logger.info("小时 Demand 数据加载成功。")
             # sdf_demand.printSchema() # Schema in logs already
 
-            logger.info(f"加载 Metadata 数据: {metadata_path}")
+            logger.info(f"加载 Metadata 数据：{metadata_path}")
             sdf_meta = spark.read.parquet(str(metadata_path))
             # 选择需要的列，避免加载过多冗余信息，并重命名以防冲突
             sdf_meta = sdf_meta.select(
@@ -185,7 +187,7 @@ def run_merge_data_spark():
             logger.info("Metadata 数据加载成功。")
             # sdf_meta.printSchema() # Schema in logs already
 
-            logger.info(f"加载 Weather 数据: {weather_path}")
+            logger.info(f"加载 Weather 数据：{weather_path}")
             sdf_weather = spark.read.parquet(str(weather_path))
             # 确保 weather 的 timestamp 是 TimestampType
             if "StringType" in str(sdf_weather.schema["timestamp"].dataType):
@@ -210,7 +212,7 @@ def run_merge_data_spark():
             # sdf_weather.printSchema() # Schema in logs already
 
         except Exception as load_e:
-            logger.exception(f"加载 Parquet 文件失败: {load_e}")
+            logger.exception(f"加载 Parquet 文件失败：{load_e}")
             raise
 
         # --- 步骤 2: 合并数据 (Spark) ---
@@ -231,7 +233,7 @@ def run_merge_data_spark():
             # Cache the result as it's used multiple times below
             sdf_merged_meta.persist(StorageLevel.MEMORY_AND_DISK)
             merged_meta_count = sdf_merged_meta.count()
-            logger.info(f"合并后 (Demand+Meta) 中间行数: {merged_meta_count:,}")
+            logger.info(f"合并后 (Demand+Meta) 中间行数：{merged_meta_count:,}")
 
             # --- *** 新增：对齐 Demand 时间戳到小时 *** ---
             logger.info("将 Demand+Meta 合并结果中的 'timestamp' 向下取整到小时...")
@@ -256,17 +258,17 @@ def run_merge_data_spark():
 
             # 2.2 Weather 数据去重
             logger.info("对 Weather 数据按 (location_id, timestamp) 去重...")
-            # weather_cols_to_select = [col for col in sdf_weather.columns if col not in ["location_id", "timestamp"]] # 不再需要，直接用原始DF
+            # weather_cols_to_select = [col for col in sdf_weather.columns if col not in ["location_id", "timestamp"]] # 不再需要，直接用原始 DF
             sdf_weather_dedup = sdf_weather.dropDuplicates(
                 ["location_id", "timestamp"])
             weather_original_count = sdf_weather.count()
             weather_dedup_count = sdf_weather_dedup.count()
             if weather_original_count != weather_dedup_count:
                 logger.warning(
-                    f"Weather 数据中存在重复的 (location_id, timestamp) 记录，已去重。原始: {weather_original_count:,}, 去重后: {weather_dedup_count:,}")
+                    f"Weather 数据中存在重复的 (location_id, timestamp) 记录，已去重。原始：{weather_original_count:,}, 去重后：{weather_dedup_count:,}")
             else:
                 logger.info(
-                    f"Weather 数据中无重复的 (location_id, timestamp) 记录。行数: {weather_dedup_count:,}")
+                    f"Weather 数据中无重复的 (location_id, timestamp) 记录。行数：{weather_dedup_count:,}")
             # Cache deduped weather data
             sdf_weather_dedup.persist(StorageLevel.MEMORY_AND_DISK)
 
@@ -278,7 +280,7 @@ def run_merge_data_spark():
             demand_meta_locations.persist()
             num_demand_meta_locations = demand_meta_locations.count()
             logger.info(
-                f"[诊断] Demand+Meta 中唯一的 location_id 数量: {num_demand_meta_locations:,}")
+                f"[诊断] Demand+Meta 中唯一的 location_id 数量：{num_demand_meta_locations:,}")
 
             # 提取 Weather 中的 location_id (去重)
             weather_locations = sdf_weather_dedup.select(
@@ -286,13 +288,13 @@ def run_merge_data_spark():
             weather_locations.persist()
             num_weather_locations = weather_locations.count()
             logger.info(
-                f"[诊断] 去重后 Weather 中唯一的 location_id 数量: {num_weather_locations:,}")
+                f"[诊断] 去重后 Weather 中唯一的 location_id 数量：{num_weather_locations:,}")
 
             # 计算交集 (有多少 location_id 在两者中都存在)
             common_locations_count = demand_meta_locations.join(
                 weather_locations, "location_id", "inner").count()
             logger.info(
-                f"[诊断] Demand+Meta 与 Weather 共有的 location_id 数量: {common_locations_count:,}")
+                f"[诊断] Demand+Meta 与 Weather 共有的 location_id 数量：{common_locations_count:,}")
 
             # 计算只在 Demand+Meta 中存在的 location_id (这些肯定无法匹配天气)
             demand_only_locations_count = demand_meta_locations.join(
@@ -301,7 +303,7 @@ def run_merge_data_spark():
                 f"[诊断] 只存在于 Demand+Meta 中的 location_id 数量 (无法匹配天气): {demand_only_locations_count:,}")
             if demand_only_locations_count > 0 and num_demand_meta_locations > 0:
                 percentage_missing_loc = (
-                    demand_only_locations_count / num_demand_meta_locations) * 100
+                                                 demand_only_locations_count / num_demand_meta_locations) * 100
                 logger.warning(
                     f"[诊断] 这占 Demand+Meta 总 location_id 的 {percentage_missing_loc:.2f}%")
 
@@ -358,7 +360,7 @@ def run_merge_data_spark():
                     # Handle potential None/Null location_id
                     if loc_id is None:
                         null_location_issues = True
-                        log_msg_parts = [f"Location ID is NULL/None:"]
+                        log_msg_parts = ["Location ID is NULL/None:"]
                         issues = ["NULL location_id detected"]
                         if min_d is not None or max_d is not None:
                             log_msg_parts.append(
@@ -441,7 +443,7 @@ def run_merge_data_spark():
                         "[诊断] 发现部分 location_id 的时间戳范围存在不匹配或缺失天气数据，并可能存在 NULL location_id。")
 
             except Exception as ts_diag_e:
-                logger.error(f"[诊断] 分析 Timestamp 范围时出错: {ts_diag_e}")
+                logger.error(f"[诊断] 分析 Timestamp 范围时出错：{ts_diag_e}")
                 # Log traceback for timestamp errors
                 logger.exception("Traceback:")
             logger.info("--- [诊断] Timestamp 范围对齐情况分析完毕 ---")
@@ -462,8 +464,8 @@ def run_merge_data_spark():
                  == sdf_weather_aliased["timestamp"]),
                 how="left"
             ).drop(sdf_merged_meta["timestamp_join_key"]) \
-             .drop(sdf_weather_aliased["location_id"]) \
-             .drop(sdf_weather_aliased["timestamp"])
+                .drop(sdf_weather_aliased["location_id"]) \
+                .drop(sdf_weather_aliased["timestamp"])
             # 也删除 weather 表的 timestamp，避免与 demand 表的 timestamp 混淆 (可选，如果需要 weather 的原始时间戳则保留)
             # .drop(sdf_weather_aliased["timestamp"])
 
@@ -477,7 +479,7 @@ def run_merge_data_spark():
             # sdf_final_merged.persist(StorageLevel.MEMORY_AND_DISK) # Optional: Cache final result before count
 
             final_merged_count = sdf_final_merged.count()
-            logger.info(f"[诊断] 最终合并后总行数: {final_merged_count:,}")
+            logger.info(f"[诊断] 最终合并后总行数：{final_merged_count:,}")
 
             # Check for nulls after join (excluding rows where location_id itself was null in demand)
             # This gives a better idea of join success for valid locations
@@ -485,7 +487,7 @@ def run_merge_data_spark():
                 F.col("location_id").isNotNull())
             valid_location_count = sdf_valid_locations.count()
             logger.info(
-                f"[诊断] 其中 location_id 非 Null 的行数: {valid_location_count:,}")
+                f"[诊断] 其中 location_id 非 Null 的行数：{valid_location_count:,}")
 
             # 选择一个关键天气列进行检查
             key_weather_col = "temperature_2m"
@@ -495,15 +497,15 @@ def run_merge_data_spark():
                     F.col(key_weather_col).isNull()).count()
 
                 logger.info(
-                    f"[诊断] 在 location_id 非 Null 的行中，'{key_weather_col}' 为 Null 的行数: {null_weather_count_valid_loc:,}")
+                    f"[诊断] 在 location_id 非 Null 的行中，'{key_weather_col}' 为 Null 的行数：{null_weather_count_valid_loc:,}")
                 if valid_location_count > 0:
                     null_percentage = (
-                        null_weather_count_valid_loc / valid_location_count) * 100
+                                              null_weather_count_valid_loc / valid_location_count) * 100
                     # 预期这个比例会非常低，接近 0%
                     # Log as warning only if > 1% nulls remain
                     log_level = logger.warning if null_percentage > 1.0 else logger.info
                     log_level(
-                        f"[诊断] 天气数据 Join 成功率 (基于 '{key_weather_col}', 排除 Null location_id): {100.0 - null_percentage:.2f}% (缺失率: {null_percentage:.2f}%)")
+                        f"[诊断] 天气数据 Join 成功率 (基于 '{key_weather_col}', 排除 Null location_id): {100.0 - null_percentage:.2f}% (缺失率：{null_percentage:.2f}%)")
                 else:
                     logger.info(
                         "[诊断] 没有 location_id 非 Null 的行，无法计算有效 Join 成功率。")
@@ -515,8 +517,8 @@ def run_merge_data_spark():
                     f"[诊断] 最终合并数据中 '{key_weather_col}' 总 Null 行数 (包括 Null location_id): {total_null_weather_count:,}")
                 if final_merged_count > 0:
                     total_null_perc = (
-                        total_null_weather_count / final_merged_count) * 100
-                    logger.info(f"[诊断] 占总行数的比例: {total_null_perc:.2f}%")
+                                              total_null_weather_count / final_merged_count) * 100
+                    logger.info(f"[诊断] 占总行数的比例：{total_null_perc:.2f}%")
 
             else:
                 logger.error(
@@ -534,7 +536,7 @@ def run_merge_data_spark():
                 sdf_weather_dedup.unpersist()
 
         except Exception as merge_e:
-            logger.exception(f"数据合并过程中出错: {merge_e}")
+            logger.exception(f"数据合并过程中出错：{merge_e}")
             if 'sdf_merged_meta' in locals() and sdf_merged_meta.is_cached:
                 sdf_merged_meta.unpersist()  # Clean up cache on error
             if 'sdf_weather_dedup' in locals() and sdf_weather_dedup.is_cached:
@@ -560,7 +562,7 @@ def run_merge_data_spark():
         logger.info("=========================================")
 
     except Exception as e:
-        logger.critical(f"数据合并过程中发生严重错误: {e}")
+        logger.critical(f"数据合并过程中发生严重错误：{e}")
         logger.exception("Traceback:")
     finally:
         # Ensure intermediate dataframes are unpersisted
@@ -572,17 +574,9 @@ def run_merge_data_spark():
 
         end_run_time = time.time()
         logger.info(
-            f"--- Spark 数据合并脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+            f"--- Spark 数据合并脚本总执行时间：{end_run_time - start_run_time:.2f} 秒 ---")
 
 
 if __name__ == "__main__":
-    try:
-        # logger.info("运行 Demand 重采样...")
-        # run_demand_resampling_spark() # 已完成，注释掉
-
-        logger.info("运行数据合并...")
-        run_merge_data_spark()  # 执行数据合并步骤
-
-    except Exception as e:
-        # logger.exception(f"执行过程中发生错误：{e}") # 主函数已有更详细的日志
-        sys.exit(1)
+    logger.info("运行数据合并...")
+    run_merge_data_spark()  # 执行数据合并步骤

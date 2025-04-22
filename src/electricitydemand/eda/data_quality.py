@@ -9,6 +9,8 @@ from pyspark.sql import DataFrame as SparkDataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.functions import col, count, isnan, isnull
 from pyspark.sql.functions import sum as spark_sum
+from pyspark.sql.types import DateType  # Add DateType
+from pyspark.sql.types import TimestampType  # Add TimestampType
 from pyspark.sql.types import (
     ByteType,
     DecimalType,
@@ -19,8 +21,6 @@ from pyspark.sql.types import (
     NumericType,
     ShortType,
     StringType,
-    TimestampType,  # Add TimestampType
-    DateType  # Add DateType
 )
 
 

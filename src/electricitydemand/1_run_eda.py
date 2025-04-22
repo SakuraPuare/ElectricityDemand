@@ -33,10 +33,10 @@ except NameError:  # If setup_logger wasn't imported successfully
     logger.add(sys.stderr, level="INFO")
     logger.warning("Using basic stderr logging due to import error.")
 
-logger.info(f"项目根目录: {project_root}")
-logger.info(f"数据目录: {data_dir}")
-logger.info(f"日志目录: {logs_dir}")
-logger.info(f"图表目录: {plots_dir}")
+logger.info(f"项目根目录：{project_root}")
+logger.info(f"数据目录：{data_dir}")
+logger.info(f"日志目录：{logs_dir}")
+logger.info(f"图表目录：{plots_dir}")
 
 # --- 导入分析函数 (Spark 版本) ---
 try:
@@ -138,7 +138,7 @@ def run_all_eda():
         try:
             pdf_metadata = sdf_metadata.toPandas()
             logger.info(
-                f"Metadata Pandas DataFrame 转换成功，形状: {pdf_metadata.shape}")
+                f"Metadata Pandas DataFrame 转换成功，形状：{pdf_metadata.shape}")
             if 'unique_id' in pdf_metadata.columns:
                 pdf_metadata = pdf_metadata.set_index('unique_id')
             else:
@@ -237,7 +237,7 @@ def run_all_eda():
         logger.info("=" * 40)
 
     except Exception as e:
-        logger.critical(f"执行过程中发生严重错误: {e}")
+        logger.critical(f"执行过程中发生严重错误：{e}")
         logger.exception("Traceback:")  # Log full traceback
     finally:
         # Unpersist dataframes
@@ -251,7 +251,7 @@ def run_all_eda():
 
         end_run_time = time.time()
         logger.info(
-            f"--- EDA 脚本总执行时间: {end_run_time - start_run_time:.2f} 秒 ---")
+            f"--- EDA 脚本总执行时间：{end_run_time - start_run_time:.2f} 秒 ---")
 
 
 if __name__ == "__main__":
