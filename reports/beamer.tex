@@ -93,6 +93,9 @@
 
 \begin{frame}{数据集结构}
     \frametitle{主要数据文件}
+    我们使用了 Hugging Face 上的电力需求数据集，地址为：
+    \href{https://huggingface.co/datasets/EDS-lab/electricity-demand}{https://huggingface.co/datasets/EDS-lab/electricity-demand}
+
     该数据集包含三个主要文件：
     \begin{itemize}
         \item \textbf{电力需求数据 (data/demand.parquet)}:
@@ -113,6 +116,16 @@
             \item 主要天气变量：温度、湿度、降水、风速、云量等
         \end{itemize}
     \end{itemize}
+\end{frame}
+
+\begin{frame}{数据集摘要}
+    \frametitle{数据集摘要}
+
+    \begin{figure}[H]
+        \centering
+        \includegraphics[width=0.8\textwidth]{./image.png}
+        \caption{数据集摘要}
+    \end{figure}
 \end{frame}
 
 \begin{frame}{数据质量摘要}
